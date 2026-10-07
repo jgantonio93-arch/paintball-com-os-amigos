@@ -8,7 +8,7 @@
   :root { --ink:#fff; --accent:#ff3d7f; --accent2:#ffd23d; --panel:rgba(10,14,28,.78); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { margin:0; height:100%; overflow:hidden; background:#0b1020; color:var(--ink);
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; user-select:none; -webkit-user-select:none; touch-action:none; }
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; user-select:none; -webkit-user-select:none; touch-action:none; -webkit-touch-callout:none; overscroll-behavior:none; }
   canvas { display:block; }
   #hud { position:fixed; inset:0; pointer-events:none; }
   #cross { position:absolute; left:50%; top:50%; width:22px; height:22px; transform:translate(-50%,-50%); }
@@ -59,11 +59,17 @@
   #jumpBtn { right:140px; bottom:calc(70px + env(safe-area-inset-bottom,0px)); width:64px; height:64px; font-size:12px; }
   #reloadBtn { right:44px; bottom:calc(220px + env(safe-area-inset-bottom,0px)); width:64px; height:64px; font-size:12px; }
   body.touch #hpwrap { bottom:calc(16px + env(safe-area-inset-bottom,0px)); width:160px; }
-  body.touch #ammo { bottom:auto; top:calc(64px + env(safe-area-inset-top,0px)); font-size:16px; }
+  #rotate { display:none; margin:0 0 14px; font-size:14px; font-weight:700; color:var(--accent2); }
+  @media (orientation: portrait) { body.touch #rotate { display:block; } }
+  body.touch .faces img { width:84px; height:105px; }
+  body.touch .faces { gap:12px; }
+  #pauseBtn { right:50%; transform:translateX(50%); top:calc(14px + env(safe-area-inset-top,0px)); width:44px; height:44px; font-size:14px; }
+  body.touch #ammo { bottom:auto; right:auto; left:16px; top:calc(62px + env(safe-area-inset-top,0px)); font-size:15px; }
+  body.touch .stat { font-size:14px; padding:6px 12px; }
+  body.touch #banner { font-size:min(8vw,9vh); top:40%; }
+  body.touch #feed { top:68px; }
 </style>
-<script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
-</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </head>
 <body>
 <div id="hud">
@@ -82,6 +88,7 @@
   <div class="tbtn" id="fireBtn">ATIRAR</div>
   <div class="tbtn" id="jumpBtn">PULAR</div>
   <div class="tbtn" id="reloadBtn">RECAR.</div>
+  <div class="tbtn" id="pauseBtn">II</div>
 </div>
 
 <div class="screen" id="startScreen">
@@ -89,13 +96,14 @@
     <h1>Paintball dos Amigos</h1>
     <p class="sub">Eles estão correndo, pulando e atirando tinta em você. Acerte-os primeiro!</p>
     <div class="faces" id="facesList"></div>
+    <div id="rotate">📱↻ Gire o celular para jogar deitado (fica melhor!)</div>
     <button class="big" id="playBtn">JOGAR</button>
     <div class="help" id="helpDesk">
       <kbd>W A S D</kbd> mover · <kbd>Mouse</kbd> mirar · <kbd>Clique</kbd> atirar<br>
       <kbd>Espaço</kbd> pular · <kbd>Shift</kbd> correr · <kbd>R</kbd> recarregar · <kbd>Esc</kbd> pausar
     </div>
     <div class="help" id="helpTouch" style="display:none">
-      Joystick à esquerda para mover · arraste a tela para mirar · botões à direita para atirar e pular
+      Joystick à esquerda para mover · arraste a tela para mirar<br>Segure ATIRAR e arraste para mirar atirando · a mira ajuda você no celular
     </div>
   </div>
 </div>
@@ -108,8 +116,8 @@
   </div>
 </div>
 
-<script type="module">
-import * as THREE from 'three';
+<script>
+(() => {
 
 // ===== Configuração: troque os nomes aqui =====
 const AMIGOS = [
@@ -131,7 +139,7 @@ for (const a of AMIGOS) {
 
 // ===== Cena =====
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -148,7 +156,7 @@ scene.add(new THREE.HemisphereLight(0xdff1ff, 0x4a6b2a, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(25, 40, 15);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 120 });
 scene.add(sun);
 
@@ -495,7 +503,7 @@ addEventListener('mousemove', e => {
 
 // Toque
 const touchMove = { x: 0, y: 0 };
-let stickId = null, lookId = null, lookLast = null, touchFire = false, touchJump = false;
+let fireId = null, stickId = null, lookId = null, lookLast = null, touchFire = false, touchJump = false;
 const stickEl = $('stick'), knob = $('knob');
 function stickUpdate(t) {
   const r = stickEl.getBoundingClientRect();
@@ -510,7 +518,11 @@ $('touch').addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
     const el = t.target;
     if (el.closest('#stick')) { stickId = t.identifier; stickUpdate(t); }
-    else if (el.id === 'fireBtn') touchFire = true;
+    else if (el.id === 'fireBtn') {
+      touchFire = true; fireId = t.identifier;
+      if (lookId === null) { lookId = t.identifier; lookLast = { x: t.clientX, y: t.clientY }; }
+    }
+    else if (el.id === 'pauseBtn') togglePause();
     else if (el.id === 'jumpBtn') touchJump = true;
     else if (el.id === 'reloadBtn') reload();
     else if (lookId === null) { lookId = t.identifier; lookLast = { x: t.clientX, y: t.clientY }; }
@@ -521,8 +533,9 @@ $('touch').addEventListener('touchmove', e => {
   for (const t of e.changedTouches) {
     if (t.identifier === stickId) stickUpdate(t);
     else if (t.identifier === lookId) {
-      player.yaw -= (t.clientX - lookLast.x) * 0.0055;
-      player.pitch = THREE.MathUtils.clamp(player.pitch - (t.clientY - lookLast.y) * 0.0055, -1.45, 1.45);
+      const sens = 4.4 / Math.max(innerWidth, innerHeight);
+      player.yaw -= (t.clientX - lookLast.x) * sens;
+      player.pitch = THREE.MathUtils.clamp(player.pitch - (t.clientY - lookLast.y) * sens, -1.45, 1.45);
       lookLast = { x: t.clientX, y: t.clientY };
     }
   }
@@ -530,13 +543,18 @@ $('touch').addEventListener('touchmove', e => {
 function touchEnd(e) {
   for (const t of e.changedTouches) {
     if (t.identifier === stickId) { stickId = null; touchMove.x = touchMove.y = 0; knob.style.transform = ''; }
-    else if (t.identifier === lookId) lookId = null;
-    if (t.target.id === 'fireBtn') touchFire = false;
+    if (t.identifier === lookId) lookId = null;
+    if (t.identifier === fireId) { touchFire = false; fireId = null; }
     if (t.target.id === 'jumpBtn') touchJump = false;
   }
 }
 $('touch').addEventListener('touchend', touchEnd);
 $('touch').addEventListener('touchcancel', touchEnd);
+
+function togglePause() {
+  if (state === 'play') { state = 'paused'; touchFire = false; banner('Pausado', 9999); }
+  else if (state === 'paused') { state = 'play'; bannerT = 0.01; clock.getDelta(); }
+}
 
 function reload() {
   if (state !== 'play' || player.reloading > 0 || player.ammo === player.maxAmmo) return;
@@ -547,6 +565,12 @@ function start() {
   if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
   $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
   resetGame(); state = 'play'; lockPointer();
+  if (isTouch) {
+    // tela cheia + paisagem quando o navegador deixa (Android); no iPhone é ignorado sem problemas
+    const el = document.documentElement;
+    const fs = el.requestFullscreen || el.webkitRequestFullscreen;
+    try { const r = fs?.call(el); r?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); } catch {}
+  }
 }
 $('playBtn').onclick = start;
 $('againBtn').onclick = start;
@@ -573,6 +597,20 @@ function playerShoot() {
   const aim = raycaster.ray.at(60, new THREE.Vector3());
   const origin = muzzle.getWorldPosition(new THREE.Vector3());
   const dir = aim.sub(origin).normalize();
+  if (isTouch) {
+    // mira assistida: puxa o tiro para o amigo mais próximo do centro da tela
+    let best = 0.13, target = null;
+    for (const e of enemies) {
+      if (e.dead) continue;
+      const c = new THREE.Vector3(e.pos.x, e.pos.y + 1.6, e.pos.z);
+      const dist = c.distanceTo(origin);
+      c.addScaledVector(e.vel, dist / 55); // antecipa o movimento
+      const to = c.clone().sub(origin).normalize();
+      const ang = to.angleTo(raycaster.ray.direction);
+      if (ang < best && hasLineOfSight(camera.position, c)) { best = ang; target = to; }
+    }
+    if (target) dir.copy(target);
+  }
   dir.x += (Math.random() - .5) * 0.012; dir.y += (Math.random() - .5) * 0.012; dir.normalize();
   fireBall(origin, dir, 55, 'player', PAINT[Math.floor(Math.random() * PAINT.length)]);
   if (player.ammo === 0) reload();
@@ -750,7 +788,7 @@ function updateBalls(dt) {
       done = true;
       if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir);
       else if (hitInfo.player) {
-        player.hp -= 8; sfx.hurt();
+        player.hp -= 8; sfx.hurt(); navigator.vibrate?.(60);
         $('dmg').style.opacity = 1; setTimeout(() => $('dmg').style.opacity = 0, 180);
         updateHud();
         if (player.hp <= 0) gameOver();
@@ -815,6 +853,7 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+})();
 </script>
 </body>
 </html>
