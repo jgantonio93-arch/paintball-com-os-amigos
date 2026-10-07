@@ -115,6 +115,7 @@ import * as THREE from 'three';
 const AMIGOS = [
   { nome: 'Amigo 1', foto: 'amigo1.jpg', camisa: 0x1b1d26, cabelo: 0x3a2a1e, calca: 0x22242e, velocidade: 1.15 },
   { nome: 'Amigo 2', foto: 'amigo2.jpg', camisa: 0x3b4429, cabelo: 0x2a1c14, calca: 0x2b3550, velocidade: 0.95 },
+  { nome: 'Amigo 3', foto: 'amigo3.jpg', camisa: 0x7a6a58, cabelo: 0x141010, calca: 0x1e2028, velocidade: 1.05, pele: 0xb07a55 },
 ];
 const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou arte moderna!', 'levou um splash!', 'tá todo manchado!'];
 
@@ -251,7 +252,7 @@ const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
 function buildFriend(a) {
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
-  const skin = new THREE.MeshLambertMaterial({ color: 0xe8b796 });
+  const skin = new THREE.MeshLambertMaterial({ color: a.pele ?? 0xe8b796 });
   const shirt = new THREE.MeshLambertMaterial({ color: a.camisa });
   const pants = new THREE.MeshLambertMaterial({ color: a.calca });
   const shoe = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
@@ -783,7 +784,7 @@ function updateParticles(dt) {
 
 // cena do menu: câmera girando com os amigos dançando
 function menuScene(t) {
-  if (enemies.length === 0) { player.pos.set(0, 0, 0); for (let i = 0; i < 4; i++) spawnEnemy(AMIGOS[i % AMIGOS.length], 1); }
+  if (enemies.length === 0) { player.pos.set(0, 0, 0); for (let i = 0; i < 6; i++) spawnEnemy(AMIGOS[i % AMIGOS.length], 1); }
   camera.position.set(Math.sin(t * 0.15) * 22, 9, Math.cos(t * 0.15) * 22);
   camera.lookAt(0, 1.5, 0);
 }
