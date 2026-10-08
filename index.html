@@ -1222,7 +1222,7 @@ function updateBalls(dt) {
     // inimigos: esfera no tronco + esfera na cabeça
     if (b.owner === 'player' || b.owner === 'remote') {
       for (const e of shootTargets()) {
-        if (e.dead || e.id === b.shooter) continue;
+        if (e.dead || (b.shooter && e.id === b.shooter)) continue;
         for (const [y, r] of [[1.35, 0.6], [2.4, 0.62], [0.6, 0.45]]) {
           const c = new THREE.Vector3(e.pos.x, e.pos.y + y, e.pos.z);
           const p = ballRay.intersectSphere(new THREE.Sphere(c, r), new THREE.Vector3());
