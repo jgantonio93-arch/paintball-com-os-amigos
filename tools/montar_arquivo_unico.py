@@ -1,4 +1,4 @@
-"""Gera paintball-dos-amigos.html: o jogo inteiro em um arquivo só (fotos, Three.js e MQTT embutidos).
+"""Gera tiroteio-emesqaeda.html: o jogo inteiro em um arquivo só (fotos, Three.js e MQTT embutidos).
 
 Uso (na raiz do repositório):  python3 jogo/tools/montar_arquivo_unico.py
 Precisa de npm (baixa three e mqtt com `npm pack`). O arquivo gerado fica na raiz e não vai para o git.
@@ -30,6 +30,6 @@ with tempfile.TemporaryDirectory() as tmp:
         assert '</script' not in codigo
         html = html.replace(tag, f'<script>{codigo}</script>')
 
-saida = RAIZ / 'paintball-dos-amigos.html'
+saida = RAIZ / 'tiroteio-emesqaeda.html'
 saida.write_text(html, encoding='utf-8')
 print(f'{saida} ({saida.stat().st_size // 1024} KB)')

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Paintball dos Amigos</title>
+<title>Tiroteio Emesqaeda</title>
 <style>
   :root { --ink:#fff; --accent:#ff3d7f; --accent2:#ffd23d; --panel:rgba(10,14,28,.78); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -151,7 +151,7 @@
 
 <div class="screen" id="startScreen">
   <div class="card">
-    <h1>Paintball dos Amigos</h1>
+    <h1>Tiroteio Emesqaeda</h1>
     <p class="sub">Jogue sozinho contra os amigos ou online: mata-mata, times ou Gun Game.</p>
     <div class="faces" id="facesList"></div>
     <div id="rotate">📱↻ Gire o celular para jogar deitado (fica melhor!)</div>
@@ -1847,9 +1847,9 @@ $('roomCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinB
 $('goBtn').onclick = () => { initAudio(); goFullscreen(); lockPointer(); enterOnline(); };
 $('shareBtn').onclick = async () => {
   const url = /^https?:/.test(location.protocol) ? `${location.origin}${location.pathname}?sala=${net.code}` : '';
-  const text = `Bora de paintball! Entra no mata-mata com o código ${net.code}` + (url ? `: ${url}` : '');
+  const text = `Bora de Tiroteio Emesqaeda! Entra no mata-mata com o código ${net.code}` + (url ? `: ${url}` : '');
   try {
-    if (navigator.share) await navigator.share({ title: 'Paintball dos Amigos', text });
+    if (navigator.share) await navigator.share({ title: 'Tiroteio Emesqaeda', text });
     else { await navigator.clipboard.writeText(text); netStatus('Convite copiado!'); }
   } catch {}
 };
