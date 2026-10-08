@@ -56,6 +56,11 @@
   #knob { position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px 0 0 -28px; border-radius:50%; background:#ffffff70; }
   .tbtn { position:absolute; border-radius:50%; background:#ffffff26; border:2px solid #ffffff55; font-weight:900; display:flex; align-items:center; justify-content:center; color:#fff; }
   #fireBtn { right:30px; bottom:calc(110px + env(safe-area-inset-bottom,0px)); width:96px; height:96px; font-size:15px; background:#ff3d7f66; }
+  #crouchBtn { right:140px; bottom:calc(150px + env(safe-area-inset-bottom,0px)); width:64px; height:64px; font-size:11px; }
+  #crouchBtn.on { background:#3db8ff66; }
+  #fx { position:absolute; left:16px; bottom:calc(92px + env(safe-area-inset-bottom,0px)); display:flex; flex-direction:column; gap:6px; }
+  #fx .stat { position:static; font-size:15px; }
+  #invGlow { position:absolute; inset:0; box-shadow:inset 0 0 60px 10px rgba(255,210,61,.55); opacity:0; transition:opacity .3s; }
   #jumpBtn { right:140px; bottom:calc(70px + env(safe-area-inset-bottom,0px)); width:64px; height:64px; font-size:12px; }
   #reloadBtn { right:44px; bottom:calc(220px + env(safe-area-inset-bottom,0px)); width:64px; height:64px; font-size:12px; }
   body.touch #hpwrap { bottom:calc(16px + env(safe-area-inset-bottom,0px)); width:160px; }
@@ -87,6 +92,8 @@
   #board div { display:flex; justify-content:space-between; gap:14px; }
   #board .me { color:var(--accent2); }
   #board .dead { opacity:.5; }
+  body.touch #fx { bottom:auto; top:calc(108px + env(safe-area-inset-top,0px)); }
+  body.touch #fx .stat { font-size:13px; }
   body.touch #board { right:auto; left:50%; transform:translateX(-50%); top:calc(66px + env(safe-area-inset-top,0px)); font-size:12px; padding:4px 10px; min-width:130px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
@@ -100,6 +107,8 @@
   <div class="stat" id="wave">Onda 1</div>
   <div class="stat" id="hpwrap">Vida<div id="hpbar"><div id="hpfill"></div></div></div>
   <div class="stat" id="ammo">20 / 20</div>
+  <div id="invGlow"></div>
+  <div id="fx"></div>
   <div id="board"></div>
   <div id="feed"></div>
   <div id="banner"></div>
@@ -109,6 +118,7 @@
   <div id="stick"><div id="knob"></div></div>
   <div class="tbtn" id="fireBtn">ATIRAR</div>
   <div class="tbtn" id="jumpBtn">PULAR</div>
+  <div class="tbtn" id="crouchBtn">AGACHAR</div>
   <div class="tbtn" id="reloadBtn">RECAR.</div>
   <div class="tbtn" id="pauseBtn">II</div>
 </div>
@@ -127,10 +137,10 @@
     </div>
     <div class="help" id="helpDesk">
       <kbd>W A S D</kbd> mover · <kbd>Mouse</kbd> mirar · <kbd>Clique</kbd> atirar<br>
-      <kbd>Espaço</kbd> pular · <kbd>Shift</kbd> correr · <kbd>R</kbd> recarregar · <kbd>Esc</kbd> pausar
+      <kbd>Espaço</kbd> pular · <kbd>Shift</kbd> correr · <kbd>C</kbd> agachar · <kbd>R</kbd> recarregar · <kbd>Esc</kbd> pausar<br>Correndo + <kbd>C</kbd> = deslizar · <kbd>C</kbd> de novo cancela · <kbd>Espaço</kbd> no deslize = pulo longo
     </div>
     <div class="help" id="helpTouch" style="display:none">
-      Joystick à esquerda para mover · arraste a tela para mirar<br>Segure ATIRAR e arraste para mirar atirando · a mira ajuda você no celular
+      Joystick à esquerda para mover (empurre até o fim para correr) · arraste a tela para mirar<br>Correndo + AGACHAR = deslizar · AGACHAR de novo cancela · PULAR no deslize = pulo longo<br>Segure ATIRAR e arraste para mirar atirando · a mira ajuda você no celular
     </div>
   </div>
 </div>
@@ -374,6 +384,7 @@ function spawnEnemy(a, wave) {
 const player = {
   pos: new THREE.Vector3(0, 0, 0), vy: 0, onGround: true, yaw: 0, pitch: 0,
   hp: 100, ammo: 20, maxAmmo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0,
+  crouch: false, slideT: 0, slideCd: 0, sprinting: false, mom: new THREE.Vector3(), moveDir: new THREE.Vector3(), eye: 1.7, speedT: 0, invT: 0,
 };
 const EYE = 1.7, PLAYER_R = 0.4;
 
@@ -486,6 +497,9 @@ const sfx = {
   splat: () => beep(140, 0.12, 'sawtooth', 0.04, -80),
   ko: () => { beep(660, 0.12, 'square', 0.06); setTimeout(() => beep(880, 0.12, 'square', 0.06), 110); setTimeout(() => beep(1175, 0.2, 'square', 0.06), 220); },
   hurt: () => beep(180, 0.2, 'sawtooth', 0.08, -100),
+  slide: () => beep(220, 0.35, 'sawtooth', 0.04, -150),
+  cancel: () => beep(520, 0.07, 'triangle', 0.05, 200),
+  power: () => { beep(660, 0.1, 'triangle', 0.07); setTimeout(() => beep(990, 0.1, 'triangle', 0.07), 90); setTimeout(() => beep(1320, 0.18, 'triangle', 0.07), 180); },
   reload: () => { beep(500, 0.05, 'triangle', 0.05); setTimeout(() => beep(700, 0.05, 'triangle', 0.05), 300); },
 };
 
@@ -530,6 +544,7 @@ function resetGame() {
   for (const d of decals) d.parent?.remove(d); decals.length = 0;
   Object.assign(player, { hp: myMaxHp(), ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: 0, pitch: 0 });
   player.pos.set(0, 0, -2);
+  clearPickups(); resetMoves();
   wave = 0; waveDelay = 0;
   nextWave();
 }
@@ -540,7 +555,8 @@ let mouseDown = false;
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyR') reload();
-  if (e.code === 'Space') e.preventDefault();
+  if ((e.code === 'KeyC' || e.code === 'ControlLeft') && !e.repeat) crouchPressed();
+  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) jumpPressed(); }
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
@@ -582,7 +598,8 @@ $('touch').addEventListener('touchstart', e => {
       if (lookId === null) { lookId = t.identifier; lookLast = { x: t.clientX, y: t.clientY }; }
     }
     else if (el.id === 'pauseBtn') togglePause();
-    else if (el.id === 'jumpBtn') touchJump = true;
+    else if (el.id === 'jumpBtn') { touchJump = true; jumpPressed(); }
+    else if (el.id === 'crouchBtn') crouchPressed();
     else if (el.id === 'reloadBtn') reload();
     else if (lookId === null) { lookId = t.identifier; lookLast = { x: t.clientX, y: t.clientY }; }
   }
@@ -639,12 +656,120 @@ function gameOver() {
   $('overScreen').style.display = 'flex';
 }
 
+// ===== Power-ups =====
+const POWERS = {
+  speed: { cor: 0xffd23d, icone: '⚡', nome: 'Velocidade', dur: 8 },
+  inv:   { cor: 0xc05bff, icone: '★', nome: 'Invencível', dur: 6 },
+  heal:  { cor: 0x3dff8b, icone: '✚', nome: 'Vida', dur: 0 },
+};
+const POWER_KINDS = Object.keys(POWERS);
+const pickups = new Map(); // id -> { id, k, mesh, x, z }
+let puTimer = 4, puSeq = 0;
+
+function iconSprite(txt, cor) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#' + cor.toString(16).padStart(6, '0'); g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#1a0b2e'; g.font = 'bold 76px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(txt, 64, 70);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t }));
+  sp.scale.set(0.8, 0.8, 1);
+  return sp;
+}
+function addPickup(id, k, x, z) {
+  if (pickups.has(id) || !POWERS[k]) return;
+  const P = POWERS[k];
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.38), new THREE.MeshLambertMaterial({ color: P.cor, emissive: P.cor, emissiveIntensity: 0.6 }));
+  core.position.y = 1.1; core.castShadow = true;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.06, 8, 32), new THREE.MeshBasicMaterial({ color: P.cor }));
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.06;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 4, 16, 1, true), new THREE.MeshBasicMaterial({ color: P.cor, transparent: true, opacity: 0.16, depthWrite: false }));
+  beam.position.y = 2;
+  const icon = iconSprite(P.icone, P.cor); icon.position.y = 2;
+  g.add(core, ring, beam, icon);
+  g.position.set(x, 0, z);
+  scene.add(g);
+  pickups.set(id, { id, k, mesh: g, core, icon, x, z });
+}
+function removePickup(id) {
+  const pu = pickups.get(id); if (!pu) return;
+  burst(new THREE.Vector3(pu.x, 1.1, pu.z), POWERS[pu.k].cor, 18, 4);
+  scene.remove(pu.mesh); pickups.delete(id);
+}
+function clearPickups() { for (const id of [...pickups.keys()]) { scene.remove(pickups.get(id).mesh); pickups.delete(id); } puTimer = 4; }
+function pickupSpot() {
+  for (let i = 0; i < 40; i++) {
+    const p = new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 4), 0, (Math.random() * 2 - 1) * (ARENA - 4));
+    if (collides(p, 1.2, 2)) continue;
+    if ([...pickups.values()].some(o => Math.hypot(o.x - p.x, o.z - p.z) < 8)) continue;
+    return p;
+  }
+  return null;
+}
+// quem cria os power-ups: o jogo sozinho, ou o dono da sala no online
+function spawnPowerTick(dt) {
+  puTimer -= dt;
+  if (puTimer > 0) return;
+  puTimer = 9 + Math.random() * 5;
+  if (pickups.size >= 4) return;
+  const p = pickupSpot(); if (!p) return;
+  const k = POWER_KINDS[Math.floor(Math.random() * POWER_KINDS.length)];
+  const id = 'p' + (++puSeq) + Math.random().toString(36).slice(2, 5);
+  if (mode === 'online') broadcast({ t: 'pu', id, k, x: r3(p.x), z: r3(p.z) });
+  else addPickup(id, k, p.x, p.z);
+}
+function animPickups(t) {
+  for (const pu of pickups.values()) {
+    pu.core.rotation.y = t * 2; pu.core.position.y = 1.1 + Math.sin(t * 3 + pu.x) * 0.15;
+    pu.icon.position.y = 2 + Math.sin(t * 3 + pu.x) * 0.1;
+  }
+}
+// encostou num power-up
+function checkPickupTouch() {
+  if (meDead) return;
+  for (const pu of pickups.values()) {
+    if (pu.pending) continue;
+    if (Math.hypot(pu.x - player.pos.x, pu.z - player.pos.z) < 1.2 && player.pos.y < 2.5) {
+      if (mode === 'online') { pu.pending = true; setTimeout(() => { pu.pending = false; }, 1500); sendNet({ t: 'grab', id: pu.id }); }
+      else { removePickup(pu.id); applyPower(pu.k, true); }
+    }
+  }
+}
+function applyPower(k, mine) {
+  if (!mine) return;
+  sfx.power();
+  if (k === 'speed') player.speedT = POWERS.speed.dur;
+  else if (k === 'inv') player.invT = POWERS.inv.dur;
+  else if (k === 'heal' && mode !== 'online') { player.hp = Math.min(myMaxHp(), player.hp + 50); updateHud(); }
+  banner(`${POWERS[k].icone} ${POWERS[k].nome}!`, 1.2);
+  updateFx();
+}
+function tickPowerEffects(dt) {
+  const had = player.speedT > 0 || player.invT > 0;
+  player.speedT = Math.max(0, player.speedT - dt);
+  player.invT = Math.max(0, player.invT - dt);
+  if (had) updateFx();
+}
+let fxTxt = '';
+function updateFx() {
+  const parts = [];
+  if (player.speedT > 0) parts.push(`⚡ Velocidade ${Math.ceil(player.speedT)}s`);
+  if (player.invT > 0) parts.push(`★ Invencível ${Math.ceil(player.invT)}s`);
+  const txt = parts.join('|');
+  if (txt === fxTxt) return;
+  fxTxt = txt;
+  $('fx').replaceChildren(...parts.map(t => { const d = document.createElement('div'); d.className = 'stat'; d.textContent = t; return d; }));
+  $('invGlow').style.opacity = player.invT > 0 ? 1 : 0;
+}
+
 // ===== Online: mata-mata (retransmissor MQTT por WebSocket seguro) =====
 // Todos se conectam a um servidor MQTT público (passa por 4G, Wi-Fi e firewall).
 // Quem cria a sala vira o "host": recebe as mensagens de todos no tópico /h,
 // decide vida, abates e quem venceu, e repassa tudo no tópico /a.
 let mode = 'solo', meDead = false, myChar = 0, myName = '';
-const net = { lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
+const net = { inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
 const remotes = new Map();
 const KILLS_TO_WIN = 10, HIT_DMG = 25, RESPAWN_S = 3;
 const params = new URLSearchParams(location.search);
@@ -652,7 +777,7 @@ const params = new URLSearchParams(location.search);
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // a última letra do código diz em qual servidor a sala está
-const VERSAO = 6;
+const VERSAO = 7;
 // quem joga com o nome "Ana" tem 3,5x mais vida
 const isAna = name => /^ana$/i.test(String(name || '').trim());
 const maxHpOf = name => isAna(name) ? 350 : 100;
@@ -690,11 +815,20 @@ function hostHandle(from, m) {
   net.lastSeen.set(from, performance.now());
   switch (m.t) {
     case 'bye': if (from !== net.myId) dropPlayer(from); break;
+    case 'grab': {
+      const pu = pickups.get(m.id), pl = net.players[from];
+      if (!pu || !pl || pl.dead) return;
+      broadcast({ t: 'got', id: m.id, by: from, k: pu.k });
+      if (pu.k === 'inv') net.inv.set(from, performance.now() + POWERS.inv.dur * 1000 + 300);
+      if (pu.k === 'heal') { pl.hp = Math.min(maxHpOf(pl.name), pl.hp + 50); broadcast({ t: 'hp', id: from, hp: pl.hp, by: from }); }
+      break;
+    }
     case 'hello':
       if (net.players[from]) { sendRoster(); return; }
       if (Object.keys(net.players).length >= 12) return;
       addPlayer(from, m.name, m.char);
       sendRoster();
+      broadcast({ t: 'pus', list: [...pickups.values()].map(pu => [pu.id, pu.k, r3(pu.x), r3(pu.z)]) });
       broadcast({ t: 'joined', id: from });
       break;
     case 's': case 'shot':
@@ -703,6 +837,7 @@ function hostHandle(from, m) {
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
       if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning) return;
+      if ((net.inv.get(m.target) || 0) > performance.now()) return; // invencível
       tg.hp -= HIT_DMG;
       broadcast({ t: 'hp', id: m.target, hp: tg.hp, by: from });
       if (tg.hp <= 0) {
@@ -746,7 +881,7 @@ function onNet(m) {
     case 'joined': if (m.id !== net.myId) feed(`${nameOf(m.id)} entrou na sala`); break;
     case 's': {
       const r = remotes.get(m.id); if (!r) break;
-      r.target.fromArray(m.p); r.yaw = m.y; r.pitch = m.pi;
+      r.target.fromArray(m.p); r.yaw = m.y; r.pitch = m.pi; r.crouch = !!m.c; r.fx = m.e | 0;
       if (!r.seen) { r.seen = true; r.pos.copy(r.target); }
       break;
     }
@@ -758,7 +893,7 @@ function onNet(m) {
       break;
     }
     case 'hp':
-      if (m.id === net.myId) { player.hp = m.hp; hurtFx(); updateHud(); }
+      if (m.id === net.myId) { if (m.hp < player.hp) hurtFx(); player.hp = m.hp; updateHud(); }
       else { const r = remotes.get(m.id); if (r) r.flash = 0.15; }
       break;
     case 'kill': {
@@ -773,12 +908,21 @@ function onNet(m) {
     }
     case 'respawn':
       if (m.id === net.myId) {
-        meDead = false; player.hp = myMaxHp(); player.vy = 0; player.ammo = player.maxAmmo; player.reloading = 0;
+        meDead = false; resetMoves(); player.hp = myMaxHp(); player.vy = 0; player.ammo = player.maxAmmo; player.reloading = 0;
         player.pos.copy(onlineSpawn()); updateHud();
       } else { const r = remotes.get(m.id); if (r) setRemoteDead(r, false); }
       break;
     case 'win': banner(m.id === net.myId ? 'Você venceu! 🏆' : `${nameOf(m.id)} venceu!`, 5.5); if (m.id === net.myId) sfx.ko(); break;
     case 'reset': banner('Nova partida!'); break;
+    case 'pu': addPickup(m.id, m.k, +m.x, +m.z); break;
+    case 'pus': if (Array.isArray(m.list)) for (const [id, k, x, z] of m.list) addPickup(id, k, +x, +z); break;
+    case 'got': {
+      const pu = pickups.get(m.id); if (pu) removePickup(m.id);
+      const P = POWERS[m.k]; if (!P) break;
+      if (m.by === net.myId) applyPower(m.k, true);
+      else feed(`${nameOf(m.by)} pegou ${P.icone} ${P.nome}`);
+      break;
+    }
   }
 }
 
@@ -830,8 +974,11 @@ function updateRemotes(dt, t) {
     r.legL.rotation.x = swing; r.legR.rotation.x = -swing; r.armL.rotation.x = -swing * 0.8;
     r.body.position.y = Math.abs(Math.sin(r.phase)) * 0.08 * Math.min(1, sp / 3);
     if (r.pos.y > groundHeight(r.pos, ENEMY_RADIUS) + 0.15) { r.legL.rotation.x = -0.6; r.legR.rotation.x = 0.4; r.armL.rotation.x = -2.6; }
+    if (r.crouch) { r.body.position.y = -0.7; r.legL.rotation.x = r.legR.rotation.x = -1.35; }
     r.head.rotation.x = -r.pitch * 0.4;
     r.head.rotation.z = Math.sin(t * 3 + r.phase) * 0.08;
+    const glow = r.fx & 2 ? 0xc05bff : r.fx & 1 ? 0xffd23d : 0x000000;
+    if (r.glow !== glow) { r.glow = glow; for (const mt of r.mats) { mt.emissive.setHex(glow); mt.emissiveIntensity = glow ? 0.7 : 0; } }
     r.armR.rotation.x += (-Math.PI / 2 - r.pitch - r.armR.rotation.x) * Math.min(1, dt * 8);
     if (r.flash > 0) { r.flash -= dt; r.root.scale.setScalar(1 + r.flash * 0.6); } else r.root.scale.setScalar(1);
   }
@@ -879,6 +1026,7 @@ function hitRemote(r, point, color, dir) {
 }
 
 function clearWorld() {
+  clearPickups(); net.inv.clear(); resetMoves();
   for (const e of enemies) scene.remove(e.root);
   enemies.length = 0;
   for (const b of balls) scene.remove(b.mesh); balls.length = 0;
@@ -1084,7 +1232,7 @@ function playerShoot() {
     let best = 0.13, target = null;
     for (const e of shootTargets()) {
       if (e.dead) continue;
-      const c = new THREE.Vector3(e.pos.x, e.pos.y + 1.6, e.pos.z);
+      const c = new THREE.Vector3(e.pos.x, e.pos.y + (e.crouch ? 1.0 : 1.6), e.pos.z);
       const dist = c.distanceTo(origin);
       c.addScaledVector(e.vel, dist / 55); // antecipa o movimento
       const to = c.clone().sub(origin).normalize();
@@ -1114,6 +1262,42 @@ function hasLineOfSight(from, to) {
   return hit.length === 0;
 }
 
+// ===== Agachar, deslizar (slide) e slide cancel =====
+const EYE_CROUCH = 1.05, EYE_SLIDE = 0.85, SLIDE_TIME = 0.75;
+function resetMoves() {
+  Object.assign(player, { crouch: false, slideT: 0, slideCd: 0, sprinting: false, eye: EYE, speedT: 0, invT: 0 });
+  player.mom.set(0, 0, 0);
+  $('crouchBtn').classList.remove('on');
+  updateFx();
+}
+function setCrouch(on) { player.crouch = on; $('crouchBtn').classList.toggle('on', on); }
+function crouchPressed() {
+  if (state !== 'play' || meDead) return;
+  if (player.slideT > 0) {
+    // slide cancel: levanta na hora e continua correndo com o embalo
+    player.slideT = 0; setCrouch(false); player.slideCd = 0.25;
+    player.cancelT = 0.45; // segura o embalo um pouquinho depois de cancelar
+    sfx.cancel();
+    return;
+  }
+  if (player.sprinting && player.onGround && player.slideCd <= 0) {
+    const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    const dir = player.moveDir.lengthSq() > 0.01 ? player.moveDir.clone().normalize() : fwd;
+    player.mom.copy(dir).multiplyScalar(14 * (player.speedT > 0 ? 1.3 : 1));
+    player.slideT = SLIDE_TIME; player.slideCd = 0.9;
+    setCrouch(true);
+    sfx.slide();
+    return;
+  }
+  setCrouch(!player.crouch);
+}
+function jumpPressed() {
+  if (state !== 'play' || meDead || !player.onGround) return;
+  player.vy = 7.5; player.onGround = false;
+  if (player.slideT > 0) { player.slideT = 0; player.mom.multiplyScalar(1.1); } // pulo do deslize: sai voando
+  if (player.crouch) setCrouch(false);
+}
+
 function updatePlayer(dt) {
   const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
   const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
@@ -1123,20 +1307,44 @@ function updatePlayer(dt) {
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
   mx += touchMove.x; mz -= touchMove.y;
+  const stickFull = Math.hypot(touchMove.x, touchMove.y) > 0.9 && touchMove.y < -0.4;
   const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
-  const speed = (keys.ShiftLeft || keys.ShiftRight) ? 9 : 6;
-  const dx = (fwd.x * mz + right.x * mx) * speed * dt, dz = (fwd.z * mz + right.z * mx) * speed * dt;
-  moveWithCollision(player.pos, dx, dz, PLAYER_R, EYE);
-  if (len > 0.1 && player.onGround) bob += dt * speed * 1.6;
+  const boost = player.speedT > 0 ? 1.6 : 1;
+  player.sprinting = (keys.ShiftLeft || keys.ShiftRight || stickFull) && mz > 0.3 && !player.crouch;
+  const speed = (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost;
+  player.moveDir = player.moveDir || new THREE.Vector3();
+  player.moveDir.set(fwd.x * mz + right.x * mx, 0, fwd.z * mz + right.z * mx);
 
-  if ((keys.Space || touchJump) && player.onGround) { player.vy = 7.5; player.onGround = false; }
+  // deslize: o embalo manda, o controle só ajusta um pouco
+  const sliding = player.slideT > 0;
+  if (sliding) { player.slideT -= dt; if (player.slideT <= 0) player.slideT = 0; }
+  player.slideCd -= dt;
+  const ctrl = sliding ? 0.15 : 1;
+  const dx = (player.moveDir.x * speed * ctrl + player.mom.x) * dt, dz = (player.moveDir.z * speed * ctrl + player.mom.z) * dt;
+  moveWithCollision(player.pos, dx, dz, PLAYER_R, player.eye);
+  // atrito do embalo: devagar deslizando ou no ar, rápido no chão
+  player.cancelT = Math.max(0, (player.cancelT || 0) - dt);
+  const fr = sliding ? 1.4 : !player.onGround ? 0.4 : player.cancelT > 0 ? 1.2 : 5;
+  player.mom.multiplyScalar(Math.exp(-fr * dt));
+  if (len > 0.1 && player.onGround && !sliding) bob += dt * speed * 1.6;
+
+  if (touchJump && player.onGround) jumpPressed();
+  if (keys.Space && player.onGround) jumpPressed();
   player.vy -= 22 * dt;
   player.pos.y += player.vy * dt;
   const gh = groundHeight(player.pos, PLAYER_R);
   if (player.pos.y <= gh) { player.pos.y = gh; player.vy = 0; player.onGround = true; } else player.onGround = false;
 
-  camera.position.set(player.pos.x, player.pos.y + EYE + Math.sin(bob) * 0.05, player.pos.z);
-  camera.rotation.set(player.pitch + recoil * 0.03, player.yaw, 0, 'YXZ');
+  // altura da câmera suave entre em pé / agachado / deslizando
+  const eyeTarget = sliding ? EYE_SLIDE : player.crouch ? EYE_CROUCH : EYE;
+  player.eye += (eyeTarget - player.eye) * Math.min(1, dt * 12);
+  const roll = sliding ? 0.07 : 0;
+  camera.position.set(player.pos.x, player.pos.y + player.eye + (sliding ? 0 : Math.sin(bob) * 0.05), player.pos.z);
+  camera.rotation.set(player.pitch + recoil * 0.03, player.yaw, roll, 'YXZ');
+  camera.fov += ((sliding || player.speedT > 0 ? 82 : 75) - camera.fov) * Math.min(1, dt * 6);
+  camera.updateProjectionMatrix();
+
+  tickPowerEffects(dt);
 
   player.fireCd -= dt;
   if (player.reloading > 0) { player.reloading -= dt; if (player.reloading <= 0) { player.ammo = player.maxAmmo; updateHud(); } }
@@ -1253,7 +1461,7 @@ function updateBalls(dt) {
     if (b.owner === 'player' || b.owner === 'remote') {
       for (const e of shootTargets()) {
         if (e.dead || (b.shooter && e.id === b.shooter)) continue;
-        for (const [y, r] of [[1.35, 0.6], [2.4, 0.62], [0.6, 0.45]]) {
+        for (const [y, r] of (e.crouch ? [[0.6, 0.6], [1.6, 0.62]] : [[1.35, 0.6], [2.4, 0.62], [0.6, 0.45]])) {
           const c = new THREE.Vector3(e.pos.x, e.pos.y + y, e.pos.z);
           const p = ballRay.intersectSphere(new THREE.Sphere(c, r), new THREE.Vector3());
           if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { e, p }; } }
@@ -1262,8 +1470,9 @@ function updateBalls(dt) {
     }
     if (b.owner !== 'player' && !meDead) {
       // jogador (cápsula aproximada)
-      const c = new THREE.Vector3(player.pos.x, player.pos.y + 1.1, player.pos.z);
-      const p = ballRay.intersectSphere(new THREE.Sphere(c, 0.75), new THREE.Vector3());
+      const low = player.crouch || player.slideT > 0;
+      const c = new THREE.Vector3(player.pos.x, player.pos.y + (low ? 0.65 : 1.1), player.pos.z);
+      const p = ballRay.intersectSphere(new THREE.Sphere(c, low ? 0.55 : 0.75), new THREE.Vector3());
       if (p && p.distanceTo(start) < best) { best = p.distanceTo(start); hitInfo = { player: true, p }; }
     }
     // obstáculos
@@ -1281,7 +1490,7 @@ function updateBalls(dt) {
       else if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir);
       else if (hitInfo.player && b.owner === 'remote') burst(hitInfo.p, b.color, 8, 3);
       else if (hitInfo.player) {
-        player.hp -= 8; hurtFx();
+        if (player.invT <= 0) { player.hp -= 8; hurtFx(); }
         updateHud();
         if (player.hp <= 0) gameOver();
       } else {
@@ -1338,15 +1547,19 @@ function frame() {
     if (!meDead) net.deadT = 0;
     updateRemotes(dt, t);
     updateBalls(dt);
+    if (net.isHost) spawnPowerTick(dt);
+    animPickups(t);
+    if (state === 'play') checkPickupTouch();
     net.sendT -= dt;
     if (net.sendT <= 0) {
       net.sendT = 1 / 10;
-      sendNet({ t: 's', p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch) });
+      sendNet({ t: 's', p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch), c: (player.crouch || player.slideT > 0) ? 1 : 0, e: (player.speedT > 0 ? 1 : 0) | (player.invT > 0 ? 2 : 0) });
     }
   } else if (state === 'play') {
     updatePlayer(dt);
     updateEnemies(dt, t);
     updateBalls(dt);
+    spawnPowerTick(dt); animPickups(t); checkPickupTouch();
     if (enemies.length === 0) {
       if (waveDelay <= 0) { waveDelay = 2.5; banner('Onda limpa! 🎨'); player.hp = Math.min(myMaxHp(), player.hp + 25); updateHud(); }
       waveDelay -= dt; if (waveDelay <= 0) nextWave();
@@ -1360,7 +1573,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { player, enemies, camera, shoot: playerShoot, net, remotes };
+window.__jogo = { player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed };
 frame();
 
 addEventListener('resize', () => {
