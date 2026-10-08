@@ -95,6 +95,8 @@
   .pick figure { cursor:pointer; opacity:.55; transition:opacity .15s, transform .15s; }
   .pick figure.sel { opacity:1; transform:scale(1.08); }
   .pick figure:not(.sel) img { border-color:#ffffff40; }
+  .mapPick { display:flex; justify-content:center; align-items:center; gap:10px; font-weight:800; margin:0 0 14px; }
+  .mapPick select { font:inherit; font-weight:800; padding:8px 10px; border-radius:10px; border:2px solid #ffffff33; background:#1d1838; color:#fff; }
   #roomBox { margin:14px auto 4px; width:min(380px,100%); }
   #roomBox h3 { margin:0 0 8px; font-size:15px; opacity:.85; }
   #roomList { display:flex; flex-direction:column; gap:8px; }
@@ -150,12 +152,13 @@
 <div class="screen" id="startScreen">
   <div class="card">
     <h1>Paintball dos Amigos</h1>
-    <p class="sub">Jogue sozinho contra os amigos ou entre num mata-mata online com eles.</p>
+    <p class="sub">Jogue sozinho contra os amigos ou online: mata-mata, times ou Gun Game.</p>
     <div class="faces" id="facesList"></div>
     <div id="rotate">📱↻ Gire o celular para jogar deitado (fica melhor!)</div>
+    <label class="mapPick">Mapa <select id="mapSel"></select></label>
     <div class="modes">
       <button class="big" id="playBtn">SOZINHO</button>
-      <button class="big alt" id="onlineBtn">ONLINE · MATA-MATA</button>
+      <button class="big alt" id="onlineBtn">ONLINE</button>
     </div>
     <div class="help" id="helpDesk">
       <kbd>W A S D</kbd> mover · <kbd>Mouse</kbd> mirar · <kbd>Clique</kbd> atirar<br>
@@ -187,8 +190,9 @@
       <div id="inviteCode"></div>
       <div id="cfgBox">
         <h3>⚙ Configuração da sala</h3>
-        <label>Modo <select id="cfgModo"><option value="dm">Mata-mata</option><option value="gg">Gun Game</option></select></label>
-        <label id="cfgKillsL">Abates para vencer <select id="cfgKills"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option></select></label>
+        <label>Modo <select id="cfgModo"><option value="dm">Mata-mata</option><option value="tdm">Time contra Time</option><option value="gg">Gun Game</option></select></label>
+        <label>Mapa <select id="cfgMapa"></select></label>
+        <label id="cfgKillsL"><span id="cfgKillsTxt">Abates para vencer</span> <select id="cfgKills"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option></select></label>
         <label id="cfgArmaL">Armas <select id="cfgArma"></select></label>
         <label>Vida <select id="cfgVida"><option value="0.5">50%</option><option value="1" selected>100%</option><option value="2">200%</option></select></label>
         <label>Power-ups <select id="cfgPower"><option value="1">Ligados</option><option value="0">Desligados</option></select></label>
@@ -246,7 +250,8 @@ scene.fog = new THREE.Fog(0x87c6ff, 40, 110);
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 scene.add(camera);
 
-scene.add(new THREE.HemisphereLight(0xdff1ff, 0x4a6b2a, 0.9));
+const hemi = new THREE.HemisphereLight(0xdff1ff, 0x4a6b2a, 0.9);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(25, 40, 15);
 sun.castShadow = true;
@@ -254,78 +259,408 @@ sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 120 });
 scene.add(sun);
 
-// Chão
-const ARENA = 38;
-function makeGrassTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 256;
-  const g = c.getContext('2d');
-  g.fillStyle = '#5c9a3c'; g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 2600; i++) {
-    g.fillStyle = `hsl(${95 + Math.random() * 25},${40 + Math.random() * 25}%,${28 + Math.random() * 20}%)`;
-    g.fillRect(Math.random() * 256, Math.random() * 256, 2, 4);
-  }
+// ===== Mapas =====
+// Cada mapa monta chão, muros, obstáculos (com colisão) e decoração dentro de mapGroup.
+// Tudo é determinístico (sem Math.random) para ficar igual em todos os aparelhos no online.
+let ARENA = 38;
+const obstacles = []; // {mesh, box: Box3}
+let mapGroup = new THREE.Group(); scene.add(mapGroup);
+let curMap = null, mapTick = null;
+
+function canvasTex(w, h, draw, rx = 1, ry = 1) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(ARENA * 2 + 60, ARENA * 2 + 60), new THREE.MeshLambertMaterial({ map: makeGrassTexture() }));
-ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
-scene.add(ground);
+// gerador de números "aleatórios" sempre igual para a mesma semente
+function seeded(seed) { return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+const MAT = {};
+const mat = (key, make) => MAT[key] || (MAT[key] = make());
+const lam = (color, extra) => new THREE.MeshLambertMaterial({ color, ...extra });
 
-// Obstáculos (caixas para se esconder)
-const obstacles = []; // {mesh, box: Box3}
-const crateMat = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#b07a3e'; g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = '#6e4720'; g.lineWidth = 10; g.strokeRect(5, 5, 118, 118);
-  g.beginPath(); g.moveTo(8, 8); g.lineTo(120, 120); g.moveTo(120, 8); g.lineTo(8, 120); g.stroke();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  return new THREE.MeshLambertMaterial({ map: t });
-})();
-const wallMat = new THREE.MeshLambertMaterial({ color: 0xe8e2d6 });
-const tireMat = new THREE.MeshLambertMaterial({ color: 0x2b2b2b });
+// texturas
+const TEX = {
+  grass: () => canvasTex(256, 256, (g) => {
+    g.fillStyle = '#5c9a3c'; g.fillRect(0, 0, 256, 256);
+    const r = seeded(7);
+    for (let i = 0; i < 2600; i++) { g.fillStyle = `hsl(${95 + r() * 25},${40 + r() * 25}%,${28 + r() * 20}%)`; g.fillRect(r() * 256, r() * 256, 2, 4); }
+  }),
+  paver: () => canvasTex(128, 112, (g, w, h) => {
+    // bloquete sextavado, como o estacionamento da foto
+    g.fillStyle = '#6f6c66'; g.fillRect(0, 0, w, h);
+    const hex = (cx, cy, s) => { g.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; g.lineTo(cx + s * Math.cos(a), cy + s * Math.sin(a)); } g.closePath(); };
+    const r = seeded(3);
+    for (let row = -1; row < 4; row++) for (let col = -1; col < 4; col++) {
+      const cx = col * 48 + (row % 2 ? 24 : 0) + 8, cy = row * 28 * 1.0 + 14;
+      hex(cx, cy, 15); const l = 52 + r() * 14; g.fillStyle = `hsl(35,5%,${l}%)`; g.fill(); g.strokeStyle = '#3d3b37'; g.lineWidth = 3; g.stroke();
+    }
+  }),
+  sand: () => canvasTex(256, 256, (g) => {
+    g.fillStyle = '#e6d3a3'; g.fillRect(0, 0, 256, 256);
+    const r = seeded(11);
+    for (let i = 0; i < 4000; i++) { g.fillStyle = `hsl(${38 + r() * 10},${35 + r() * 25}%,${66 + r() * 20}%)`; g.fillRect(r() * 256, r() * 256, 2, 2); }
+  }),
+  concrete: () => canvasTex(256, 256, (g) => {
+    g.fillStyle = '#8b8d90'; g.fillRect(0, 0, 256, 256);
+    const r = seeded(5);
+    for (let i = 0; i < 2500; i++) { g.fillStyle = `hsl(210,4%,${45 + r() * 22}%)`; g.fillRect(r() * 256, r() * 256, 2, 2); }
+    g.strokeStyle = '#6b6d70'; g.lineWidth = 3; g.strokeRect(0, 0, 256, 256);
+  }),
+  water: () => canvasTex(256, 256, (g) => {
+    const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#1f8fc7'); grd.addColorStop(1, '#2bb3d9');
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+    const r = seeded(9); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2;
+    for (let i = 0; i < 40; i++) { const x = r() * 256, y = r() * 256; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 10, y - 4, x + 20, y); g.stroke(); }
+  }),
+  crate: () => canvasTex(128, 128, (g) => {
+    g.fillStyle = '#b07a3e'; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = '#6e4720'; g.lineWidth = 10; g.strokeRect(5, 5, 118, 118);
+    g.beginPath(); g.moveTo(8, 8); g.lineTo(120, 120); g.moveTo(120, 8); g.lineTo(8, 120); g.stroke();
+  }),
+  container: () => canvasTex(128, 64, (g) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 64);
+    for (let x = 0; x < 128; x += 8) { g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x, 0, 3, 64); }
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, 0, 128, 4); g.fillRect(0, 60, 128, 4);
+  }),
+  building: () => canvasTex(256, 128, (g) => {
+    g.fillStyle = '#efefe9'; g.fillRect(0, 0, 256, 128);
+    g.fillStyle = '#b5652f'; for (let x = 196; x < 256; x += 7) g.fillRect(x, 0, 4, 128); // ripas de madeira
+    g.fillStyle = '#5e7f96'; for (let x = 10; x < 180; x += 34) { g.fillRect(x, 70, 26, 40); g.fillRect(x, 16, 26, 30); }
+    g.fillStyle = '#d8d8d2'; g.fillRect(0, 56, 196, 6);
+  }),
+  shelf: () => canvasTex(128, 128, (g) => {
+    g.fillStyle = '#2d5fa8'; g.fillRect(0, 0, 128, 128);
+    const r = seeded(13);
+    for (let y = 8; y < 128; y += 40) { g.fillStyle = '#e0742a'; g.fillRect(0, y + 28, 128, 6);
+      for (let x = 4; x < 124; x += 24) { g.fillStyle = `hsl(${30 + r() * 20},45%,${45 + r() * 15}%)`; g.fillRect(x, y, 20, 26); } }
+  }),
+};
+const texMat = (key, rx = 1, ry = 1) => mat(`${key}:${rx}:${ry}`, () => { const t = TEX[key](); t.repeat.set(rx, ry); return new THREE.MeshLambertMaterial({ map: t }); });
 
-function addBox(x, z, w, h, d, mat) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-  m.position.set(x, h / 2, z); m.castShadow = m.receiveShadow = true;
-  scene.add(m);
+// peças de montagem
+function deco(mesh, shadow = true) { mesh.castShadow = shadow; mesh.receiveShadow = true; mapGroup.add(mesh); return mesh; }
+function meshAt(geo, material, x, y, z, ry = 0) { const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); m.rotation.y = ry; return m; }
+function collider(x, z, w, d, y0, y1, mesh = null) {
+  obstacles.push({ mesh, box: new THREE.Box3(new THREE.Vector3(x - w / 2, y0, z - d / 2), new THREE.Vector3(x + w / 2, y1, z + d / 2)) });
+}
+// caixa sólida (bloqueia andar e tiro); y0 = altura da base
+function addBox(x, z, w, h, d, material, y0 = 0) {
+  const m = deco(meshAt(new THREE.BoxGeometry(w, h, d), material, x, y0 + h / 2, z));
   obstacles.push({ mesh: m, box: new THREE.Box3().setFromObject(m) });
   return m;
 }
-// Muros da arena
-addBox(0, -ARENA - 1, ARENA * 2 + 4, 4, 2, wallMat);
-addBox(0, ARENA + 1, ARENA * 2 + 4, 4, 2, wallMat);
-addBox(-ARENA - 1, 0, 2, 4, ARENA * 2 + 4, wallMat);
-addBox(ARENA + 1, 0, 2, 4, ARENA * 2 + 4, wallMat);
-// Caixas espalhadas
-const layout = [
-  [-10, -8, 3, 3, 3], [-7, -8, 2, 2, 2], [12, -12, 4, 2.4, 2], [10, 6, 3, 3, 3], [-16, 10, 2, 2, 6],
-  [0, 16, 6, 2.2, 2], [20, 18, 3, 4, 3], [-22, -20, 4, 3, 4], [24, -4, 2, 2, 8], [-26, 4, 3, 3, 3],
-  [4, -22, 8, 2, 2], [-4, 26, 3, 3, 3], [28, 28, 4, 2.5, 4], [-28, 26, 2.5, 2.5, 2.5], [16, -28, 3, 3, 3],
-];
-for (const [x, z, w, h, d] of layout) addBox(x, z, w, h, d, crateMat);
-// Pilhas de pneus (decorativas, com colisão)
-for (const [x, z] of [[6, 2], [-4, 6], [18, -18], [-18, -4]]) {
-  for (let i = 0; i < 3; i++) {
-    const t = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.32, 10, 20), tireMat);
-    t.rotation.x = Math.PI / 2; t.position.set(x, 0.32 + i * 0.6, z); t.castShadow = true;
-    scene.add(t);
+function ground(material, size) {
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(size, size), material);
+  g.rotation.x = -Math.PI / 2; g.receiveShadow = true; mapGroup.add(g); return g;
+}
+function floorPatch(material, x, z, w, d, y = 0.01) {
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(w, d), material);
+  g.rotation.x = -Math.PI / 2; g.position.set(x, y, z); g.receiveShadow = true; mapGroup.add(g); return g;
+}
+function walls(material, h = 4) {
+  addBox(0, -ARENA - 1, ARENA * 2 + 4, h, 2, material);
+  addBox(0, ARENA + 1, ARENA * 2 + 4, h, 2, material);
+  addBox(-ARENA - 1, 0, 2, h, ARENA * 2 + 4, material);
+  addBox(ARENA + 1, 0, 2, h, ARENA * 2 + 4, material);
+}
+function tree(x, z, s = 1, solid = true) {
+  const trunk = deco(meshAt(new THREE.CylinderGeometry(0.35 * s, 0.55 * s, 4 * s, 8), mat('trunk', () => lam(0x6b4a2b)), x, 2 * s, z));
+  const leaf = mat('leaf', () => lam(0x2f7a35)), leaf2 = mat('leaf2', () => lam(0x3c8f3f));
+  deco(meshAt(new THREE.SphereGeometry(2.6 * s, 10, 8), leaf, x, 5 * s, z));
+  deco(meshAt(new THREE.SphereGeometry(1.9 * s, 10, 8), leaf2, x + 1.4 * s, 4.4 * s, z + 0.6 * s));
+  deco(meshAt(new THREE.SphereGeometry(1.8 * s, 10, 8), leaf2, x - 1.2 * s, 4.6 * s, z - 0.8 * s));
+  if (solid) collider(x, z, 1.1 * s, 1.1 * s, 0, 4 * s, trunk);
+}
+function car(x, z, color, ry = 0) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.75, 4.3), mat('car' + color, () => lam(color)));
+  body.position.y = 0.7; body.castShadow = true;
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.65, 2.2), mat('glass', () => lam(0x2a3442)));
+  cabin.position.set(0, 1.38, -0.2); cabin.castShadow = true;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 2), mat('car' + color, () => lam(color))); roof.position.set(0, 1.73, -0.2);
+  g.add(body, cabin, roof);
+  for (const [wx, wz] of [[-0.95, 1.35], [0.95, 1.35], [-0.95, -1.35], [0.95, -1.35]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12), mat('tire', () => lam(0x1d1d1d)));
+    w.rotation.z = Math.PI / 2; w.position.set(wx, 0.36, wz); g.add(w);
   }
-  obstacles.push({ mesh: null, box: new THREE.Box3(new THREE.Vector3(x - 1, 0, z - 1), new THREE.Vector3(x + 1, 1.9, z + 1)) });
+  const lamp = mat('headl', () => lam(0xfff2b0, { emissive: 0xfff2b0, emissiveIntensity: 0.4 }));
+  for (const lx of [-0.6, 0.6]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.05), lamp); l.position.set(lx, 0.82, 2.16); g.add(l); }
+  mapGroup.add(g);
+  const sideways = Math.abs(Math.sin(ry)) > 0.5;
+  collider(x, z, sideways ? 4.3 : 2.1, sideways ? 2.1 : 4.3, 0, 1.75, body);
 }
-// Árvores fora do muro (cenário)
-const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2b });
-const leafMat = new THREE.MeshLambertMaterial({ color: 0x2f7a35 });
-for (let i = 0; i < 40; i++) {
-  const ang = Math.random() * Math.PI * 2, r = ARENA + 8 + Math.random() * 20;
-  const tr = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 4), trunkMat); trunk.position.y = 2;
-  const leaves = new THREE.Mesh(new THREE.SphereGeometry(3 + Math.random() * 1.5, 10, 8), leafMat); leaves.position.y = 5.5;
-  tr.add(trunk, leaves); tr.position.set(Math.cos(ang) * r, 0, Math.sin(ang) * r);
-  scene.add(tr);
+function lampPost(x, z) {
+  deco(meshAt(new THREE.CylinderGeometry(0.1, 0.14, 5, 8), mat('metal', () => lam(0x55595f)), x, 2.5, z));
+  deco(meshAt(new THREE.BoxGeometry(0.9, 0.18, 0.35), mat('lamp', () => lam(0xfff5c0, { emissive: 0xfff5c0, emissiveIntensity: 0.6 })), x + 0.35, 5, z), false);
+  collider(x, z, 0.35, 0.35, 0, 5);
 }
+function bench(x, z, ry = 0) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
+  const wood = mat('benchw', () => lam(0x9b6a3c)), metal = mat('metal', () => lam(0x55595f));
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 0.55), wood); seat.position.y = 0.5; seat.castShadow = true;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(2, 0.45, 0.08), wood); back.position.set(0, 0.85, -0.25);
+  g.add(seat, back);
+  for (const lx of [-0.85, 0.85]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.5), metal); l.position.set(lx, 0.25, 0); g.add(l); }
+  mapGroup.add(g);
+  const sw = Math.abs(Math.sin(ry)) > 0.5;
+  collider(x, z, sw ? 0.6 : 2, sw ? 2 : 0.6, 0, 1.05);
+}
+// bunker inflável de paintball
+function bunker(x, z, color, h = 1.7, r = 0.8) {
+  const m = deco(meshAt(new THREE.CylinderGeometry(r, r, h, 14), mat('bunk' + color, () => lam(color)), x, h / 2, z));
+  const cap = deco(meshAt(new THREE.SphereGeometry(r, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat('bunk' + color, () => lam(color)), x, h, z));
+  collider(x, z, r * 1.8, r * 1.8, 0, h + r * 0.6, m);
+}
+function snake(x, z, len, color, alongX = true) {
+  const m = deco(meshAt(new THREE.CylinderGeometry(0.55, 0.55, len, 12), mat('bunk' + color, () => lam(color)), x, 0.55, z));
+  m.rotation.z = alongX ? Math.PI / 2 : 0; m.rotation.x = alongX ? 0 : Math.PI / 2;
+  collider(x, z, alongX ? len : 1.1, alongX ? 1.1 : len, 0, 1.1, m);
+}
+function tires(x, z) {
+  for (let i = 0; i < 3; i++) {
+    const t = deco(meshAt(new THREE.TorusGeometry(0.7, 0.32, 10, 20), mat('tire', () => lam(0x1d1d1d)), x, 0.32 + i * 0.6, z));
+    t.rotation.x = Math.PI / 2;
+  }
+  collider(x, z, 2, 2, 0, 1.9);
+}
+function barrel(x, z, color) {
+  const m = deco(meshAt(new THREE.CylinderGeometry(0.45, 0.45, 1.2, 14), mat('barrel' + color, () => lam(color)), x, 0.6, z));
+  for (const y of [0.25, 0.95]) deco(meshAt(new THREE.TorusGeometry(0.46, 0.04, 6, 16), mat('metal', () => lam(0x55595f)), x, y, z), false).rotation.x = Math.PI / 2;
+  collider(x, z, 0.9, 0.9, 0, 1.2, m);
+}
+function signText(text, w, h, bg, fg, font = 'bold 54px system-ui, sans-serif') {
+  const t = canvasTex(512, Math.round(512 * h / w), (g, cw, ch) => {
+    g.fillStyle = bg; g.fillRect(0, 0, cw, ch); g.fillStyle = fg; g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, cw / 2, ch / 2 + 4);
+  });
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: t }));
+}
+function skyline(color, count, rmin, seed) {
+  const r = seeded(seed);
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + r() * 0.2, d = rmin + r() * 25, h = 10 + r() * 22, w = 8 + r() * 10;
+    deco(meshAt(new THREE.BoxGeometry(w, h, w), mat('sky' + color, () => lam(color)), Math.cos(a) * d, h / 2, Math.sin(a) * d, a), false);
+  }
+}
+function setLook({ sky, fogNear, fogFar, hemiSky, hemiGround, hemiI, sunColor, sunI }) {
+  scene.background = new THREE.Color(sky);
+  scene.fog.color.setHex(sky); scene.fog.near = fogNear; scene.fog.far = fogFar; // ajusta a neblina existente (trocar o objeto confunde o cache do three.js)
+  hemi.color.setHex(hemiSky); hemi.groundColor.setHex(hemiGround); hemi.intensity = hemiI;
+  sun.color.setHex(sunColor); sun.intensity = sunI;
+}
+
+// ---------- Mapa 1: Campus ----------
+function buildCampus() {
+  ARENA = 38;
+  setLook({ sky: 0x87c6ff, fogNear: 45, fogFar: 120, hemiSky: 0xdff1ff, hemiGround: 0x4a6b2a, hemiI: 0.9, sunColor: 0xffffff, sunI: 1.6 });
+  ground(texMat('grass', 28, 28), ARENA * 2 + 70);
+  floorPatch(texMat('paver', 30, 9), 0, 24, ARENA * 2, 28);           // estacionamento de bloquete
+  floorPatch(mat('path', () => lam(0xcfc8b8)), -6, -4, 3, 40, 0.012);   // calçada
+  walls(mat('wall', () => lam(0xe8e2d6)));
+  // vagas pintadas
+  for (let x = -30; x <= 30; x += 4) floorPatch(mat('vaga', () => lam(0xf3f0e6)), x, 27, 0.15, 5, 0.02);
+  // carros estacionados (cobertura)
+  const cores = [0xf2f2f2, 0xd9d9d9, 0x8a8f96, 0xb3271e, 0x2e4f8c, 0xf2f2f2, 0x1f1f22];
+  [[-28, 27], [-20, 27], [-12, 27], [2, 27], [14, 27], [22, 27], [30, 27]].forEach(([x, z], i) => car(x, z, cores[i], (i % 2) * Math.PI));
+  car(-8, 15, 0xffffff, Math.PI / 2); car(18, 14, 0x8a8f96, Math.PI / 2);
+  // Biblioteca Central
+  const bw = 26, bh = 7, bd = 5;
+  addBox(10, -32.5, bw, bh, bd, texMat('building', 3, 1));
+  const sign = signText('Biblioteca Central', 9, 1.1, '#f4f4ef', '#2c3e50'); sign.position.set(4, 5.2, -29.95); mapGroup.add(sign);
+  addBox(-6, -27, 6, 0.4, 3, mat('wall', () => lam(0xe8e2d6)), 3); // marquise (dá para passar por baixo)
+  for (const px of [-8.6, -3.4]) addBox(px, -25.8, 0.4, 3, 0.4, mat('wall', () => lam(0xe8e2d6)));
+  // árvores grandes no meio do campus
+  tree(-22, -10, 1.15); tree(-14, 4, 1); tree(8, -14, 1.1); tree(26, -16, 1.2); tree(-30, -26, 1); tree(30, 4, 0.9);
+  // bancos e postes
+  bench(-10, -6, Math.PI / 2); bench(-10, 2, Math.PI / 2); bench(4, -20, 0); bench(20, -24, 0);
+  for (const [x, z] of [[-6, -18], [-6, 10], [-34, 12], [34, 12], [0, 12]]) lampPost(x, z);
+  // caixas e torre de caixas para subir (1,2 m → 2,4 m)
+  const crate = texMat('crate');
+  addBox(-24, 6, 3, 1.2, 3, crate); addBox(-27, 6, 3, 2.4, 3, crate); addBox(-27, 9, 3, 3.6, 3, crate);
+  addBox(12, -4, 3, 3, 3, crate); addBox(15, -4, 2, 2, 2, crate); addBox(24, -4, 2, 2, 8, crate);
+  addBox(-16, -18, 4, 2.4, 2, crate); addBox(30, -30, 3, 3, 3, crate);
+  // bunkers infláveis de paintball no gramado
+  bunker(0, -6, 0xff3d7f); bunker(4, 4, 0x3db8ff); bunker(-2, 4, 0xffd23d, 1.2, 0.7); bunker(20, 2, 0x3dffb0);
+  snake(-18, -2, 6, 0xff7a1a); snake(0, -14, 6, 0xb83dff); snake(28, -8, 5, 0x3db8ff, false);
+  tires(6, 2); tires(-30, -14); tires(18, -18);
+  // lixeiras e placas
+  for (const [x, z] of [[-7.5, -12], [-7.5, 6]]) addBox(x, z, 0.6, 1, 0.6, mat('lixo', () => lam(0x2f8a4a)));
+  const e = signText('E', 0.8, 0.8, '#ffffff', '#1d4ed8', 'bold 300px system-ui'); e.position.set(-36.9, 2.2, 20); e.rotation.y = Math.PI / 2; mapGroup.add(e);
+  // fora do muro: árvores e prédios ao longe
+  const r = seeded(21);
+  for (let i = 0; i < 36; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 18; tree(Math.cos(a) * d, Math.sin(a) * d, 0.9 + r() * 0.5, false); }
+  skyline(0xa9b4c2, 14, 80, 4);
+}
+
+// ---------- Mapa 2: Armazém ----------
+function buildArmazem() {
+  ARENA = 30;
+  setLook({ sky: 0x1b2130, fogNear: 25, fogFar: 85, hemiSky: 0xffe2b8, hemiGround: 0x2a2f3a, hemiI: 0.75, sunColor: 0xffd9a8, sunI: 1.1 });
+  ground(texMat('concrete', 18, 18), ARENA * 2 + 70);
+  walls(mat('wallA', () => lam(0x5a6270)), 9);
+  // faixas amarelas no chão
+  const amarelo = mat('amarelo', () => lam(0xffc93d));
+  for (const z of [-10, 10]) floorPatch(amarelo, 0, z, ARENA * 2, 0.3, 0.02);
+  for (const x of [-12, 12]) floorPatch(amarelo, x, 0, 0.3, ARENA * 2, 0.02);
+  // contêineres (alguns empilhados; dá para subir pelos caixotes)
+  const cont = color => mat('cont' + color, () => new THREE.MeshLambertMaterial({ color, map: TEX.container() }));
+  const C = [0xc0392b, 0x2471a3, 0x229954, 0xd68910, 0x7d3c98];
+  addBox(-20, -18, 6, 2.5, 2.6, cont(C[0])); addBox(-20, -18, 6, 2.5, 2.6, cont(C[1]), 2.5);
+  addBox(-20, -12, 6, 2.5, 2.6, cont(C[2]));
+  addBox(20, 16, 2.6, 2.5, 6, cont(C[3])); addBox(20, 16, 2.6, 2.5, 6, cont(C[4]), 2.5);
+  addBox(14, 22, 6, 2.5, 2.6, cont(C[1]));
+  addBox(0, 0, 6, 2.5, 2.6, cont(C[0])); addBox(-4.3, 0, 2.6, 2.5, 6, cont(C[2]));
+  addBox(18, -6, 6, 2.5, 2.6, cont(C[4])); addBox(-18, 8, 2.6, 2.5, 6, cont(C[3]));
+  const crate = texMat('crate');
+  addBox(-16.4, -18, 1.4, 1.25, 1.4, crate); addBox(-16.4, -15.8, 1.4, 1.25, 1.4, crate);
+  addBox(3.6, 0.6, 1.4, 1.25, 1.4, crate); addBox(20, 20.6, 1.4, 1.25, 1.4, crate);
+  addBox(8, 10, 2, 2, 2, crate); addBox(10, 10, 2, 1, 2, crate); addBox(-8, -22, 2, 2, 2, crate); addBox(-26, 22, 2, 2, 2, crate);
+  // prateleiras de estoque
+  for (const [x, z] of [[-6, 16], [6, -16], [26, -22]]) addBox(x, z, 9, 3.4, 1.4, texMat('shelf', 2, 1));
+  // barris
+  const r = seeded(31);
+  for (const [x, z] of [[10, -2], [11, -1], [-12, 20], [-11, 21], [25, 4], [-26, -4], [4, -26], [5, -25]]) barrel(x, z, [0x1f6fb2, 0xc0392b, 0x27ae60][Math.floor(r() * 3)]);
+  // empilhadeira
+  addBox(-8, 6, 1.6, 1.6, 2.6, mat('forkl', () => lam(0xf1c40f)));
+  deco(meshAt(new THREE.BoxGeometry(1.4, 0.1, 1.2), mat('metal', () => lam(0x55595f)), -8, 0.3, 8));
+  deco(meshAt(new THREE.BoxGeometry(1.2, 1.2, 0.1), mat('glass', () => lam(0x2a3442)), -8, 2.2, 5.6));
+  // passarela suspensa (andar em cima e passar por baixo) com escada de caixotes
+  const metal = mat('catw', () => lam(0x7f8c8d));
+  addBox(0, 27, 40, 0.25, 3, metal, 2.5);
+  for (const x of [-18, -6, 6, 18]) addBox(x, 27.6, 0.3, 2.5, 0.3, metal);
+  addBox(-22, 26, 2, 1.25, 2, crate);
+  // luminárias penduradas
+  const luz = mat('luz', () => lam(0xfff1c9, { emissive: 0xfff1c9, emissiveIntensity: 1 }));
+  for (const x of [-18, 0, 18]) for (const z of [-18, 0, 18]) {
+    deco(meshAt(new THREE.BoxGeometry(2.5, 0.15, 0.6), luz, x, 9, z), false);
+    deco(meshAt(new THREE.CylinderGeometry(0.02, 0.02, 3), metal, x, 10.5, z), false);
+  }
+  // vigas do teto (só visual)
+  for (const z of [-24, -12, 0, 12, 24]) deco(meshAt(new THREE.BoxGeometry(ARENA * 2 + 4, 0.6, 0.4), mat('viga', () => lam(0x3d434d)), 0, 12, z), false);
+  const sg = signText('DOCA 3', 6, 1.4, '#ffc93d', '#1b2130'); sg.position.set(0, 6, -30.9); mapGroup.add(sg);
+}
+
+// ---------- Mapa 3: Praia ----------
+function buildPraia() {
+  ARENA = 36;
+  setLook({ sky: 0x9fdcff, fogNear: 60, fogFar: 160, hemiSky: 0xfff6e0, hemiGround: 0xc9b27a, hemiI: 1, sunColor: 0xfff3d6, sunI: 1.8 });
+  ground(texMat('sand', 22, 22), ARENA * 2 + 70);
+  // mar no lado norte (anima as ondas)
+  const waterMat = new THREE.MeshLambertMaterial({ map: TEX.water(), transparent: true, opacity: 0.92 });
+  waterMat.map.repeat.set(12, 4);
+  const sea = floorPatch(waterMat, 0, -ARENA - 30, 300, 60, 0.05);
+  floorPatch(mat('espuma', () => lam(0xf4fbff)), 0, -ARENA - 0.4, ARENA * 2 + 10, 1.2, 0.06);
+  mapTick = dt => { waterMat.map.offset.x += dt * 0.02; waterMat.map.offset.y += dt * 0.01; };
+  // limites: cerquinha de corda nos lados e barreira invisível no mar
+  collider(0, -ARENA - 1, ARENA * 2 + 4, 2, 0, 6); collider(0, ARENA + 1, ARENA * 2 + 4, 2, 0, 6);
+  collider(-ARENA - 1, 0, 2, ARENA * 2 + 4, 0, 6); collider(ARENA + 1, 0, 2, ARENA * 2 + 4, 0, 6);
+  const poste = mat('poste', () => lam(0x8b5a2b));
+  for (let i = -ARENA; i <= ARENA; i += 4) {
+    for (const [x, z] of [[i, ARENA + 0.5], [-ARENA - 0.5, i], [ARENA + 0.5, i]]) deco(meshAt(new THREE.CylinderGeometry(0.08, 0.1, 1.2, 6), poste, x, 0.6, z), false);
+  }
+  // coqueiros
+  const palm = (x, z, lean = 0.2, rot = 0) => {
+    const trunkM = mat('palmT', () => lam(0x9a7650)), leafM = mat('palmL', () => lam(0x2e8b3e));
+    let px = x, pz = z;
+    for (let k = 0; k < 6; k++) {
+      deco(meshAt(new THREE.CylinderGeometry(0.22, 0.3, 1.2, 8), trunkM, px, 0.6 + k * 1.1, pz));
+      px += Math.cos(rot) * lean * 0.25; pz += Math.sin(rot) * lean * 0.25;
+    }
+    for (let k = 0; k < 7; k++) {
+      const a = k / 7 * Math.PI * 2;
+      const leafMesh = deco(meshAt(new THREE.BoxGeometry(0.5, 0.06, 3.2), leafM, px + Math.cos(a) * 1.3, 6.9, pz + Math.sin(a) * 1.3), false);
+      leafMesh.rotation.y = -a + Math.PI / 2; leafMesh.rotation.x = 0.35;
+    }
+    for (let k = 0; k < 3; k++) deco(meshAt(new THREE.SphereGeometry(0.22, 8, 6), mat('coco', () => lam(0x5b3a1a)), px + Math.cos(k * 2) * 0.35, 6.6, pz + Math.sin(k * 2) * 0.35), false);
+    collider(x, z, 0.8, 0.8, 0, 6.5);
+  };
+  const r = seeded(41);
+  for (const [x, z] of [[-30, -20], [-24, 10], [-10, 26], [6, -24], [20, 18], [30, -6], [-4, 4], [26, 30], [-32, 28], [12, 6]]) palm(x, z, 0.4 + r() * 0.5, r() * 6.28);
+  // guarda-sóis e cadeiras
+  const umb = (x, z, color) => {
+    deco(meshAt(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 6), mat('metalw', () => lam(0xf2f2f2)), x, 1.3, z));
+    deco(meshAt(new THREE.ConeGeometry(1.8, 0.7, 12), mat('umb' + color, () => lam(color)), x, 2.7, z));
+    collider(x, z, 0.3, 0.3, 0, 2.6);
+  };
+  const chair = (x, z, color, ry = 0) => {
+    const c = deco(meshAt(new THREE.BoxGeometry(0.7, 0.12, 1.7), mat('ch' + color, () => lam(color)), x, 0.35, z, ry));
+    const b = deco(meshAt(new THREE.BoxGeometry(0.7, 0.8, 0.1), mat('ch' + color, () => lam(color)), x - Math.sin(ry) * 0.85, 0.7, z - Math.cos(ry) * 0.85, ry)); b.rotation.x = -0.5;
+  };
+  [[-14, -14, 0xff3d7f], [-8, -18, 0x3db8ff], [4, -12, 0xffd23d], [16, -16, 0x3dffb0], [-22, -2, 0xff7a1a], [24, -24, 0xb83dff]].forEach(([x, z, c]) => {
+    umb(x, z, c); chair(x + 1.2, z + 0.8, 0xffffff); chair(x - 1.2, z + 0.8, c);
+  });
+  // quiosque
+  const wood = mat('woodK', () => lam(0xa36a3a)), thatch = mat('palha', () => lam(0xd9b56b));
+  addBox(-18, 20, 8, 1.2, 1, wood);                     // balcão
+  addBox(-18, 23.5, 8, 3, 0.6, wood);                   // fundo
+  for (const x of [-21.7, -14.3]) addBox(x, 20.4, 0.4, 3.2, 0.4, wood);
+  deco(meshAt(new THREE.BoxGeometry(9.5, 0.4, 5.5), thatch, -18, 3.4, 21.8));
+  const ks = signText('QUIOSQUE DO ZÉ', 6, 0.9, '#ffd23d', '#7a2e0e'); ks.position.set(-18, 2.7, 19.4); ks.rotation.y = Math.PI; mapGroup.add(ks);
+  // torre de salva-vidas (sobe pelos caixotes)
+  const torreM = mat('torre', () => lam(0xe74c3c));
+  addBox(14, -2, 3.2, 0.3, 3.2, torreM, 2.4);
+  for (const [x, z] of [[12.6, -3.4], [15.4, -3.4], [12.6, -0.6], [15.4, -0.6]]) addBox(x, z, 0.25, 2.4, 0.25, mat('torreP', () => lam(0xf2f2f2)));
+  deco(meshAt(new THREE.BoxGeometry(3.2, 0.08, 3.2), torreM, 14, 4.6, -2));
+  for (const [x, z] of [[12.6, -3.4], [15.4, -3.4], [12.6, -0.6], [15.4, -0.6]]) deco(meshAt(new THREE.CylinderGeometry(0.05, 0.05, 1.9), mat('torreP', () => lam(0xf2f2f2)), x, 3.6, z), false);
+  const crate = texMat('crate');
+  addBox(11.2, -2, 1.4, 1.25, 1.4, crate);
+  // barcos na areia
+  const boat = (x, z, color, ry) => {
+    const hull = deco(meshAt(new THREE.BoxGeometry(2.2, 0.9, 5.5), mat('boat' + color, () => lam(color)), x, 0.45, z, ry));
+    deco(meshAt(new THREE.BoxGeometry(1.8, 0.1, 5.1), mat('boatIn', () => lam(0xe8dcc0)), x, 0.86, z, ry), false);
+    const sw = Math.abs(Math.sin(ry)) > 0.5;
+    collider(x, z, sw ? 5.5 : 2.2, sw ? 2.2 : 5.5, 0, 0.95, hull);
+  };
+  boat(-28, -30, 0x2e86c1, 0.2); boat(0, -31, 0xf4f4f4, -0.15); boat(28, -29, 0xe67e22, Math.PI / 2);
+  // pranchas espetadas na areia (cobertura fininha)
+  [[-6, 8, 0xff3d7f], [-5, 8.6, 0x3db8ff], [-4, 9, 0xffd23d], [22, 4, 0x3dffb0]].forEach(([x, z, c]) => {
+    const pr = deco(meshAt(new THREE.CylinderGeometry(0.35, 0.35, 2.4, 10), mat('pr' + c, () => lam(c)), x, 1.2, z)); pr.scale.z = 0.25;
+    collider(x, z, 0.7, 0.3, 0, 2.4);
+  });
+  // rede de vôlei
+  for (const x of [-4, 6]) addBox(x, 16, 0.2, 2.6, 0.2, mat('metalw', () => lam(0xf2f2f2)));
+  const net = deco(meshAt(new THREE.PlaneGeometry(10, 1), mat('rede', () => new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, side: THREE.DoubleSide })), 1, 2.1, 16), false);
+  collider(1, 16, 10, 0.2, 1.6, 2.6);
+  // dunas de areia (cobertura baixa)
+  const duna = mat('duna', () => lam(0xdcc391));
+  for (const [x, z, w, d] of [[-26, 18, 8, 3], [28, 12, 3, 8], [0, 28, 10, 3], [-30, -8, 3, 6]]) {
+    const dm = deco(meshAt(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), duna, x, 0, z)); dm.scale.set(w / 2, 1.3, d / 2);
+    collider(x, z, w * 0.8, d * 0.8, 0, 1.1, dm);
+  }
+  // caixa de isopor e bolas de praia
+  addBox(8, 14, 1.2, 0.7, 0.8, mat('isopor', () => lam(0x3db8ff)));
+  // coqueiros fora da área
+  for (let i = 0; i < 14; i++) palm(-ARENA - 6 - r() * 10, -30 + i * 6, 0.5, r() * 6.28);
+  for (let i = 0; i < 14; i++) palm(ARENA + 6 + r() * 10, -30 + i * 6, 0.5, r() * 6.28);
+  // morro ao fundo
+  for (const [x, z, s] of [[-60, 60, 30], [10, 75, 40], [70, 55, 28]]) {
+    const m = deco(meshAt(new THREE.SphereGeometry(s, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('morro', () => lam(0x3f7d43)), x, 0, z), false); m.scale.y = 0.6;
+  }
+}
+
+const MAPS = {
+  campus: { nome: 'Campus', build: buildCampus },
+  armazem: { nome: 'Armazém', build: buildArmazem },
+  praia: { nome: 'Praia', build: buildPraia },
+};
+function loadMap(id) {
+  if (!MAPS[id]) id = 'campus';
+  if (curMap === id) return;
+  const first = curMap === null;
+  curMap = id;
+  scene.remove(mapGroup);
+  mapGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  mapGroup = new THREE.Group(); scene.add(mapGroup);
+  obstacles.length = 0; mapTick = null;
+  MAPS[id].build();
+  if (!first) onMapChanged();
+}
+
+let mapaSalvo = 'campus';
+try { mapaSalvo = localStorage.getItem('pb-mapa') || 'campus'; } catch {}
+loadMap(mapaSalvo);
 
 // ===== Rostos =====
 const loader = new THREE.TextureLoader();
@@ -584,11 +919,13 @@ const $ = id => document.getElementById(id);
 function updateHud() {
   if (mode === 'online') {
     const me = net.players[net.myId];
-    if (net.cfg.modo === 'gg') {
+    if (isTdm()) {
+      $('score').textContent = `🔴 ${teamScore(0)} × ${teamScore(1)} 🔵 · até ${goalKills()}`;
+    } else if (net.cfg.modo === 'gg') {
       const lv = Math.min(me?.kills ?? 0, GG_ORDER.length - 1);
       $('score').textContent = `Gun Game · arma ${lv + 1}/${GG_ORDER.length}`;
     } else $('score').textContent = `Abates: ${me?.kills ?? 0} / ${goalKills()}`;
-    $('wave').textContent = `Sala ${net.code} · ${Object.keys(net.players).length} jog.`;
+    $('wave').textContent = isTdm() ? `Sala ${net.code} · ${TEAMS[teamOf(net.myId)].emoji} Time ${TEAMS[teamOf(net.myId)].nome}` : `Sala ${net.code} · ${Object.keys(net.players).length} jog.`;
   } else {
     $('score').textContent = `Pontos: ${player.score}`;
     $('wave').textContent = `Onda ${wave}`;
@@ -623,6 +960,8 @@ function resetGame() {
   for (const d of decals) d.parent?.remove(d); decals.length = 0;
   Object.assign(player, { hp: myMaxHp(), ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: 0, pitch: 0 });
   player.pos.set(0, 0, -2);
+  // procura um lugar livre perto do centro (cada mapa tem obstáculos diferentes)
+  for (let i = 0; i < 60 && collides(player.pos, PLAYER_R + 0.3, 1.8); i++) player.pos.set((Math.random() * 2 - 1) * 10, 0, (Math.random() * 2 - 1) * 10);
   clearPickups(); resetMoves();
   player.ammoBy = {}; player.weapon = null; syncWeapon(false);
   wave = 0; waveDelay = 0;
@@ -769,7 +1108,7 @@ function initAudio() { if (!actx) { try { actx = new (window.AudioContext || win
 function start() {
   initAudio();
   $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
-  mode = 'solo'; renderBoard();
+  mode = 'solo'; renderBoard(); loadMap($('mapSel').value);
   resetGame(); state = 'play'; lockPointer(); goFullscreen();
 }
 $('playBtn').onclick = start;
@@ -896,16 +1235,24 @@ function updateFx() {
 // Quem cria a sala vira o "host": recebe as mensagens de todos no tópico /h,
 // decide vida, abates e quem venceu, e repassa tudo no tópico /a.
 let mode = 'solo', meDead = false, myChar = 0, myName = '';
-const CFG_PADRAO = { modo: 'dm', kills: 10, arma: 'todas', vida: 1, power: true };
+const CFG_PADRAO = { modo: 'dm', kills: 10, arma: 'todas', vida: 1, power: true, mapa: 'campus' };
+// times do modo Time contra Time
+const TEAMS = [{ nome: 'Vermelho', cor: 0xe74c3c, css: '#ff6b5e', emoji: '🔴' }, { nome: 'Azul', cor: 0x2e86de, css: '#5aaeff', emoji: '🔵' }];
 const net = { cfg: { ...CFG_PADRAO }, inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
 const remotes = new Map();
 const RESPAWN_S = 3;
 // meta de abates: no Gun Game é passar por todas as armas
 const goalKills = () => net.cfg.modo === 'gg' ? GG_ORDER.length : net.cfg.kills;
+const isTdm = () => net.cfg.modo === 'tdm';
+const teamOf = id => net.players[id]?.team ?? 0;
+const teamScore = t => Object.values(net.players).reduce((s, p) => s + (p.team === t ? p.kills : 0), 0);
+// distribui os jogadores nos dois times de forma equilibrada (dono da sala)
+function balanceTeams() { Object.values(net.players).forEach((p, i) => { p.team = i % 2; }); }
 function cleanCfg(c) {
   c = c || {};
   return {
-    modo: c.modo === 'gg' ? 'gg' : 'dm',
+    modo: ['gg', 'tdm'].includes(c.modo) ? c.modo : 'dm',
+    mapa: MAPS[c.mapa] ? c.mapa : 'campus',
     kills: [5, 10, 15, 20, 30].includes(+c.kills) ? +c.kills : 10,
     arma: c.arma === 'todas' || WEAPONS[c.arma] ? c.arma : 'todas',
     vida: [0.5, 1, 2].includes(+c.vida) ? +c.vida : 1,
@@ -923,7 +1270,7 @@ const params = new URLSearchParams(location.search);
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // a última letra do código diz em qual servidor a sala está
-const VERSAO = 8;
+const VERSAO = 9;
 // quem joga com o nome "Ana" tem 3,5x mais vida
 const isAna = name => /^ana$/i.test(String(name || '').trim());
 const maxHpOf = name => isAna(name) ? 350 : 100;
@@ -939,7 +1286,8 @@ function netStatus(t) { $('netStatus').textContent = t; }
 function addPlayer(id, name, char) {
   net.lastSeen.set(id, performance.now());
   const n = String(name || 'Jogador').slice(0, 14);
-  net.players[id] = { name: n, char: (char | 0) % AMIGOS.length, hp: hpMax(n), kills: 0, deaths: 0, dead: false };
+  const cnt = [0, 0]; for (const q of Object.values(net.players)) cnt[q.team ?? 0]++;
+  net.players[id] = { name: n, char: (char | 0) % AMIGOS.length, hp: hpMax(n), kills: 0, deaths: 0, dead: false, team: cnt[0] <= cnt[1] ? 0 : 1 };
 }
 // manda pelos servidores conectados (todos ao mesmo tempo; quem recebe descarta as cópias)
 function publish(k, m) {
@@ -985,6 +1333,7 @@ function hostHandle(from, m) {
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
       if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning) return;
+      if (isTdm() && sh.team === tg.team) return; // sem fogo amigo
       if ((net.inv.get(m.target) || 0) > performance.now()) return; // invencível
       const W = WEAPONS[hostWeaponOf(from, m.w)];
       const f = W.splash ? Math.min(1, Math.max(0.3, +m.f || 1)) : 1;
@@ -999,9 +1348,9 @@ function hostHandle(from, m) {
           Object.assign(tg, { hp: hpMax(tg.name), dead: false });
           broadcast({ t: 'respawn', id: m.target }); sendRoster();
         }, RESPAWN_S * 1000);
-        if (sh.kills >= goalKills()) {
+        if (isTdm() ? teamScore(sh.team) >= goalKills() : sh.kills >= goalKills()) {
           net.winning = true;
-          broadcast({ t: 'win', id: from });
+          broadcast(isTdm() ? { t: 'win', team: sh.team } : { t: 'win', id: from });
           setTimeout(() => {
             for (const p of Object.values(net.players)) Object.assign(p, { kills: 0, deaths: 0, hp: hpMax(p.name), dead: false });
             net.winning = false;
@@ -1022,14 +1371,14 @@ function setRemoteDead(r, dead) {
 function onNet(m) {
   if (!net.isHost && m.t === 'roster') {
     if (!m.players?.[net.myId]) { if (net.joined) sendNet(net.hello); return; } // o host me tirou: volto a entrar
-    if (!net.joined) { net.joined = true; clearTimers(); if (m.cfg) net.cfg = cleanCfg(m.cfg); net.players = m.players; enterOnline(); }
+    if (!net.joined) { net.joined = true; clearTimers(); if (m.cfg) { net.cfg = cleanCfg(m.cfg); loadMap(net.cfg.mapa); } net.players = m.players; enterOnline(); }
   }
   if (!net.isHost && !net.joined) return;
   switch (m.t) {
     case 'bye': if (!net.isHost) leaveOnline('A sala fechou (o dono saiu).'); return;
     case 'roster': {
       const before = net.players[net.myId]?.kills;
-      if (m.cfg) net.cfg = cleanCfg(m.cfg);
+      if (m.cfg) { net.cfg = cleanCfg(m.cfg); loadMap(net.cfg.mapa); }
       net.players = m.players; syncRemotes(); renderBoard();
       if (mode === 'online') syncWeapon(net.cfg.modo === 'gg' && before !== undefined && (net.players[net.myId]?.kills ?? 0) > before);
       updateHud(); break;
@@ -1072,7 +1421,13 @@ function onNet(m) {
         player.pos.copy(onlineSpawn()); updateHud();
       } else { const r = remotes.get(m.id); if (r) setRemoteDead(r, false); }
       break;
-    case 'win': banner(m.id === net.myId ? 'Você venceu! 🏆' : `${nameOf(m.id)} venceu!`, 5.5); if (m.id === net.myId) sfx.ko(); break;
+    case 'win': {
+      const ganhei = m.team !== undefined ? teamOf(net.myId) === m.team : m.id === net.myId;
+      if (m.team !== undefined) banner(ganhei ? 'Seu time venceu! 🏆' : `Time ${TEAMS[m.team]?.nome} venceu!`, 5.5);
+      else banner(ganhei ? 'Você venceu! 🏆' : `${nameOf(m.id)} venceu!`, 5.5);
+      if (ganhei) sfx.ko();
+      break;
+    }
     case 'reset': banner('Nova partida!'); break;
     case 'pu': addPickup(m.id, m.k, +m.x, +m.z); break;
     case 'pus': if (Array.isArray(m.list)) for (const [id, k, x, z] of m.list) addPickup(id, k, +x, +z); break;
@@ -1086,13 +1441,13 @@ function onNet(m) {
   }
 }
 
-function nameTag(text) {
+function nameTag(text, color = '#fff') {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
   const g = c.getContext('2d');
   g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   const w = Math.min(250, g.measureText(text).width + 30);
   g.fillStyle = 'rgba(10,14,28,.7)'; g.beginPath(); g.roundRect?.(128 - w / 2, 6, w, 52, 18); g.fill();
-  g.fillStyle = '#fff'; g.fillText(text, 128, 33);
+  g.fillStyle = color; g.fillText(text, 128, 33);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false }));
   sp.scale.set(1.8, 0.45, 1); sp.renderOrder = 10;
@@ -1103,12 +1458,19 @@ function syncRemotes() {
   for (const [id, p] of Object.entries(net.players)) {
     if (id === net.myId) continue;
     let r = remotes.get(id);
-    if (r && (r.char !== p.char || r.name !== p.name)) { scene.remove(r.root); remotes.delete(id); r = null; }
+    const tagCor = isTdm() ? TEAMS[p.team ?? 0].css : '#fff';
+    if (r && (r.char !== p.char || r.name !== p.name || r.tagCor !== tagCor)) { scene.remove(r.root); remotes.delete(id); r = null; }
     if (!r) {
       const a = AMIGOS[p.char] || AMIGOS[0];
       const parts = buildFriend(a);
-      const tag = nameTag(p.name); tag.position.y = 3.3; parts.root.add(tag);
-      r = { id, char: p.char, name: p.name, a, ...parts, pos: new THREE.Vector3(), target: new THREE.Vector3(), vel: new THREE.Vector3(),
+      const tag = nameTag(p.name, tagCor); tag.position.y = 3.3; parts.root.add(tag);
+      if (isTdm()) {
+        // colete com a cor do time
+        const vest = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.7, 0.56), new THREE.MeshLambertMaterial({ color: TEAMS[p.team ?? 0].cor }));
+        vest.position.y = 1.42; parts.body.add(vest);
+        const band = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.3), vest.material); band.position.y = -0.3; parts.armL.add(band);
+      }
+      r = { id, char: p.char, name: p.name, tagCor, a, ...parts, pos: new THREE.Vector3(), target: new THREE.Vector3(), vel: new THREE.Vector3(),
         yaw: 0, pitch: 0, phase: 0, flash: 0, dead: false, deadT: 0, seen: false };
       parts.root.visible = false;
       scene.add(parts.root); remotes.set(id, r);
@@ -1147,11 +1509,14 @@ function updateRemotes(dt, t) {
 
 function onlineSpawn() {
   let best = null, bestD = -1;
+  // no Time contra Time cada time nasce do seu lado do mapa
+  const lado = mode === 'online' && isTdm() ? (teamOf(net.myId) === 0 ? -1 : 1) : 0;
   for (let i = 0; i < 40; i++) {
-    const p = new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 3), 0, (Math.random() * 2 - 1) * (ARENA - 3));
+    const z = lado ? lado * (ARENA * 0.45 + Math.random() * ARENA * 0.45) : (Math.random() * 2 - 1) * (ARENA - 3);
+    const p = new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 3), 0, THREE.MathUtils.clamp(z, -ARENA + 3, ARENA - 3));
     if (collides(p, PLAYER_R + 0.3, 1.8)) continue;
     let d = 1e9;
-    for (const r of remotes.values()) if (r.seen && !r.dead) d = Math.min(d, r.pos.distanceTo(p));
+    for (const r of remotes.values()) if (r.seen && !r.dead && !(lado && teamOf(r.id) === teamOf(net.myId))) d = Math.min(d, r.pos.distanceTo(p));
     if (d > bestD) { bestD = d; best = p; }
     if (d > 18) break;
   }
@@ -1161,13 +1526,14 @@ function onlineSpawn() {
 function renderBoard() {
   const b = $('board');
   if (mode !== 'online') { b.style.display = 'none'; return; }
-  const list = Object.entries(net.players).sort((a, c) => c[1].kills - a[1].kills || a[1].deaths - c[1].deaths);
+  const tdm = isTdm();
+  const list = Object.entries(net.players).sort((a, c) => (tdm ? (a[1].team ?? 0) - (c[1].team ?? 0) : 0) || c[1].kills - a[1].kills || a[1].deaths - c[1].deaths);
   b.style.display = 'block';
   b.replaceChildren(...list.slice(0, isTouch ? 4 : 8).map(([id, p]) => {
     const d = document.createElement('div');
     if (id === net.myId) d.className = 'me';
     if (p.dead) d.className += ' dead';
-    const n = document.createElement('span'); n.textContent = (id === net.myId ? '▶ ' : '') + p.name;
+    const n = document.createElement('span'); n.textContent = (id === net.myId ? '▶ ' : '') + (tdm ? TEAMS[p.team ?? 0].emoji + ' ' : '') + p.name;
     const k = document.createElement('span'); k.textContent = `${p.kills}`;
     d.append(n, k); return d;
   }));
@@ -1184,6 +1550,15 @@ function hitRemote(r, point, color, dir, wid) {
   burst(point, color, 10, 3);
   addSplat(point, dir.clone().negate(), color, r.root, 0.5);
   sendNet({ t: 'hit', target: r.id, w: wid });
+}
+
+function onMapChanged() {
+  for (const d of decals) d.parent?.remove(d); decals.length = 0;
+  for (const b of balls) scene.remove(b.mesh); balls.length = 0;
+  clearPickups();
+  if (state === 'menu' || mode !== 'online') { for (const e of enemies) scene.remove(e.root); enemies.length = 0; }
+  if (mode === 'online' && state !== 'menu') player.pos.copy(onlineSpawn());
+  sun.shadow.needsUpdate = true;
 }
 
 function clearWorld() {
@@ -1210,6 +1585,7 @@ function enterOnline() {
   player.pos.copy(onlineSpawn());
   player.ammoBy = {}; player.weapon = null; syncWeapon(false);
   if (net.cfg.modo === 'gg') banner('Gun Game!', 1.5);
+  if (isTdm()) banner(`Você é do Time ${TEAMS[teamOf(net.myId)].nome}!`, 2);
   for (const id of ['startScreen', 'onlineScreen', 'overScreen']) $(id).style.display = 'none';
   syncRemotes(); renderBoard(); updateHud();
   if (isTouch) { state = 'play'; banner(`Sala ${net.code}`); }
@@ -1232,6 +1608,7 @@ function leaveOnline(msg) {
   remotes.clear();
   clearWorld();
   mode = 'solo'; meDead = false; state = 'menu';
+  loadMap($('mapSel').value);
   document.exitPointerLock?.();
   renderBoard(); bannerT = 0.01;
   showOnlineScreen();
@@ -1354,7 +1731,7 @@ const lobby = { clients: [], rooms: new Map(), timer: null };
 const lobbyTopic = code => `pbamigos/v${VERSAO}/lobby/${code}`;
 function announceRoom(clear) {
   if (!net.isHost || !net.code) return;
-  const txt = clear ? '' : JSON.stringify({ name: myName, n: Object.keys(net.players).length, ts: Date.now(), m: net.cfg.modo });
+  const txt = clear ? '' : JSON.stringify({ name: myName, n: Object.keys(net.players).length, ts: Date.now(), m: net.cfg.modo, mp: net.cfg.mapa });
   for (const c of net.clients) if (c.connected) c.publish(lobbyTopic(net.code), txt, { retain: true });
 }
 function openLobby() {
@@ -1374,7 +1751,7 @@ function openLobby() {
       if (!m || typeof m.ts !== 'number') return;
       const old = lobby.rooms.get(code);
       if (old && old.ts > m.ts) return;
-      lobby.rooms.set(code, { code, name: String(m.name || '?').slice(0, 14), n: Math.max(1, m.n | 0), ts: m.ts, gg: m.m === 'gg' });
+      lobby.rooms.set(code, { code, name: String(m.name || '?').slice(0, 14), n: Math.max(1, m.n | 0), ts: m.ts, modo: ({ gg: 'Gun Game', tdm: 'Times' })[m.m] || 'Mata-mata', mapa: MAPS[m.mp]?.nome || '' });
       renderLobby();
     });
     lobby.clients.push(c);
@@ -1391,6 +1768,10 @@ function renderLobby() {
   const now = Date.now();
   const list = [...lobby.rooms.values()].filter(r => now - r.ts < 30000 && r.code !== net.code).sort((a, b) => b.ts - a.ts).slice(0, 8);
   const box = $('roomList');
+  // só redesenha se algo mudou (senão o botão some no meio do toque)
+  const sig = (lobby.clients.length ? 1 : 0) + '|' + list.map(r => `${r.code}:${r.name}:${r.n}:${r.modo}:${r.mapa}`).join(',');
+  if (sig === box.dataset.sig) return;
+  box.dataset.sig = sig;
   if (!list.length) {
     const d = document.createElement('div'); d.className = 'empty';
     d.textContent = lobby.clients.length ? 'Nenhuma sala aberta agora. Crie uma!' : 'Procurando salas…';
@@ -1398,7 +1779,7 @@ function renderLobby() {
   }
   box.replaceChildren(...list.map(r => {
     const b = document.createElement('button'); b.className = 'room';
-    const a = document.createElement('span'); a.textContent = `Sala de ${r.name}${r.gg ? ' · Gun Game' : ''}`;
+    const a = document.createElement('span'); a.textContent = `Sala de ${r.name} · ${r.modo}${r.mapa ? ' · ' + r.mapa : ''}`;
     const n = document.createElement('span'); n.textContent = `${r.n} jog. · ENTRAR`;
     b.append(a, n);
     b.onclick = () => { if ($('joinBtn').disabled) return; $('roomCode').value = r.code; $('joinBtn').click(); };
@@ -1407,17 +1788,21 @@ function renderLobby() {
 }
 
 // ===== Configuração da sala (só o dono) =====
+for (const sel of ['mapSel', 'cfgMapa']) $(sel).innerHTML = Object.entries(MAPS).map(([id, m]) => `<option value="${id}">${m.nome}</option>`).join('');
+$('mapSel').value = curMap;
+$('mapSel').addEventListener('change', () => { loadMap($('mapSel').value); try { localStorage.setItem('pb-mapa', $('mapSel').value); } catch {} });
 $('cfgArma').innerHTML = '<option value="todas">Todas (troca livre)</option>' + WEAPON_ORDER.map(id => `<option value="${id}">Só ${WEAPONS[id].nome}</option>`).join('');
 $('ggInfo').textContent = 'Gun Game: cada abate troca sua arma: ' + GG_ORDER.map(id => WEAPONS[id].nome).join(' → ') + '. Um abate com a última arma vence!';
 function readCfgForm() {
-  return cleanCfg({ modo: $('cfgModo').value, kills: $('cfgKills').value, arma: $('cfgArma').value, vida: $('cfgVida').value, power: $('cfgPower').value === '1' });
+  return cleanCfg({ mapa: $('cfgMapa').value, modo: $('cfgModo').value, kills: $('cfgKills').value, arma: $('cfgArma').value, vida: $('cfgVida').value, power: $('cfgPower').value === '1' });
 }
 function showCfgForm(c) {
-  $('cfgModo').value = c.modo; $('cfgKills').value = String(c.kills); $('cfgArma').value = c.arma;
+  $('cfgModo').value = c.modo; $('cfgMapa').value = c.mapa; $('cfgKills').value = String(c.kills); $('cfgArma').value = c.arma;
   $('cfgVida').value = String(c.vida); $('cfgPower').value = c.power ? '1' : '0';
   const gg = c.modo === 'gg';
   $('cfgKillsL').style.display = $('cfgArmaL').style.display = gg ? 'none' : 'flex';
   $('ggInfo').style.display = gg ? 'block' : 'none';
+  $('cfgKillsTxt').textContent = c.modo === 'tdm' ? 'Abates do time para vencer' : 'Abates para vencer';
 }
 function applyCfg() {
   if (!net.isHost) return;
@@ -1427,10 +1812,11 @@ function applyCfg() {
   try { localStorage.setItem('pb-cfg', JSON.stringify(net.cfg)); } catch {}
   // mudou a regra: placar e vida recomeçam
   for (const p of Object.values(net.players)) Object.assign(p, { kills: 0, deaths: 0, hp: hpMax(p.name), dead: false });
+  balanceTeams();
   if (before.power && !net.cfg.power) { clearPickups(); broadcast({ t: 'puclear' }); }
   sendRoster();
 }
-for (const id of ['cfgModo', 'cfgKills', 'cfgArma', 'cfgVida', 'cfgPower']) $(id).addEventListener('change', applyCfg);
+for (const id of ['cfgMapa', 'cfgModo', 'cfgKills', 'cfgArma', 'cfgVida', 'cfgPower']) $(id).addEventListener('change', applyCfg);
 
 function showOnlineScreen() {
   $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
@@ -1514,7 +1900,9 @@ function playerShoot() {
 
 // quem pode ser atingido pelos tiros do jogador
 function shootTargets() {
-  return mode === 'online' ? [...remotes.values()].filter(r => r.seen) : enemies;
+  if (mode !== 'online') return enemies;
+  const meu = teamOf(net.myId), tdm = isTdm();
+  return [...remotes.values()].filter(r => r.seen && !(tdm && teamOf(r.id) === meu)); // companheiros não são alvo
 }
 
 function hasLineOfSight(from, to) {
@@ -1859,6 +2247,7 @@ function frame() {
     }
   }
   if (state !== 'paused' || mode === 'online') updateParticles(dt);
+  mapTick?.(dt);
   const showLeave = mode === 'online' && state === 'paused';
   if (showLeave !== frame.leave) { frame.leave = showLeave; $('leaveBtn').style.display = showLeave ? 'block' : 'none'; }
   if (hitT > 0) { hitT -= dt; if (hitT <= 0) $('hitmark').style.opacity = 0; }
@@ -1866,7 +2255,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip };
+window.__jogo = { renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip };
 frame();
 
 addEventListener('resize', () => {
