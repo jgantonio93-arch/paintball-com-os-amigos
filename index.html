@@ -652,7 +652,9 @@ const params = new URLSearchParams(location.search);
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // a última letra do código diz em qual servidor a sala está
-const VERSAO = 5;
+const VERSAO = 6;
+// quem joga com o nome "Ana" não perde vida
+const isImmortal = name => /^ana$/i.test(String(name || '').trim());
 const topic = k => `pbamigos/v${VERSAO}/${net.code}/${k}`;
 const newId = () => Math.random().toString(36).slice(2, 10);
 const nameOf = id => net.players[id]?.name || 'Alguém';
@@ -698,7 +700,7 @@ function hostHandle(from, m) {
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
       if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning) return;
-      tg.hp -= HIT_DMG;
+      if (!isImmortal(tg.name)) tg.hp -= HIT_DMG;
       broadcast({ t: 'hp', id: m.target, hp: tg.hp, by: from });
       if (tg.hp <= 0) {
         tg.dead = true; tg.deaths++; sh.kills++;
@@ -1276,7 +1278,8 @@ function updateBalls(dt) {
       else if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir);
       else if (hitInfo.player && b.owner === 'remote') burst(hitInfo.p, b.color, 8, 3);
       else if (hitInfo.player) {
-        player.hp -= 8; hurtFx();
+        if (!isImmortal($('nick').value)) player.hp -= 8;
+        hurtFx();
         updateHud();
         if (player.hp <= 0) gameOver();
       } else {
