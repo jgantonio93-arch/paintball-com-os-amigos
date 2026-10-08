@@ -25,6 +25,9 @@
   #hpwrap { left:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); width:220px; }
   #hpbar { height:10px; border-radius:6px; background:#333; overflow:hidden; margin-top:6px; }
   #hpfill { height:100%; width:100%; background:linear-gradient(90deg,#3dff8b,#2bd1ff); transition:width .2s; }
+  #hpwrap.regen #hpfill { background:linear-gradient(90deg,#9dffc6,#3dff8b); animation:regen .6s ease-in-out infinite alternate; }
+  @keyframes regen { from { filter:brightness(1); } to { filter:brightness(1.5); } }
+  #hpwrap.regen::after { content:' ✚ recuperando'; font-size:12px; color:#9dffc6; position:absolute; top:8px; right:12px; }
   #ammo { right:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); font-size:22px; }
   #feed { position:absolute; top:70px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; }
   .msg { background:var(--panel); padding:6px 14px; border-radius:999px; font-weight:700; font-size:15px; animation:pop .25s ease-out, fade 2.4s forwards; white-space:nowrap; }
@@ -931,6 +934,10 @@ function updateHud() {
     $('wave').textContent = `Onda ${wave}`;
   }
   $('hpfill').style.width = `${Math.max(0, Math.min(100, player.hp / myMaxHp() * 100))}%`;
+  // mostra "recuperando" enquanto a vida está subindo sozinha
+  if (player.hp > (updateHud.lastHp ?? player.hp) && player.hp < myMaxHp()) { $('hpwrap').classList.add('regen'); clearTimeout(updateHud.rt); updateHud.rt = setTimeout(() => $('hpwrap').classList.remove('regen'), 900); }
+  if (player.hp >= myMaxHp() || player.hp < (updateHud.lastHp ?? 0)) $('hpwrap').classList.remove('regen');
+  updateHud.lastHp = player.hp;
   $('ammo').textContent = player.reloading > 0 ? `${curW().nome} · recarregando…` : `${curW().nome} · ${ammoOf(player.weapon)} / ${curW().mag}`;
 }
 function feed(text) {
@@ -1238,7 +1245,7 @@ let mode = 'solo', meDead = false, myChar = 0, myName = '';
 const CFG_PADRAO = { modo: 'dm', kills: 10, arma: 'todas', vida: 1, power: true, mapa: 'campus' };
 // times do modo Time contra Time
 const TEAMS = [{ nome: 'Vermelho', cor: 0xe74c3c, css: '#ff6b5e', emoji: '🔴' }, { nome: 'Azul', cor: 0x2e86de, css: '#5aaeff', emoji: '🔵' }];
-const net = { cfg: { ...CFG_PADRAO }, inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
+const net = { lastDmg: new Map(), cfg: { ...CFG_PADRAO }, inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
 const remotes = new Map();
 const RESPAWN_S = 3;
 // meta de abates: no Gun Game é passar por todas as armas
@@ -1270,7 +1277,9 @@ const params = new URLSearchParams(location.search);
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // a última letra do código diz em qual servidor a sala está
-const VERSAO = 9;
+const VERSAO = 10;
+// Regeneração: depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
+const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // quem joga com o nome "Ana" tem 3,5x mais vida
 const isAna = name => /^ana$/i.test(String(name || '').trim());
 const maxHpOf = name => isAna(name) ? 350 : 100;
@@ -1338,6 +1347,7 @@ function hostHandle(from, m) {
       const W = WEAPONS[hostWeaponOf(from, m.w)];
       const f = W.splash ? Math.min(1, Math.max(0.3, +m.f || 1)) : 1;
       tg.hp -= Math.round(W.dmg * f);
+      net.lastDmg.set(m.target, performance.now());
       broadcast({ t: 'hp', id: m.target, hp: tg.hp, by: from });
       if (tg.hp <= 0) {
         tg.dead = true; tg.deaths++; sh.kills++;
@@ -1603,7 +1613,7 @@ function leaveOnline(msg) {
   net.seen.clear();
   net.cfg = { ...CFG_PADRAO };
   Object.assign(net, { clients: [], isHost: false, joined: false, myId: null, code: null, players: {}, winning: false });
-  net.lastSeen.clear();
+  net.lastSeen.clear(); net.lastDmg.clear();
   for (const r of remotes.values()) scene.remove(r.root);
   remotes.clear();
   clearWorld();
@@ -1626,6 +1636,18 @@ function dropPlayer(id) {
   delete net.players[id]; net.lastSeen.delete(id);
   sendRoster(); feed(`${n} saiu`);
 }
+
+// dono da sala: regeneração de vida de todo mundo (de meio em meio segundo)
+setInterval(() => {
+  if (mode !== 'online' || !net.isHost || net.winning) return;
+  const now = performance.now();
+  for (const [id, p] of Object.entries(net.players)) {
+    const max = hpMax(p.name);
+    if (p.dead || p.hp >= max || now - (net.lastDmg.get(id) || 0) < REGEN_DELAY * 1000) continue;
+    p.hp = Math.min(max, Math.round(p.hp + max * REGEN_RATE * 0.5));
+    broadcast({ t: 'hp', id, hp: p.hp });
+  }
+}, 500);
 
 // quem some por muito tempo (fechou o app, perdeu a internet) sai da sala
 setInterval(() => {
@@ -1996,6 +2018,12 @@ function updatePlayer(dt) {
   camera.updateProjectionMatrix();
 
   tickPowerEffects(dt);
+  // modo sozinho: regeneração local (no online quem cuida é o dono da sala)
+  player.dmgT = (player.dmgT || 0) + dt;
+  if (mode !== 'online' && player.hp > 0 && player.dmgT > REGEN_DELAY && player.hp < myMaxHp()) {
+    player.hp = Math.min(myMaxHp(), player.hp + myMaxHp() * REGEN_RATE * dt);
+    updateHud();
+  }
 
   player.fireCd -= dt;
   if (player.reloading > 0) { player.reloading -= dt; if (player.reloading <= 0) { player.ammoBy[player.weapon] = curW().mag; updateHud(); } }
@@ -2171,7 +2199,7 @@ function updateBalls(dt) {
       else if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir, WEAPONS[b.w]?.dmg ?? 25);
       else if (hitInfo.player && b.owner === 'remote') burst(hitInfo.p, b.color, 8, 3);
       else if (hitInfo.player) {
-        if (player.invT <= 0) { player.hp -= 8; hurtFx(); }
+        if (player.invT <= 0) { player.hp -= 8; player.dmgT = 0; hurtFx(); }
         updateHud();
         if (player.hp <= 0) gameOver();
       } else {
