@@ -83,6 +83,13 @@
   .pick figure { cursor:pointer; opacity:.55; transition:opacity .15s, transform .15s; }
   .pick figure.sel { opacity:1; transform:scale(1.08); }
   .pick figure:not(.sel) img { border-color:#ffffff40; }
+  #roomBox { margin:14px auto 4px; width:min(380px,100%); }
+  #roomBox h3 { margin:0 0 8px; font-size:15px; opacity:.85; }
+  #roomList { display:flex; flex-direction:column; gap:8px; }
+  #roomList .room { font:inherit; font-weight:800; font-size:16px; padding:12px 14px; border-radius:12px; border:2px solid #3dffb0; background:#3dffb01f; color:#fff; cursor:pointer; text-align:left; display:flex; justify-content:space-between; gap:10px; }
+  #roomList .room span:last-child { color:#3dffb0; }
+  #roomList .empty { opacity:.6; font-size:14px; padding:8px; }
+  .ou { opacity:.6; font-size:13px; margin-top:6px; }
   #netStatus { min-height:1.4em; font-weight:700; color:var(--accent2); }
   button.link { background:none; border:0; color:#fff; opacity:.7; font:inherit; cursor:pointer; margin-top:8px; }
   #inviteBox { display:none; margin:10px 0; }
@@ -152,7 +159,9 @@
     <input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off">
     <div class="faces pick" id="pickList" style="margin-top:14px"></div>
     <div id="joinArea">
+      <div id="roomBox"><h3>Salas abertas</h3><div id="roomList"></div></div>
       <div class="row"><button class="big" id="hostBtn">CRIAR SALA</button></div>
+      <div class="ou">ou entre com o código</div>
       <div class="row">
         <input class="field" id="roomCode" maxlength="4" placeholder="CÓDIGO" autocomplete="off" autocapitalize="characters">
         <button class="big alt" id="joinBtn">ENTRAR</button>
@@ -807,7 +816,7 @@ function broadcast(m, exceptId) {
   publish('a', exceptId ? { ...m, x: exceptId } : m);
   if (exceptId !== net.myId) onNet(m);
 }
-const sendRoster = () => broadcast({ t: 'roster', players: net.players });
+const sendRoster = () => { broadcast({ t: 'roster', players: net.players }); announceRoom(); };
 
 function hostHandle(from, m) {
   if (typeof from !== 'string' || from.length > 20 || !m || typeof m.t !== 'string') return;
@@ -1042,6 +1051,7 @@ function goFullscreen() {
 }
 
 function enterOnline() {
+  closeLobby();
   mode = 'online'; meDead = false;
   clearWorld();
   Object.assign(player, { hp: myMaxHp(), ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: Math.random() * 6.28, pitch: 0 });
@@ -1057,7 +1067,7 @@ function clearTimers() { for (const t of net.timers) { clearTimeout(t); clearInt
 
 function leaveOnline(msg) {
   clearTimers();
-  if (net.joined || net.isHost) { if (net.isHost) publish('a', { t: 'bye' }); else sendNet({ t: 'bye' }); }
+  if (net.joined || net.isHost) { if (net.isHost) { publish('a', { t: 'bye' }); announceRoom(true); } else sendNet({ t: 'bye' }); }
   const cs = net.clients;
   setTimeout(() => { for (const c of cs) try { c.end(true); } catch {} }, 300);
   net.seen.clear();
@@ -1142,7 +1152,9 @@ function hostRoom() {
     addPlayer(net.myId, myName, myChar);
     $('joinArea').style.display = 'none'; $('inviteBox').style.display = 'block';
     $('inviteCode').textContent = code;
-    netStatus('Sala criada! Mande o código para os amigos.');
+    netStatus('Sala criada! Ela já aparece na lista de salas dos amigos.');
+    announceRoom();
+    net.timers.push(setInterval(() => announceRoom(), 5000));
   }, msg => { netStatus(msg); setBusy(false); net.isHost = false; });
 }
 
@@ -1178,10 +1190,70 @@ function joinRoom() {
   }, msg => { netStatus(msg); setBusy(false); });
 }
 
+// ===== Lista de salas abertas =====
+// O dono da sala publica um aviso "retido" no servidor (fica guardado para quem chegar depois)
+// e o renova a cada 5 s; a tela do online escuta esses avisos e mostra as salas.
+const lobby = { clients: [], rooms: new Map(), timer: null };
+const lobbyTopic = code => `pbamigos/v${VERSAO}/lobby/${code}`;
+function announceRoom(clear) {
+  if (!net.isHost || !net.code) return;
+  const txt = clear ? '' : JSON.stringify({ name: myName, n: Object.keys(net.players).length, ts: Date.now() });
+  for (const c of net.clients) if (c.connected) c.publish(lobbyTopic(net.code), txt, { retain: true });
+}
+function openLobby() {
+  closeLobby();
+  renderLobby();
+  if (!window.mqtt) return;
+  for (const url of BROKERS) {
+    let c;
+    try { c = mqtt.connect(url, { clientId: 'pbl_' + newId(), keepalive: 30, reconnectPeriod: 3000, connectTimeout: 8000, clean: true }); } catch { continue; }
+    c.on('connect', () => c.subscribe(`pbamigos/v${VERSAO}/lobby/+`));
+    c.on('message', (tp, buf) => {
+      if (!lobby.clients.includes(c)) return;
+      const code = tp.split('/').pop();
+      if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch))) return;
+      if (!buf.length) { lobby.rooms.delete(code); renderLobby(); return; }
+      let m; try { m = JSON.parse(buf.toString()); } catch { return; }
+      if (!m || typeof m.ts !== 'number') return;
+      const old = lobby.rooms.get(code);
+      if (old && old.ts > m.ts) return;
+      lobby.rooms.set(code, { code, name: String(m.name || '?').slice(0, 14), n: Math.max(1, m.n | 0), ts: m.ts });
+      renderLobby();
+    });
+    lobby.clients.push(c);
+  }
+  lobby.timer = setInterval(renderLobby, 3000);
+  setTimeout(renderLobby, 1500);
+}
+function closeLobby() {
+  for (const c of lobby.clients) try { c.end(true); } catch {}
+  lobby.clients = []; lobby.rooms.clear();
+  clearInterval(lobby.timer); lobby.timer = null;
+}
+function renderLobby() {
+  const now = Date.now();
+  const list = [...lobby.rooms.values()].filter(r => now - r.ts < 30000 && r.code !== net.code).sort((a, b) => b.ts - a.ts).slice(0, 8);
+  const box = $('roomList');
+  if (!list.length) {
+    const d = document.createElement('div'); d.className = 'empty';
+    d.textContent = lobby.clients.length ? 'Nenhuma sala aberta agora. Crie uma!' : 'Procurando salas…';
+    box.replaceChildren(d); return;
+  }
+  box.replaceChildren(...list.map(r => {
+    const b = document.createElement('button'); b.className = 'room';
+    const a = document.createElement('span'); a.textContent = `Sala de ${r.name}`;
+    const n = document.createElement('span'); n.textContent = `${r.n} jog. · ENTRAR`;
+    b.append(a, n);
+    b.onclick = () => { if ($('joinBtn').disabled) return; $('roomCode').value = r.code; $('joinBtn').click(); };
+    return b;
+  }));
+}
+
 function showOnlineScreen() {
   $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
   $('onlineScreen').style.display = 'flex';
   $('joinArea').style.display = 'block'; $('inviteBox').style.display = 'none';
+  openLobby();
   setBusy(false);
 }
 
@@ -1199,7 +1271,7 @@ if (params.get('sala')) $('roomCode').value = params.get('sala').toUpperCase().s
 $('verTxt').textContent = `versão ${VERSAO}`;
 $('leaveBtn').onclick = () => leaveOnline('Você saiu da sala.');
 $('onlineBtn').onclick = () => { netStatus(''); showOnlineScreen(); };
-$('backBtn').onclick = () => { if (net.clients.length) leaveOnline(''); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
+$('backBtn').onclick = () => { if (net.clients.length) leaveOnline(''); closeLobby(); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
 $('hostBtn').onclick = () => { initAudio(); hostRoom(); };
 $('joinBtn').onclick = () => { initAudio(); goFullscreen(); joinRoom(); };
 $('roomCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinBtn').click(); });
