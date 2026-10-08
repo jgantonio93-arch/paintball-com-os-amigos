@@ -33,7 +33,7 @@
   #dmg { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 45%, rgba(255,120,0,.55)); opacity:0; transition:opacity .25s; }
   #banner { position:absolute; left:50%; top:32%; transform:translate(-50%,-50%); font-size:clamp(30px,7vw,64px); font-weight:900; text-shadow:0 4px 0 #000a; opacity:0; transition:opacity .3s; text-align:center; }
 
-  .screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:16px;
+  .screen { position:fixed; inset:0; display:flex; align-items:safe center; justify-content:center; padding:16px; overflow-y:auto;
     background:radial-gradient(ellipse at top, #2a1450 0%, #0b1020 70%); z-index:10; }
   .card { width:min(560px,100%); text-align:center; }
   h1 { font-size:clamp(34px,8vw,58px); margin:0 0 6px; line-height:1; font-weight:900;
@@ -68,8 +68,29 @@
   body.touch .stat { font-size:14px; padding:6px 12px; }
   body.touch #banner { font-size:min(8vw,9vh); top:40%; }
   body.touch #feed { top:68px; }
+  .modes { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  button.big.alt { background:linear-gradient(90deg,#3db8ff,#3dffb0); }
+  button.big:disabled { opacity:.5; }
+  .field { font:inherit; font-weight:800; font-size:18px; padding:12px 14px; border-radius:12px; border:2px solid #ffffff33; background:#ffffff14; color:#fff; text-align:center; outline:none; width:min(260px,100%); }
+  .field:focus { border-color:var(--accent2); }
+  #roomCode { width:130px; text-transform:uppercase; letter-spacing:4px; }
+  .row { display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; margin:10px 0; }
+  .pick figure { cursor:pointer; opacity:.55; transition:opacity .15s, transform .15s; }
+  .pick figure.sel { opacity:1; transform:scale(1.08); }
+  .pick figure:not(.sel) img { border-color:#ffffff40; }
+  #netStatus { min-height:1.4em; font-weight:700; color:var(--accent2); }
+  button.link { background:none; border:0; color:#fff; opacity:.7; font:inherit; cursor:pointer; margin-top:8px; }
+  #inviteBox { display:none; margin:10px 0; }
+  #inviteCode { font-size:44px; font-weight:900; letter-spacing:8px; color:var(--accent2); }
+  #leaveBtn { position:fixed; z-index:6; left:50%; top:58%; transform:translateX(-50%); display:none; font:inherit; font-weight:800; font-size:16px; padding:10px 22px; border-radius:12px; border:2px solid #ffffff55; background:var(--panel); color:#fff; cursor:pointer; }
+  #board { position:absolute; right:16px; top:calc(62px + env(safe-area-inset-top,0px)); background:var(--panel); border-radius:12px; padding:6px 12px; font-size:14px; font-weight:700; display:none; min-width:150px; }
+  #board div { display:flex; justify-content:space-between; gap:14px; }
+  #board .me { color:var(--accent2); }
+  #board .dead { opacity:.5; }
+  body.touch #board { right:auto; left:50%; transform:translateX(-50%); top:calc(66px + env(safe-area-inset-top,0px)); font-size:12px; padding:4px 10px; min-width:130px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 <div id="hud">
@@ -79,6 +100,7 @@
   <div class="stat" id="wave">Onda 1</div>
   <div class="stat" id="hpwrap">Vida<div id="hpbar"><div id="hpfill"></div></div></div>
   <div class="stat" id="ammo">20 / 20</div>
+  <div id="board"></div>
   <div id="feed"></div>
   <div id="banner"></div>
 </div>
@@ -91,13 +113,18 @@
   <div class="tbtn" id="pauseBtn">II</div>
 </div>
 
+<button id="leaveBtn">Sair da sala</button>
+
 <div class="screen" id="startScreen">
   <div class="card">
     <h1>Paintball dos Amigos</h1>
-    <p class="sub">Eles estão correndo, pulando e atirando tinta em você. Acerte-os primeiro!</p>
+    <p class="sub">Jogue sozinho contra os amigos ou entre num mata-mata online com eles.</p>
     <div class="faces" id="facesList"></div>
     <div id="rotate">📱↻ Gire o celular para jogar deitado (fica melhor!)</div>
-    <button class="big" id="playBtn">JOGAR</button>
+    <div class="modes">
+      <button class="big" id="playBtn">SOZINHO</button>
+      <button class="big alt" id="onlineBtn">ONLINE · MATA-MATA</button>
+    </div>
     <div class="help" id="helpDesk">
       <kbd>W A S D</kbd> mover · <kbd>Mouse</kbd> mirar · <kbd>Clique</kbd> atirar<br>
       <kbd>Espaço</kbd> pular · <kbd>Shift</kbd> correr · <kbd>R</kbd> recarregar · <kbd>Esc</kbd> pausar
@@ -105,6 +132,29 @@
     <div class="help" id="helpTouch" style="display:none">
       Joystick à esquerda para mover · arraste a tela para mirar<br>Segure ATIRAR e arraste para mirar atirando · a mira ajuda você no celular
     </div>
+  </div>
+</div>
+
+<div class="screen" id="onlineScreen" style="display:none">
+  <div class="card">
+    <h1>Mata-mata</h1>
+    <p class="sub">Escolha seu boneco. Todo mundo contra todo mundo: o primeiro a pintar 10 vence.</p>
+    <input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off">
+    <div class="faces pick" id="pickList" style="margin-top:14px"></div>
+    <div id="joinArea">
+      <div class="row"><button class="big" id="hostBtn">CRIAR SALA</button></div>
+      <div class="row">
+        <input class="field" id="roomCode" maxlength="4" placeholder="CÓDIGO" autocomplete="off" autocapitalize="characters">
+        <button class="big alt" id="joinBtn">ENTRAR</button>
+      </div>
+    </div>
+    <div id="inviteBox">
+      <div>Código da sala:</div>
+      <div id="inviteCode"></div>
+      <div class="row"><button class="big alt" id="shareBtn">CONVIDAR</button><button class="big" id="goBtn">ENTRAR NO JOGO</button></div>
+    </div>
+    <p id="netStatus"></p>
+    <button class="link" id="backBtn">← voltar</button>
   </div>
 </div>
 
@@ -414,7 +464,9 @@ function fireBall(origin, dir, speed, owner, color) {
   m.position.copy(origin);
   if (owner === 'enemy') m.scale.setScalar(1.6);
   scene.add(m);
-  balls.push({ mesh: m, vel: dir.clone().multiplyScalar(speed), owner, color, life: 3 });
+  const b = { mesh: m, vel: dir.clone().multiplyScalar(speed), owner, color, life: 3 };
+  balls.push(b);
+  return b;
 }
 
 // ===== Áudio (sintetizado) =====
@@ -439,8 +491,14 @@ const sfx = {
 // ===== HUD =====
 const $ = id => document.getElementById(id);
 function updateHud() {
-  $('score').textContent = `Pontos: ${player.score}`;
-  $('wave').textContent = `Onda ${wave}`;
+  if (mode === 'online') {
+    const me = net.players[net.myId];
+    $('score').textContent = `Abates: ${me?.kills ?? 0} / ${KILLS_TO_WIN}`;
+    $('wave').textContent = `Sala ${net.code} · ${Object.keys(net.players).length} jog.`;
+  } else {
+    $('score').textContent = `Pontos: ${player.score}`;
+    $('wave').textContent = `Onda ${wave}`;
+  }
   $('hpfill').style.width = `${Math.max(0, player.hp)}%`;
   $('ammo').textContent = player.reloading > 0 ? 'Recarregando…' : `${player.ammo} / ${player.maxAmmo}`;
 }
@@ -552,7 +610,7 @@ $('touch').addEventListener('touchend', touchEnd);
 $('touch').addEventListener('touchcancel', touchEnd);
 
 function togglePause() {
-  if (state === 'play') { state = 'paused'; touchFire = false; banner('Pausado', 9999); }
+  if (state === 'play') { state = 'paused'; touchFire = false; banner(mode === 'online' ? 'Pausado (os outros continuam!)' : 'Pausado', 9999); }
   else if (state === 'paused') { state = 'play'; bannerT = 0.01; clock.getDelta(); }
 }
 
@@ -561,16 +619,13 @@ function reload() {
   player.reloading = 1.1; sfx.reload(); updateHud();
 }
 
+function initAudio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} } }
+
 function start() {
-  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
+  initAudio();
   $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
-  resetGame(); state = 'play'; lockPointer();
-  if (isTouch) {
-    // tela cheia + paisagem quando o navegador deixa (Android); no iPhone é ignorado sem problemas
-    const el = document.documentElement;
-    const fs = el.requestFullscreen || el.webkitRequestFullscreen;
-    try { const r = fs?.call(el); r?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); } catch {}
-  }
+  mode = 'solo'; renderBoard();
+  resetGame(); state = 'play'; lockPointer(); goFullscreen();
 }
 $('playBtn').onclick = start;
 $('againBtn').onclick = start;
@@ -582,6 +637,369 @@ function gameOver() {
   $('overText').textContent = `Você chegou na onda ${wave}, pintou ${player.kills} amigos e fez ${player.score} pontos (precisão ${acc}%).`;
   $('overScreen').style.display = 'flex';
 }
+
+// ===== Online: mata-mata (WebRTC via PeerJS) =====
+// Um jogador cria a sala (vira o "host"), os outros entram com o código.
+// O host repassa posições/tiros e decide vida, abates e quem venceu.
+let mode = 'solo', meDead = false, myChar = 0, myName = '';
+const net = { lastSeen: new Map(), lastHostMsg: 0, peer: null, isHost: false, conns: new Map(), hostConn: null, myId: null, code: null, players: {}, sendT: 0, winning: false };
+const remotes = new Map();
+const KILLS_TO_WIN = 10, HIT_DMG = 25, RESPAWN_S = 3;
+const params = new URLSearchParams(location.search);
+// ?peerhost=… permite usar um servidor PeerJS próprio (útil para testes)
+const PEER_OPTS = params.get('peerhost') ? { host: params.get('peerhost'), port: +params.get('peerport') || 9000, path: '/', secure: false } : {};
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const peerIdFor = code => 'pbamigos-v1-' + code.toLowerCase();
+const nameOf = id => net.players[id]?.name || 'Alguém';
+const r3 = v => Math.round(v * 1000) / 1000;
+function netStatus(t) { $('netStatus').textContent = t; }
+
+function addPlayer(id, name, char) {
+  net.players[id] = { name: String(name || 'Jogador').slice(0, 14), char: (char | 0) % AMIGOS.length, hp: 100, kills: 0, deaths: 0, dead: false };
+}
+function sendNet(m) {
+  if (net.isHost) hostHandle(net.myId, m);
+  else if (net.hostConn?.open) net.hostConn.send(m);
+}
+// manda para todos (inclusive o próprio host, que processa localmente)
+function broadcast(m, exceptId) {
+  for (const [id, c] of net.conns) if (id !== exceptId && c.open) c.send(m);
+  if (exceptId !== net.myId) onNet(m);
+}
+const sendRoster = () => broadcast({ t: 'roster', players: net.players });
+
+function hostHandle(from, m, conn) {
+  net.lastSeen.set(from, performance.now());
+  switch (m.t) {
+    case 'hello':
+      if (!conn || net.players[from]) return;
+      net.conns.set(from, conn);
+      addPlayer(from, m.name, m.char);
+      sendRoster();
+      broadcast({ t: 'joined', id: from });
+      break;
+    case 's': case 'shot':
+      if (net.players[from]) broadcast({ ...m, id: from }, from);
+      break;
+    case 'hit': {
+      const sh = net.players[from], tg = net.players[m.target];
+      if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning) return;
+      tg.hp -= HIT_DMG;
+      broadcast({ t: 'hp', id: m.target, hp: tg.hp, by: from });
+      if (tg.hp <= 0) {
+        tg.dead = true; tg.deaths++; sh.kills++;
+        broadcast({ t: 'kill', killer: from, victim: m.target });
+        sendRoster();
+        setTimeout(() => {
+          if (net.players[m.target] !== tg) return;
+          Object.assign(tg, { hp: 100, dead: false });
+          broadcast({ t: 'respawn', id: m.target }); sendRoster();
+        }, RESPAWN_S * 1000);
+        if (sh.kills >= KILLS_TO_WIN) {
+          net.winning = true;
+          broadcast({ t: 'win', id: from });
+          setTimeout(() => {
+            for (const p of Object.values(net.players)) Object.assign(p, { kills: 0, deaths: 0, hp: 100, dead: false });
+            net.winning = false;
+            broadcast({ t: 'reset' }); sendRoster();
+          }, 6000);
+        }
+      }
+      break;
+    }
+  }
+}
+
+function setRemoteDead(r, dead) {
+  if (dead && !r.dead) { r.dead = true; r.deadT = 0; }
+  else if (!dead && r.dead) { r.dead = false; r.body.rotation.x = 0; }
+}
+
+function onNet(m) {
+  switch (m.t) {
+    case 'roster': net.players = m.players; syncRemotes(); renderBoard(); updateHud(); break;
+    case 'joined': if (m.id !== net.myId) feed(`${nameOf(m.id)} entrou na sala`); break;
+    case 's': {
+      const r = remotes.get(m.id); if (!r) break;
+      r.target.fromArray(m.p); r.yaw = m.y; r.pitch = m.pi;
+      if (!r.seen) { r.seen = true; r.pos.copy(r.target); }
+      break;
+    }
+    case 'shot': {
+      if (m.id === net.myId) break;
+      const b = fireBall(new THREE.Vector3().fromArray(m.o), new THREE.Vector3().fromArray(m.d), 55, 'remote', m.c);
+      b.shooter = m.id;
+      const r = remotes.get(m.id); if (r) r.armR.rotation.x = -2.1;
+      break;
+    }
+    case 'hp':
+      if (m.id === net.myId) { player.hp = m.hp; hurtFx(); updateHud(); }
+      else { const r = remotes.get(m.id); if (r) r.flash = 0.15; }
+      break;
+    case 'kill': {
+      const kn = nameOf(m.killer), vn = nameOf(m.victim);
+      if (m.victim === net.myId) {
+        meDead = true; touchFire = false; mouseDown = false;
+        banner(`${kn} te pintou!`, RESPAWN_S);
+      } else if (m.killer === net.myId) { sfx.ko(); feed(`Você pintou ${vn}! 🎨`); }
+      else feed(`${kn} pintou ${vn}`);
+      const r = remotes.get(m.victim); if (r) setRemoteDead(r, true);
+      break;
+    }
+    case 'respawn':
+      if (m.id === net.myId) {
+        meDead = false; player.hp = 100; player.vy = 0; player.ammo = player.maxAmmo; player.reloading = 0;
+        player.pos.copy(onlineSpawn()); updateHud();
+      } else { const r = remotes.get(m.id); if (r) setRemoteDead(r, false); }
+      break;
+    case 'win': banner(m.id === net.myId ? 'Você venceu! 🏆' : `${nameOf(m.id)} venceu!`, 5.5); if (m.id === net.myId) sfx.ko(); break;
+    case 'reset': banner('Nova partida!'); break;
+  }
+}
+
+function nameTag(text) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const w = Math.min(250, g.measureText(text).width + 30);
+  g.fillStyle = 'rgba(10,14,28,.7)'; g.beginPath(); g.roundRect?.(128 - w / 2, 6, w, 52, 18); g.fill();
+  g.fillStyle = '#fff'; g.fillText(text, 128, 33);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false }));
+  sp.scale.set(1.8, 0.45, 1); sp.renderOrder = 10;
+  return sp;
+}
+
+function syncRemotes() {
+  for (const [id, p] of Object.entries(net.players)) {
+    if (id === net.myId) continue;
+    let r = remotes.get(id);
+    if (r && (r.char !== p.char || r.name !== p.name)) { scene.remove(r.root); remotes.delete(id); r = null; }
+    if (!r) {
+      const a = AMIGOS[p.char] || AMIGOS[0];
+      const parts = buildFriend(a);
+      const tag = nameTag(p.name); tag.position.y = 3.3; parts.root.add(tag);
+      r = { id, char: p.char, name: p.name, a, ...parts, pos: new THREE.Vector3(), target: new THREE.Vector3(), vel: new THREE.Vector3(),
+        yaw: 0, pitch: 0, phase: 0, flash: 0, dead: false, deadT: 0, seen: false };
+      parts.root.visible = false;
+      scene.add(parts.root); remotes.set(id, r);
+    }
+    setRemoteDead(r, p.dead);
+  }
+  for (const [id, r] of remotes) if (!net.players[id]) { scene.remove(r.root); remotes.delete(id); }
+}
+
+function updateRemotes(dt, t) {
+  for (const r of remotes.values()) {
+    r.root.visible = r.seen;
+    if (!r.seen) continue;
+    const prev = tmpV.copy(r.pos);
+    if (r.pos.distanceTo(r.target) > 6) r.pos.copy(r.target); else r.pos.lerp(r.target, Math.min(1, dt * 12));
+    r.vel.copy(r.pos).sub(prev).divideScalar(Math.max(dt, 1e-3)); r.vel.y = 0;
+    r.root.position.copy(r.pos);
+    r.root.rotation.y = r.yaw + Math.PI;
+    if (r.dead) { r.deadT += dt; r.body.rotation.x = -Math.min(Math.PI / 2, r.deadT * 5); continue; }
+    const sp = Math.min(r.vel.length(), 10);
+    r.phase += dt * sp * 2.6;
+    const swing = Math.sin(r.phase) * Math.min(1, sp / 3) * 0.8;
+    r.legL.rotation.x = swing; r.legR.rotation.x = -swing; r.armL.rotation.x = -swing * 0.8;
+    r.body.position.y = Math.abs(Math.sin(r.phase)) * 0.08 * Math.min(1, sp / 3);
+    if (r.pos.y > groundHeight(r.pos, ENEMY_RADIUS) + 0.15) { r.legL.rotation.x = -0.6; r.legR.rotation.x = 0.4; r.armL.rotation.x = -2.6; }
+    r.head.rotation.x = -r.pitch * 0.4;
+    r.head.rotation.z = Math.sin(t * 3 + r.phase) * 0.08;
+    r.armR.rotation.x += (-Math.PI / 2 - r.pitch - r.armR.rotation.x) * Math.min(1, dt * 8);
+    if (r.flash > 0) { r.flash -= dt; r.root.scale.setScalar(1 + r.flash * 0.6); } else r.root.scale.setScalar(1);
+  }
+}
+
+function onlineSpawn() {
+  let best = null, bestD = -1;
+  for (let i = 0; i < 40; i++) {
+    const p = new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 3), 0, (Math.random() * 2 - 1) * (ARENA - 3));
+    if (collides(p, PLAYER_R + 0.3, 1.8)) continue;
+    let d = 1e9;
+    for (const r of remotes.values()) if (r.seen && !r.dead) d = Math.min(d, r.pos.distanceTo(p));
+    if (d > bestD) { bestD = d; best = p; }
+    if (d > 18) break;
+  }
+  return best || new THREE.Vector3(0, 0, 0);
+}
+
+function renderBoard() {
+  const b = $('board');
+  if (mode !== 'online') { b.style.display = 'none'; return; }
+  const list = Object.entries(net.players).sort((a, c) => c[1].kills - a[1].kills || a[1].deaths - c[1].deaths);
+  b.style.display = 'block';
+  b.replaceChildren(...list.slice(0, isTouch ? 4 : 8).map(([id, p]) => {
+    const d = document.createElement('div');
+    if (id === net.myId) d.className = 'me';
+    if (p.dead) d.className += ' dead';
+    const n = document.createElement('span'); n.textContent = (id === net.myId ? '▶ ' : '') + p.name;
+    const k = document.createElement('span'); k.textContent = `${p.kills}`;
+    d.append(n, k); return d;
+  }));
+}
+
+function hurtFx() {
+  sfx.hurt(); navigator.vibrate?.(60);
+  $('dmg').style.opacity = 1; setTimeout(() => $('dmg').style.opacity = 0, 180);
+}
+
+function hitRemote(r, point, color, dir) {
+  r.flash = 0.15; player.hits++;
+  hitMarker(); sfx.hit();
+  burst(point, color, 10, 3);
+  addSplat(point, dir.clone().negate(), color, r.root, 0.5);
+  sendNet({ t: 'hit', target: r.id });
+}
+
+function clearWorld() {
+  for (const e of enemies) scene.remove(e.root);
+  enemies.length = 0;
+  for (const b of balls) scene.remove(b.mesh); balls.length = 0;
+  for (const d of decals) d.parent?.remove(d); decals.length = 0;
+}
+
+function goFullscreen() {
+  if (!isTouch) return;
+  // tela cheia + paisagem quando o navegador deixa (Android); no iPhone é ignorado sem problemas
+  const el = document.documentElement;
+  const fs = el.requestFullscreen || el.webkitRequestFullscreen;
+  try { const r = fs?.call(el); r?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); } catch {}
+}
+
+function enterOnline() {
+  mode = 'online'; meDead = false;
+  clearWorld();
+  Object.assign(player, { hp: 100, ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: Math.random() * 6.28, pitch: 0 });
+  player.pos.copy(onlineSpawn());
+  for (const id of ['startScreen', 'onlineScreen', 'overScreen']) $(id).style.display = 'none';
+  syncRemotes(); renderBoard(); updateHud();
+  if (isTouch) { state = 'play'; banner(`Sala ${net.code}`); }
+  else if (document.pointerLockElement === canvas) state = 'play';
+  else { state = 'paused'; banner('Clique para começar', 9999); }
+}
+
+function leaveOnline(msg) {
+  try { net.peer?.destroy(); } catch {}
+  Object.assign(net, { peer: null, isHost: false, hostConn: null, myId: null, code: null, players: {}, winning: false });
+  net.conns.clear(); net.lastSeen.clear();
+  for (const r of remotes.values()) scene.remove(r.root);
+  remotes.clear();
+  clearWorld();
+  mode = 'solo'; meDead = false; state = 'menu';
+  document.exitPointerLock?.();
+  renderBoard(); bannerT = 0.01;
+  showOnlineScreen();
+  netStatus(msg || '');
+}
+
+function readSetup() {
+  myName = $('nick').value.trim() || AMIGOS[myChar].nome;
+  try { localStorage.setItem('pb-nick', $('nick').value.trim()); localStorage.setItem('pb-char', myChar); } catch {}
+}
+
+function dropPlayer(id) {
+  if (!net.conns.has(id)) return;
+  const n = nameOf(id), c = net.conns.get(id);
+  net.conns.delete(id); delete net.players[id];
+  try { c.close(); } catch {}
+  sendRoster(); feed(`${n} saiu`);
+}
+
+// quem some por muito tempo (fechou o app, perdeu a internet) sai da sala
+setInterval(() => {
+  if (mode !== 'online') return;
+  const now = performance.now();
+  if (net.isHost) { for (const id of [...net.conns.keys()]) if (now - (net.lastSeen.get(id) || 0) > 9000) dropPlayer(id); }
+  else if (net.hostConn && now - net.lastHostMsg > 12000) leaveOnline('Perdi a conexão com a sala.');
+}, 1000);
+
+function hostRoom(tries = 0) {
+  if (!window.Peer) return netStatus('Não consegui carregar o modo online. Confira a internet.');
+  readSetup();
+  const code = Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+  netStatus('Criando sala…'); $('hostBtn').disabled = $('joinBtn').disabled = true;
+  const peer = new Peer(peerIdFor(code), PEER_OPTS);
+  peer.on('open', id => {
+    Object.assign(net, { peer, isHost: true, myId: id, code, players: {} });
+    addPlayer(id, myName, myChar);
+    peer.on('connection', c => {
+      c.on('data', m => hostHandle(c.peer, m, c));
+      const bye = () => dropPlayer(c.peer);
+      c.on('close', bye); c.on('error', bye);
+    });
+    $('joinArea').style.display = 'none'; $('inviteBox').style.display = 'block';
+    $('inviteCode').textContent = code;
+    netStatus('Sala criada! Mande o código para os amigos.');
+  });
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id' && tries < 5) { peer.destroy(); hostRoom(tries + 1); return; }
+    if (net.peer === peer && mode === 'online') { feed('Problema de conexão: ' + err.type); return; }
+    netStatus('Erro ao criar sala (' + err.type + '). Tente de novo.');
+    $('hostBtn').disabled = $('joinBtn').disabled = false;
+  });
+}
+
+function joinRoom() {
+  if (!window.Peer) return netStatus('Não consegui carregar o modo online. Confira a internet.');
+  const code = $('roomCode').value.trim().toUpperCase();
+  if (code.length !== 4) return netStatus('Digite o código de 4 letras da sala.');
+  readSetup();
+  netStatus('Entrando…'); $('hostBtn').disabled = $('joinBtn').disabled = true;
+  const peer = new Peer(undefined, PEER_OPTS);
+  const fail = msg => { netStatus(msg); $('hostBtn').disabled = $('joinBtn').disabled = false; try { peer.destroy(); } catch {} };
+  peer.on('open', id => {
+    const c = peer.connect(peerIdFor(code), { reliable: true });
+    const timer = setTimeout(() => fail('Não achei a sala. Confira o código.'), 12000);
+    c.on('open', () => {
+      clearTimeout(timer);
+      Object.assign(net, { peer, isHost: false, myId: id, code, hostConn: c, players: {}, lastHostMsg: performance.now() });
+      c.send({ t: 'hello', name: myName, char: myChar });
+      enterOnline();
+    });
+    c.on('data', m => { net.lastHostMsg = performance.now(); onNet(m); });
+    c.on('close', () => { if (net.hostConn === c) leaveOnline('A sala fechou (o dono saiu).'); });
+  });
+  peer.on('error', err => {
+    if (net.peer === peer && mode === 'online') return;
+    fail(err.type === 'peer-unavailable' ? 'Sala não encontrada. Confira o código.' : 'Erro de conexão (' + err.type + ').');
+  });
+}
+
+function showOnlineScreen() {
+  $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
+  $('onlineScreen').style.display = 'flex';
+  $('joinArea').style.display = 'block'; $('inviteBox').style.display = 'none';
+  $('hostBtn').disabled = $('joinBtn').disabled = false;
+}
+
+// tela de escolha de boneco
+try { $('nick').value = localStorage.getItem('pb-nick') || ''; myChar = (+localStorage.getItem('pb-char') || 0) % AMIGOS.length; } catch {}
+AMIGOS.forEach((a, i) => {
+  const f = document.createElement('figure');
+  f.innerHTML = `<img src="${a.foto}" alt=""><figcaption></figcaption>`;
+  f.querySelector('figcaption').textContent = a.nome;
+  f.classList.toggle('sel', i === myChar);
+  f.onclick = () => { myChar = i; [...$('pickList').children].forEach((el, j) => el.classList.toggle('sel', j === i)); };
+  $('pickList').appendChild(f);
+});
+if (params.get('sala')) $('roomCode').value = params.get('sala').toUpperCase().slice(0, 4);
+$('leaveBtn').onclick = () => leaveOnline('Você saiu da sala.');
+$('onlineBtn').onclick = () => { netStatus(''); showOnlineScreen(); };
+$('backBtn').onclick = () => { if (net.peer) leaveOnline(''); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
+$('hostBtn').onclick = () => { initAudio(); hostRoom(); };
+$('joinBtn').onclick = () => { initAudio(); goFullscreen(); joinRoom(); };
+$('roomCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinBtn').click(); });
+$('goBtn').onclick = () => { initAudio(); goFullscreen(); lockPointer(); enterOnline(); };
+$('shareBtn').onclick = async () => {
+  const url = /^https?:/.test(location.protocol) ? `${location.origin}${location.pathname}?sala=${net.code}` : '';
+  const text = `Bora de paintball! Entra no mata-mata com o código ${net.code}` + (url ? `: ${url}` : '');
+  try {
+    if (navigator.share) await navigator.share({ title: 'Paintball dos Amigos', text });
+    else { await navigator.clipboard.writeText(text); netStatus('Convite copiado!'); }
+  } catch {}
+};
 
 // ===== Loop =====
 const raycaster = new THREE.Raycaster();
@@ -600,7 +1018,7 @@ function playerShoot() {
   if (isTouch) {
     // mira assistida: puxa o tiro para o amigo mais próximo do centro da tela
     let best = 0.13, target = null;
-    for (const e of enemies) {
+    for (const e of shootTargets()) {
       if (e.dead) continue;
       const c = new THREE.Vector3(e.pos.x, e.pos.y + 1.6, e.pos.z);
       const dist = c.distanceTo(origin);
@@ -612,9 +1030,16 @@ function playerShoot() {
     if (target) dir.copy(target);
   }
   dir.x += (Math.random() - .5) * 0.012; dir.y += (Math.random() - .5) * 0.012; dir.normalize();
-  fireBall(origin, dir, 55, 'player', PAINT[Math.floor(Math.random() * PAINT.length)]);
+  const color = PAINT[Math.floor(Math.random() * PAINT.length)];
+  fireBall(origin, dir, 55, 'player', color);
+  if (mode === 'online') sendNet({ t: 'shot', o: origin.toArray().map(r3), d: dir.toArray().map(r3), c: color });
   if (player.ammo === 0) reload();
   updateHud();
+}
+
+// quem pode ser atingido pelos tiros do jogador
+function shootTargets() {
+  return mode === 'online' ? [...remotes.values()].filter(r => r.seen) : enemies;
 }
 
 function hasLineOfSight(from, to) {
@@ -749,7 +1174,7 @@ function updateBalls(dt) {
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
     const start = b.mesh.position.clone();
-    b.vel.y -= (b.owner === 'player' ? 4 : 6) * dt;
+    b.vel.y -= (b.owner === 'enemy' ? 6 : 4) * dt;
     const step = b.vel.clone().multiplyScalar(dt);
     const end = start.clone().add(step);
     const stepLen = step.length();
@@ -761,16 +1186,17 @@ function updateBalls(dt) {
     let best = stepLen, hitInfo = null;
 
     // inimigos: esfera no tronco + esfera na cabeça
-    if (b.owner === 'player') {
-      for (const e of enemies) {
-        if (e.dead) continue;
+    if (b.owner === 'player' || b.owner === 'remote') {
+      for (const e of shootTargets()) {
+        if (e.dead || e.id === b.shooter) continue;
         for (const [y, r] of [[1.35, 0.6], [2.4, 0.62], [0.6, 0.45]]) {
           const c = new THREE.Vector3(e.pos.x, e.pos.y + y, e.pos.z);
           const p = ballRay.intersectSphere(new THREE.Sphere(c, r), new THREE.Vector3());
           if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { e, p }; } }
         }
       }
-    } else {
+    }
+    if (b.owner !== 'player' && !meDead) {
       // jogador (cápsula aproximada)
       const c = new THREE.Vector3(player.pos.x, player.pos.y + 1.1, player.pos.z);
       const p = ballRay.intersectSphere(new THREE.Sphere(c, 0.75), new THREE.Vector3());
@@ -786,10 +1212,12 @@ function updateBalls(dt) {
 
     if (hitInfo) {
       done = true;
-      if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir);
+      if (hitInfo.e && b.owner === 'remote') burst(hitInfo.p, b.color, 8, 3); // só visual: quem atirou avisa o host
+      else if (hitInfo.e && mode === 'online') hitRemote(hitInfo.e, hitInfo.p, b.color, dir);
+      else if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir);
+      else if (hitInfo.player && b.owner === 'remote') burst(hitInfo.p, b.color, 8, 3);
       else if (hitInfo.player) {
-        player.hp -= 8; sfx.hurt(); navigator.vibrate?.(60);
-        $('dmg').style.opacity = 1; setTimeout(() => $('dmg').style.opacity = 0, 180);
+        player.hp -= 8; hurtFx();
         updateHud();
         if (player.hp <= 0) gameOver();
       } else {
@@ -831,7 +1259,27 @@ const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (state === 'menu') { menuScene(t); updateEnemies(dt, t); }
-  if (state === 'play') {
+  if (mode === 'online' && state !== 'menu') {
+    if (state === 'play' && !meDead) updatePlayer(dt);
+    else if (meDead) {
+      // caído no chão esperando voltar
+      net.deadT = (net.deadT || 0) + dt;
+      const k = Math.min(1, net.deadT * 3);
+      camera.position.set(player.pos.x, player.pos.y + EYE - k * 1.3, player.pos.z);
+      camera.rotation.set(-0.15 * k, player.yaw, 0.7 * k, 'YXZ');
+    } else {
+      camera.position.set(player.pos.x, player.pos.y + EYE, player.pos.z);
+      camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+    }
+    if (!meDead) net.deadT = 0;
+    updateRemotes(dt, t);
+    updateBalls(dt);
+    net.sendT -= dt;
+    if (net.sendT <= 0) {
+      net.sendT = 1 / 15;
+      sendNet({ t: 's', p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch) });
+    }
+  } else if (state === 'play') {
     updatePlayer(dt);
     updateEnemies(dt, t);
     updateBalls(dt);
@@ -840,13 +1288,15 @@ function frame() {
       waveDelay -= dt; if (waveDelay <= 0) nextWave();
     }
   }
-  if (state !== 'paused') updateParticles(dt);
+  if (state !== 'paused' || mode === 'online') updateParticles(dt);
+  const showLeave = mode === 'online' && state === 'paused';
+  if (showLeave !== frame.leave) { frame.leave = showLeave; $('leaveBtn').style.display = showLeave ? 'block' : 'none'; }
   if (hitT > 0) { hitT -= dt; if (hitT <= 0) $('hitmark').style.opacity = 0; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').style.opacity = 0; }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { player, enemies, camera, shoot: playerShoot };
+window.__jogo = { player, enemies, camera, shoot: playerShoot, net, remotes };
 frame();
 
 addEventListener('resize', () => {
