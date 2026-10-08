@@ -371,7 +371,7 @@
     .panel { padding:10px; border-radius:16px; }
     .act { padding:10px 12px; } .act i { font-size:20px; margin-bottom:2px; } .act b { font-size:15px; } .act small { font-size:11px; }
     .tabs button { padding:8px 6px; font-size:13px; }
-    .playerPanel .chars { flex-wrap:wrap; overflow:visible; }
+    .playerPanel .chars { display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); max-height:calc(100vh - 140px); overflow-y:auto; touch-action:pan-y; }
     .ch { width:84px; padding:6px 4px; } .ch img, .ch .plus { width:58px; height:72px; }
     .screen { padding-top:calc(8px + var(--st)); }
     .btn.big { font-size:16px; padding:11px 22px; }
@@ -605,9 +605,14 @@
 
 // ===== Configuração: troque os nomes aqui =====
 const AMIGOS = [
-  { nome: 'Amigo 1', foto: 'amigo1.jpg', camisa: 0x1b1d26, cabelo: 0x3a2a1e, calca: 0x22242e, velocidade: 1.15 },
-  { nome: 'Amigo 2', foto: 'amigo2.jpg', camisa: 0x3b4429, cabelo: 0x2a1c14, calca: 0x2b3550, velocidade: 0.95 },
-  { nome: 'Amigo 3', foto: 'amigo3.jpg', camisa: 0x7a6a58, cabelo: 0x141010, calca: 0x1e2028, velocidade: 1.05, pele: 0xb07a55 },
+  { nome: 'Arthur', foto: 'amigo1.jpg', camisa: 0x1b1d26, cabelo: 0x3a2a1e, calca: 0x22242e, velocidade: 1.15 },
+  { nome: 'Igor', foto: 'amigo2.jpg', camisa: 0x3b4429, cabelo: 0x2a1c14, calca: 0x2b3550, velocidade: 0.95 },
+  { nome: 'Hugo', foto: 'amigo3.jpg', camisa: 0x7a6a58, cabelo: 0x141010, calca: 0x1e2028, velocidade: 1.05, pele: 0xb07a55 },
+  { nome: 'Lucas', foto: 'amigo4.jpg', camisa: 0x1f5a4f, cabelo: 0x4a3324, calca: 0x2b3550, velocidade: 1 },
+  { nome: 'Isabela', foto: 'amigo5.jpg', camisa: 0xf2f2f2, cabelo: 0x5a3b26, calca: 0x3a4a6a, velocidade: 1.1 },
+  { nome: 'Guilherme', foto: 'amigo6.jpg', camisa: 0x1d2236, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1.05 },
+  { nome: 'Ana Lara', foto: 'amigo7.jpg', camisa: 0x1b1b1f, cabelo: 0x2b1a12, calca: 0x22242e, velocidade: 1 },
+  { nome: 'Amanda', foto: 'amigo8.jpg', camisa: 0xeeeeee, cabelo: 0x6b4a2e, calca: 0x4a6a8a, velocidade: 1.1 },
 ];
 const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou arte moderna!', 'levou um splash!', 'tá todo manchado!'];
 
@@ -2001,7 +2006,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 12;
+const VERSAO = 13;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -3212,7 +3217,7 @@ function zSpawn() {
   const id = 'z' + (++Z.seq).toString(36);
   const hp = Math.round((45 + r * 18) * (0.8 + 0.2 * dif));
   Z.sim.set(id, {
-    id, x: best.x, y: 0, z: best.z, yaw: 0, kind: Math.floor(Math.random() * 3),
+    id, x: best.x, y: 0, z: best.z, yaw: 0, kind: Math.floor(Math.random() * AMIGOS.length),
     hp, max: hp, speed: Math.min(2.1 + r * 0.22, 5.4) * (0.85 + Math.random() * 0.3) * (0.85 + 0.15 * dif),
     dmg: Math.round((10 + r * 1.5) * dif), atkCd: 0.5, side: Math.random() < 0.5 ? 1 : -1, sideT: 0, stuck: 0, atkFlag: false,
   });
