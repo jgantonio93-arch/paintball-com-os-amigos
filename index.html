@@ -155,6 +155,7 @@
     </div>
     <p id="netStatus"></p>
     <button class="link" id="backBtn">← voltar</button>
+    <div class="help" id="verTxt"></div>
   </div>
 </div>
 
@@ -643,16 +644,16 @@ function gameOver() {
 // Quem cria a sala vira o "host": recebe as mensagens de todos no tópico /h,
 // decide vida, abates e quem venceu, e repassa tudo no tópico /a.
 let mode = 'solo', meDead = false, myChar = 0, myName = '';
-const net = { lastSeen: new Map(), lastHostMsg: 0, client: null, isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
+const net = { lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
 const remotes = new Map();
 const KILLS_TO_WIN = 10, HIT_DMG = 25, RESPAWN_S = 3;
 const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
-const BROKERS = params.get('mqtt') ? [params.get('mqtt')] : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
+const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // a última letra do código diz em qual servidor a sala está
-const brokerOfCode = code => CODE_CHARS.indexOf(code[3]) % BROKERS.length;
-const topic = k => `pbamigos/v2/${net.code}/${k}`;
+const VERSAO = 5;
+const topic = k => `pbamigos/v${VERSAO}/${net.code}/${k}`;
 const newId = () => Math.random().toString(36).slice(2, 10);
 const nameOf = id => net.players[id]?.name || 'Alguém';
 const r3 = v => Math.round(v * 1000) / 1000;
@@ -662,8 +663,10 @@ function addPlayer(id, name, char) {
   net.lastSeen.set(id, performance.now());
   net.players[id] = { name: String(name || 'Jogador').slice(0, 14), char: (char | 0) % AMIGOS.length, hp: 100, kills: 0, deaths: 0, dead: false };
 }
+// manda pelos servidores conectados (todos ao mesmo tempo; quem recebe descarta as cópias)
 function publish(k, m) {
-  if (net.client?.connected) net.client.publish(topic(k), JSON.stringify(m));
+  const txt = JSON.stringify({ ...m, q: `${net.myId}.${++net.seq}` });
+  for (const c of net.clients) if (c.connected) c.publish(topic(k), txt);
 }
 function sendNet(m) {
   if (net.isHost) hostHandle(net.myId, m);
@@ -902,9 +905,10 @@ function clearTimers() { for (const t of net.timers) { clearTimeout(t); clearInt
 function leaveOnline(msg) {
   clearTimers();
   if (net.joined || net.isHost) { if (net.isHost) publish('a', { t: 'bye' }); else sendNet({ t: 'bye' }); }
-  const c = net.client;
-  if (c) setTimeout(() => { try { c.end(true); } catch {} }, 300);
-  Object.assign(net, { client: null, isHost: false, joined: false, myId: null, code: null, players: {}, winning: false });
+  const cs = net.clients;
+  setTimeout(() => { for (const c of cs) try { c.end(true); } catch {} }, 300);
+  net.seen.clear();
+  Object.assign(net, { clients: [], isHost: false, joined: false, myId: null, code: null, players: {}, winning: false });
   net.lastSeen.clear();
   for (const r of remotes.values()) scene.remove(r.root);
   remotes.clear();
@@ -936,68 +940,88 @@ setInterval(() => {
   else if (net.joined && now - net.lastHostMsg > 20000) leaveOnline('Perdi a conexão com a sala.');
 }, 1000);
 
-// conecta ao servidor MQTT (tenta os da lista na ordem dada)
-function connectBroker(order, onReady, onFail) {
-  if (!window.mqtt) return onFail('Não consegui carregar o modo online. Confira a internet.');
-  const i = order[0];
-  if (i === undefined) return onFail('Não consegui conectar ao servidor do jogo. Confira a internet e tente de novo.');
-  const c = mqtt.connect(BROKERS[i], { clientId: 'pb_' + newId(), keepalive: 20, reconnectPeriod: 1500, connectTimeout: 6000, clean: true, queueQoSZero: false });
-  let ok = false;
-  const t = setTimeout(() => { if (!ok) { try { c.end(true); } catch {} connectBroker(order.slice(1), onReady, onFail); } }, 7000);
-  c.once('connect', () => { ok = true; clearTimeout(t); onReady(c, i); });
+// conecta a todos os servidores MQTT ao mesmo tempo; segue assim que o primeiro responder
+function connectAll(sub, onMsg, onReady, onFail) {
+  if (!window.mqtt) return onFail('Não consegui carregar o modo online. Confira a internet e recarregue a página.');
+  const clients = [];
+  let ready = false, failed = 0;
+  const status = () => { if (!ready) return; const n = clients.filter(c => c.connected).length; net.servers = n; };
+  for (const url of BROKERS) {
+    let c;
+    try { c = mqtt.connect(url, { clientId: 'pb_' + newId(), keepalive: 20, reconnectPeriod: 2000, connectTimeout: 8000, clean: true, queueQoSZero: false }); }
+    catch { failed++; continue; }
+    clients.push(c);
+    c.on('connect', () => {
+      c.subscribe(topic(sub));
+      status();
+      if (!ready) { ready = true; onReady(clients); }
+    });
+    c.on('close', status);
+    c.on('message', (tp, buf) => {
+      if (net.clients !== clients) return;
+      let m; try { m = JSON.parse(buf.toString()); } catch { return; }
+      if (!m || typeof m !== 'object' || typeof m.q !== 'string' || net.seen.has(m.q)) return;
+      net.seen.add(m.q);
+      if (net.seen.size > 3000) net.seen = new Set([...net.seen].slice(-1500));
+      onMsg(m);
+    });
+  }
+  net.clients = clients;
+  net.timers.push(setTimeout(() => {
+    if (ready) return;
+    for (const c of clients) try { c.end(true); } catch {}
+    net.clients = [];
+    onFail('Não consegui conectar a nenhum servidor do jogo. Confira a internet (ou troque Wi-Fi/4G) e tente de novo.');
+  }, 10000));
 }
 const setBusy = busy => { $('hostBtn').disabled = $('joinBtn').disabled = busy; };
-function parseMsg(buf) { try { const m = JSON.parse(buf.toString()); return m && typeof m === 'object' ? m : null; } catch { return null; } }
+const serversTxt = () => `${net.clients.filter(c => c.connected).length} de ${BROKERS.length} servidores`;
 
 function hostRoom() {
   readSetup();
-  netStatus('Criando sala…'); setBusy(true);
-  const first = Math.floor(Math.random() * BROKERS.length);
-  const order = BROKERS.map((_, k) => (first + k) % BROKERS.length);
-  connectBroker(order, (c, bi) => {
-    // código de 4 letras; a última aponta para o servidor usado
-    let code = '';
-    for (let k = 0; k < 3; k++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-    const options = [...CODE_CHARS].filter((_, k) => k % BROKERS.length === bi);
-    code += options[Math.floor(Math.random() * options.length)];
-    Object.assign(net, { client: c, isHost: true, joined: true, myId: newId(), code, players: {} });
+  netStatus('Conectando ao servidor…'); setBusy(true);
+  let code = '';
+  for (let k = 0; k < 4; k++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  Object.assign(net, { isHost: true, joined: false, myId: newId(), code, players: {} });
+  connectAll('h', m => { if (m.f !== net.myId) hostHandle(m.f, m); }, () => {
+    clearTimers();
+    net.joined = true;
     addPlayer(net.myId, myName, myChar);
-    c.subscribe(topic('h'));
-    c.on('message', (tp, buf) => {
-      if (c !== net.client) return;
-      const m = parseMsg(buf);
-      if (m && m.f !== net.myId) hostHandle(m.f, m);
-    });
     $('joinArea').style.display = 'none'; $('inviteBox').style.display = 'block';
     $('inviteCode').textContent = code;
     netStatus('Sala criada! Mande o código para os amigos.');
-  }, msg => { netStatus(msg); setBusy(false); });
+  }, msg => { netStatus(msg); setBusy(false); net.isHost = false; });
 }
 
 function joinRoom() {
   const code = $('roomCode').value.trim().toUpperCase();
   if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch))) return netStatus('Digite o código de 4 letras da sala.');
   readSetup();
-  netStatus('Entrando…'); setBusy(true);
-  connectBroker([brokerOfCode(code)], c => {
-    Object.assign(net, { client: c, isHost: false, joined: false, myId: newId(), code, players: {}, lastHostMsg: performance.now() });
-    net.hello = { t: 'hello', name: myName, char: myChar };
-    c.subscribe(topic('a'), () => sendNet(net.hello));
-    c.on('message', (tp, buf) => {
-      if (c !== net.client) return;
-      const m = parseMsg(buf);
-      if (!m || m.x === net.myId) return;
-      net.lastHostMsg = performance.now();
-      onNet(m);
-    });
-    // repete o "oi" até o host responder (caso a primeira mensagem se perca)
-    net.timers.push(setInterval(() => { if (!net.joined) sendNet(net.hello); }, 1500));
+  netStatus('Conectando ao servidor…'); setBusy(true);
+  Object.assign(net, { isHost: false, joined: false, myId: newId(), code, players: {}, lastHostMsg: performance.now() });
+  net.hello = { t: 'hello', name: myName, char: myChar };
+  connectAll('a', m => {
+    if (m.x === net.myId) return;
+    net.lastHostMsg = performance.now();
+    onNet(m);
+  }, () => {
+    clearTimers();
+    netStatus(`Conectado (${serversTxt()}). Procurando a sala ${code}…`);
+    sendNet(net.hello);
+    // repete o "oi" até o host responder (servidores que conectarem depois também recebem)
+    net.timers.push(setInterval(() => {
+      if (net.joined) return;
+      sendNet(net.hello);
+      netStatus(`Conectado (${serversTxt()}). Procurando a sala ${code}…`);
+    }, 1200));
     net.timers.push(setTimeout(() => {
       if (net.joined) return;
-      clearTimers(); try { c.end(true); } catch {}
-      net.client = null;
-      netStatus('Sala não encontrada. Confira o código e se quem criou a sala está com o jogo aberto.'); setBusy(false);
-    }, 10000));
+      const cs = net.clients;
+      clearTimers(); net.clients = [];
+      for (const c of cs) try { c.end(true); } catch {}
+      netStatus(`Sala ${code} não encontrada. Confira o código e se quem criou a sala está com o jogo aberto na tela (versão ${VERSAO}).`);
+      setBusy(false);
+    }, 15000));
   }, msg => { netStatus(msg); setBusy(false); });
 }
 
@@ -1019,9 +1043,10 @@ AMIGOS.forEach((a, i) => {
   $('pickList').appendChild(f);
 });
 if (params.get('sala')) $('roomCode').value = params.get('sala').toUpperCase().slice(0, 4);
+$('verTxt').textContent = `versão ${VERSAO}`;
 $('leaveBtn').onclick = () => leaveOnline('Você saiu da sala.');
 $('onlineBtn').onclick = () => { netStatus(''); showOnlineScreen(); };
-$('backBtn').onclick = () => { if (net.client) leaveOnline(''); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
+$('backBtn').onclick = () => { if (net.clients.length) leaveOnline(''); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
 $('hostBtn').onclick = () => { initAudio(); hostRoom(); };
 $('joinBtn').onclick = () => { initAudio(); goFullscreen(); joinRoom(); };
 $('roomCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinBtn').click(); });
