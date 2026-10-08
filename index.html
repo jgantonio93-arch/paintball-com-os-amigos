@@ -500,7 +500,7 @@ function updateHud() {
     $('score').textContent = `Pontos: ${player.score}`;
     $('wave').textContent = `Onda ${wave}`;
   }
-  $('hpfill').style.width = `${Math.max(0, player.hp)}%`;
+  $('hpfill').style.width = `${Math.max(0, Math.min(100, player.hp / myMaxHp() * 100))}%`;
   $('ammo').textContent = player.reloading > 0 ? 'Recarregando…' : `${player.ammo} / ${player.maxAmmo}`;
 }
 function feed(text) {
@@ -528,7 +528,7 @@ function resetGame() {
   enemies.length = 0;
   for (const b of balls) scene.remove(b.mesh); balls.length = 0;
   for (const d of decals) d.parent?.remove(d); decals.length = 0;
-  Object.assign(player, { hp: 100, ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: 0, pitch: 0 });
+  Object.assign(player, { hp: myMaxHp(), ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: 0, pitch: 0 });
   player.pos.set(0, 0, -2);
   wave = 0; waveDelay = 0;
   nextWave();
@@ -653,8 +653,10 @@ const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://bro
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // a última letra do código diz em qual servidor a sala está
 const VERSAO = 6;
-// quem joga com o nome "Ana" não perde vida
-const isImmortal = name => /^ana$/i.test(String(name || '').trim());
+// quem joga com o nome "Ana" tem 3,5x mais vida
+const isAna = name => /^ana$/i.test(String(name || '').trim());
+const maxHpOf = name => isAna(name) ? 350 : 100;
+const myMaxHp = () => maxHpOf(mode === 'online' ? myName : $('nick').value);
 const topic = k => `pbamigos/v${VERSAO}/${net.code}/${k}`;
 const newId = () => Math.random().toString(36).slice(2, 10);
 const nameOf = id => net.players[id]?.name || 'Alguém';
@@ -663,7 +665,8 @@ function netStatus(t) { $('netStatus').textContent = t; }
 
 function addPlayer(id, name, char) {
   net.lastSeen.set(id, performance.now());
-  net.players[id] = { name: String(name || 'Jogador').slice(0, 14), char: (char | 0) % AMIGOS.length, hp: 100, kills: 0, deaths: 0, dead: false };
+  const n = String(name || 'Jogador').slice(0, 14);
+  net.players[id] = { name: n, char: (char | 0) % AMIGOS.length, hp: maxHpOf(n), kills: 0, deaths: 0, dead: false };
 }
 // manda pelos servidores conectados (todos ao mesmo tempo; quem recebe descarta as cópias)
 function publish(k, m) {
@@ -700,7 +703,7 @@ function hostHandle(from, m) {
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
       if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning) return;
-      if (!isImmortal(tg.name)) tg.hp -= HIT_DMG;
+      tg.hp -= HIT_DMG;
       broadcast({ t: 'hp', id: m.target, hp: tg.hp, by: from });
       if (tg.hp <= 0) {
         tg.dead = true; tg.deaths++; sh.kills++;
@@ -708,14 +711,14 @@ function hostHandle(from, m) {
         sendRoster();
         setTimeout(() => {
           if (net.players[m.target] !== tg) return;
-          Object.assign(tg, { hp: 100, dead: false });
+          Object.assign(tg, { hp: maxHpOf(tg.name), dead: false });
           broadcast({ t: 'respawn', id: m.target }); sendRoster();
         }, RESPAWN_S * 1000);
         if (sh.kills >= KILLS_TO_WIN) {
           net.winning = true;
           broadcast({ t: 'win', id: from });
           setTimeout(() => {
-            for (const p of Object.values(net.players)) Object.assign(p, { kills: 0, deaths: 0, hp: 100, dead: false });
+            for (const p of Object.values(net.players)) Object.assign(p, { kills: 0, deaths: 0, hp: maxHpOf(p.name), dead: false });
             net.winning = false;
             broadcast({ t: 'reset' }); sendRoster();
           }, 6000);
@@ -770,7 +773,7 @@ function onNet(m) {
     }
     case 'respawn':
       if (m.id === net.myId) {
-        meDead = false; player.hp = 100; player.vy = 0; player.ammo = player.maxAmmo; player.reloading = 0;
+        meDead = false; player.hp = myMaxHp(); player.vy = 0; player.ammo = player.maxAmmo; player.reloading = 0;
         player.pos.copy(onlineSpawn()); updateHud();
       } else { const r = remotes.get(m.id); if (r) setRemoteDead(r, false); }
       break;
@@ -893,7 +896,7 @@ function goFullscreen() {
 function enterOnline() {
   mode = 'online'; meDead = false;
   clearWorld();
-  Object.assign(player, { hp: 100, ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: Math.random() * 6.28, pitch: 0 });
+  Object.assign(player, { hp: myMaxHp(), ammo: 20, reloading: 0, fireCd: 0, score: 0, hits: 0, shots: 0, kills: 0, vy: 0, yaw: Math.random() * 6.28, pitch: 0 });
   player.pos.copy(onlineSpawn());
   for (const id of ['startScreen', 'onlineScreen', 'overScreen']) $(id).style.display = 'none';
   syncRemotes(); renderBoard(); updateHud();
@@ -1278,8 +1281,7 @@ function updateBalls(dt) {
       else if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir);
       else if (hitInfo.player && b.owner === 'remote') burst(hitInfo.p, b.color, 8, 3);
       else if (hitInfo.player) {
-        if (!isImmortal($('nick').value)) player.hp -= 8;
-        hurtFx();
+        player.hp -= 8; hurtFx();
         updateHud();
         if (player.hp <= 0) gameOver();
       } else {
@@ -1346,7 +1348,7 @@ function frame() {
     updateEnemies(dt, t);
     updateBalls(dt);
     if (enemies.length === 0) {
-      if (waveDelay <= 0) { waveDelay = 2.5; banner('Onda limpa! 🎨'); player.hp = Math.min(100, player.hp + 25); updateHud(); }
+      if (waveDelay <= 0) { waveDelay = 2.5; banner('Onda limpa! 🎨'); player.hp = Math.min(myMaxHp(), player.hp + 25); updateHud(); }
       waveDelay -= dt; if (waveDelay <= 0) nextWave();
     }
   }
