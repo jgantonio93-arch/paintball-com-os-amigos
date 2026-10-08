@@ -90,7 +90,7 @@
   body.touch #board { right:auto; left:50%; transform:translateX(-50%); top:calc(66px + env(safe-area-inset-top,0px)); font-size:12px; padding:4px 10px; min-width:130px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
 <body>
 <div id="hud">
@@ -638,48 +638,59 @@ function gameOver() {
   $('overScreen').style.display = 'flex';
 }
 
-// ===== Online: mata-mata (WebRTC via PeerJS) =====
-// Um jogador cria a sala (vira o "host"), os outros entram com o código.
-// O host repassa posições/tiros e decide vida, abates e quem venceu.
+// ===== Online: mata-mata (retransmissor MQTT por WebSocket seguro) =====
+// Todos se conectam a um servidor MQTT público (passa por 4G, Wi-Fi e firewall).
+// Quem cria a sala vira o "host": recebe as mensagens de todos no tópico /h,
+// decide vida, abates e quem venceu, e repassa tudo no tópico /a.
 let mode = 'solo', meDead = false, myChar = 0, myName = '';
-const net = { lastSeen: new Map(), lastHostMsg: 0, peer: null, isHost: false, conns: new Map(), hostConn: null, myId: null, code: null, players: {}, sendT: 0, winning: false };
+const net = { lastSeen: new Map(), lastHostMsg: 0, client: null, isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false };
 const remotes = new Map();
 const KILLS_TO_WIN = 10, HIT_DMG = 25, RESPAWN_S = 3;
 const params = new URLSearchParams(location.search);
-// ?peerhost=… permite usar um servidor PeerJS próprio (útil para testes)
-const PEER_OPTS = params.get('peerhost') ? { host: params.get('peerhost'), port: +params.get('peerport') || 9000, path: '/', secure: false } : {};
+// ?mqtt=wss://… permite usar outro servidor (útil para testes)
+const BROKERS = params.get('mqtt') ? [params.get('mqtt')] : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const peerIdFor = code => 'pbamigos-v1-' + code.toLowerCase();
+// a última letra do código diz em qual servidor a sala está
+const brokerOfCode = code => CODE_CHARS.indexOf(code[3]) % BROKERS.length;
+const topic = k => `pbamigos/v2/${net.code}/${k}`;
+const newId = () => Math.random().toString(36).slice(2, 10);
 const nameOf = id => net.players[id]?.name || 'Alguém';
 const r3 = v => Math.round(v * 1000) / 1000;
 function netStatus(t) { $('netStatus').textContent = t; }
 
 function addPlayer(id, name, char) {
+  net.lastSeen.set(id, performance.now());
   net.players[id] = { name: String(name || 'Jogador').slice(0, 14), char: (char | 0) % AMIGOS.length, hp: 100, kills: 0, deaths: 0, dead: false };
+}
+function publish(k, m) {
+  if (net.client?.connected) net.client.publish(topic(k), JSON.stringify(m));
 }
 function sendNet(m) {
   if (net.isHost) hostHandle(net.myId, m);
-  else if (net.hostConn?.open) net.hostConn.send(m);
+  else publish('h', { ...m, f: net.myId });
 }
-// manda para todos (inclusive o próprio host, que processa localmente)
+// manda para todos (inclusive o próprio host, que processa localmente); x = quem deve ignorar
 function broadcast(m, exceptId) {
-  for (const [id, c] of net.conns) if (id !== exceptId && c.open) c.send(m);
+  publish('a', exceptId ? { ...m, x: exceptId } : m);
   if (exceptId !== net.myId) onNet(m);
 }
 const sendRoster = () => broadcast({ t: 'roster', players: net.players });
 
-function hostHandle(from, m, conn) {
+function hostHandle(from, m) {
+  if (typeof from !== 'string' || from.length > 20 || !m || typeof m.t !== 'string') return;
+  if (m.t !== 'hello' && !net.players[from]) return;
   net.lastSeen.set(from, performance.now());
   switch (m.t) {
+    case 'bye': if (from !== net.myId) dropPlayer(from); break;
     case 'hello':
-      if (!conn || net.players[from]) return;
-      net.conns.set(from, conn);
+      if (net.players[from]) { sendRoster(); return; }
+      if (Object.keys(net.players).length >= 12) return;
       addPlayer(from, m.name, m.char);
       sendRoster();
       broadcast({ t: 'joined', id: from });
       break;
     case 's': case 'shot':
-      if (net.players[from]) broadcast({ ...m, id: from }, from);
+      broadcast({ ...m, f: undefined, id: from }, from);
       break;
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
@@ -716,7 +727,13 @@ function setRemoteDead(r, dead) {
 }
 
 function onNet(m) {
+  if (!net.isHost && m.t === 'roster') {
+    if (!m.players?.[net.myId]) { if (net.joined) sendNet(net.hello); return; } // o host me tirou: volto a entrar
+    if (!net.joined) { net.joined = true; clearTimers(); net.players = m.players; enterOnline(); }
+  }
+  if (!net.isHost && !net.joined) return;
   switch (m.t) {
+    case 'bye': if (!net.isHost) leaveOnline('A sala fechou (o dono saiu).'); return;
     case 'roster': net.players = m.players; syncRemotes(); renderBoard(); updateHud(); break;
     case 'joined': if (m.id !== net.myId) feed(`${nameOf(m.id)} entrou na sala`); break;
     case 's': {
@@ -880,10 +897,15 @@ function enterOnline() {
   else { state = 'paused'; banner('Clique para começar', 9999); }
 }
 
+function clearTimers() { for (const t of net.timers) { clearTimeout(t); clearInterval(t); } net.timers = []; }
+
 function leaveOnline(msg) {
-  try { net.peer?.destroy(); } catch {}
-  Object.assign(net, { peer: null, isHost: false, hostConn: null, myId: null, code: null, players: {}, winning: false });
-  net.conns.clear(); net.lastSeen.clear();
+  clearTimers();
+  if (net.joined || net.isHost) { if (net.isHost) publish('a', { t: 'bye' }); else sendNet({ t: 'bye' }); }
+  const c = net.client;
+  if (c) setTimeout(() => { try { c.end(true); } catch {} }, 300);
+  Object.assign(net, { client: null, isHost: false, joined: false, myId: null, code: null, players: {}, winning: false });
+  net.lastSeen.clear();
   for (const r of remotes.values()) scene.remove(r.root);
   remotes.clear();
   clearWorld();
@@ -900,10 +922,9 @@ function readSetup() {
 }
 
 function dropPlayer(id) {
-  if (!net.conns.has(id)) return;
-  const n = nameOf(id), c = net.conns.get(id);
-  net.conns.delete(id); delete net.players[id];
-  try { c.close(); } catch {}
+  if (!net.players[id] || id === net.myId) return;
+  const n = nameOf(id);
+  delete net.players[id]; net.lastSeen.delete(id);
   sendRoster(); feed(`${n} saiu`);
 }
 
@@ -911,67 +932,80 @@ function dropPlayer(id) {
 setInterval(() => {
   if (mode !== 'online') return;
   const now = performance.now();
-  if (net.isHost) { for (const id of [...net.conns.keys()]) if (now - (net.lastSeen.get(id) || 0) > 9000) dropPlayer(id); }
-  else if (net.hostConn && now - net.lastHostMsg > 12000) leaveOnline('Perdi a conexão com a sala.');
+  if (net.isHost) { for (const id of Object.keys(net.players)) if (id !== net.myId && now - (net.lastSeen.get(id) || 0) > 12000) dropPlayer(id); }
+  else if (net.joined && now - net.lastHostMsg > 20000) leaveOnline('Perdi a conexão com a sala.');
 }, 1000);
 
-function hostRoom(tries = 0) {
-  if (!window.Peer) return netStatus('Não consegui carregar o modo online. Confira a internet.');
+// conecta ao servidor MQTT (tenta os da lista na ordem dada)
+function connectBroker(order, onReady, onFail) {
+  if (!window.mqtt) return onFail('Não consegui carregar o modo online. Confira a internet.');
+  const i = order[0];
+  if (i === undefined) return onFail('Não consegui conectar ao servidor do jogo. Confira a internet e tente de novo.');
+  const c = mqtt.connect(BROKERS[i], { clientId: 'pb_' + newId(), keepalive: 20, reconnectPeriod: 1500, connectTimeout: 6000, clean: true, queueQoSZero: false });
+  let ok = false;
+  const t = setTimeout(() => { if (!ok) { try { c.end(true); } catch {} connectBroker(order.slice(1), onReady, onFail); } }, 7000);
+  c.once('connect', () => { ok = true; clearTimeout(t); onReady(c, i); });
+}
+const setBusy = busy => { $('hostBtn').disabled = $('joinBtn').disabled = busy; };
+function parseMsg(buf) { try { const m = JSON.parse(buf.toString()); return m && typeof m === 'object' ? m : null; } catch { return null; } }
+
+function hostRoom() {
   readSetup();
-  const code = Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
-  netStatus('Criando sala…'); $('hostBtn').disabled = $('joinBtn').disabled = true;
-  const peer = new Peer(peerIdFor(code), PEER_OPTS);
-  peer.on('open', id => {
-    Object.assign(net, { peer, isHost: true, myId: id, code, players: {} });
-    addPlayer(id, myName, myChar);
-    peer.on('connection', c => {
-      c.on('data', m => hostHandle(c.peer, m, c));
-      const bye = () => dropPlayer(c.peer);
-      c.on('close', bye); c.on('error', bye);
+  netStatus('Criando sala…'); setBusy(true);
+  const first = Math.floor(Math.random() * BROKERS.length);
+  const order = BROKERS.map((_, k) => (first + k) % BROKERS.length);
+  connectBroker(order, (c, bi) => {
+    // código de 4 letras; a última aponta para o servidor usado
+    let code = '';
+    for (let k = 0; k < 3; k++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    const options = [...CODE_CHARS].filter((_, k) => k % BROKERS.length === bi);
+    code += options[Math.floor(Math.random() * options.length)];
+    Object.assign(net, { client: c, isHost: true, joined: true, myId: newId(), code, players: {} });
+    addPlayer(net.myId, myName, myChar);
+    c.subscribe(topic('h'));
+    c.on('message', (tp, buf) => {
+      if (c !== net.client) return;
+      const m = parseMsg(buf);
+      if (m && m.f !== net.myId) hostHandle(m.f, m);
     });
     $('joinArea').style.display = 'none'; $('inviteBox').style.display = 'block';
     $('inviteCode').textContent = code;
     netStatus('Sala criada! Mande o código para os amigos.');
-  });
-  peer.on('error', err => {
-    if (err.type === 'unavailable-id' && tries < 5) { peer.destroy(); hostRoom(tries + 1); return; }
-    if (net.peer === peer && mode === 'online') { feed('Problema de conexão: ' + err.type); return; }
-    netStatus('Erro ao criar sala (' + err.type + '). Tente de novo.');
-    $('hostBtn').disabled = $('joinBtn').disabled = false;
-  });
+  }, msg => { netStatus(msg); setBusy(false); });
 }
 
 function joinRoom() {
-  if (!window.Peer) return netStatus('Não consegui carregar o modo online. Confira a internet.');
   const code = $('roomCode').value.trim().toUpperCase();
-  if (code.length !== 4) return netStatus('Digite o código de 4 letras da sala.');
+  if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch))) return netStatus('Digite o código de 4 letras da sala.');
   readSetup();
-  netStatus('Entrando…'); $('hostBtn').disabled = $('joinBtn').disabled = true;
-  const peer = new Peer(undefined, PEER_OPTS);
-  const fail = msg => { netStatus(msg); $('hostBtn').disabled = $('joinBtn').disabled = false; try { peer.destroy(); } catch {} };
-  peer.on('open', id => {
-    const c = peer.connect(peerIdFor(code), { reliable: true });
-    const timer = setTimeout(() => fail('Não achei a sala. Confira o código.'), 12000);
-    c.on('open', () => {
-      clearTimeout(timer);
-      Object.assign(net, { peer, isHost: false, myId: id, code, hostConn: c, players: {}, lastHostMsg: performance.now() });
-      c.send({ t: 'hello', name: myName, char: myChar });
-      enterOnline();
+  netStatus('Entrando…'); setBusy(true);
+  connectBroker([brokerOfCode(code)], c => {
+    Object.assign(net, { client: c, isHost: false, joined: false, myId: newId(), code, players: {}, lastHostMsg: performance.now() });
+    net.hello = { t: 'hello', name: myName, char: myChar };
+    c.subscribe(topic('a'), () => sendNet(net.hello));
+    c.on('message', (tp, buf) => {
+      if (c !== net.client) return;
+      const m = parseMsg(buf);
+      if (!m || m.x === net.myId) return;
+      net.lastHostMsg = performance.now();
+      onNet(m);
     });
-    c.on('data', m => { net.lastHostMsg = performance.now(); onNet(m); });
-    c.on('close', () => { if (net.hostConn === c) leaveOnline('A sala fechou (o dono saiu).'); });
-  });
-  peer.on('error', err => {
-    if (net.peer === peer && mode === 'online') return;
-    fail(err.type === 'peer-unavailable' ? 'Sala não encontrada. Confira o código.' : 'Erro de conexão (' + err.type + ').');
-  });
+    // repete o "oi" até o host responder (caso a primeira mensagem se perca)
+    net.timers.push(setInterval(() => { if (!net.joined) sendNet(net.hello); }, 1500));
+    net.timers.push(setTimeout(() => {
+      if (net.joined) return;
+      clearTimers(); try { c.end(true); } catch {}
+      net.client = null;
+      netStatus('Sala não encontrada. Confira o código e se quem criou a sala está com o jogo aberto.'); setBusy(false);
+    }, 10000));
+  }, msg => { netStatus(msg); setBusy(false); });
 }
 
 function showOnlineScreen() {
   $('startScreen').style.display = 'none'; $('overScreen').style.display = 'none';
   $('onlineScreen').style.display = 'flex';
   $('joinArea').style.display = 'block'; $('inviteBox').style.display = 'none';
-  $('hostBtn').disabled = $('joinBtn').disabled = false;
+  setBusy(false);
 }
 
 // tela de escolha de boneco
@@ -987,7 +1021,7 @@ AMIGOS.forEach((a, i) => {
 if (params.get('sala')) $('roomCode').value = params.get('sala').toUpperCase().slice(0, 4);
 $('leaveBtn').onclick = () => leaveOnline('Você saiu da sala.');
 $('onlineBtn').onclick = () => { netStatus(''); showOnlineScreen(); };
-$('backBtn').onclick = () => { if (net.peer) leaveOnline(''); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
+$('backBtn').onclick = () => { if (net.client) leaveOnline(''); $('onlineScreen').style.display = 'none'; $('startScreen').style.display = 'flex'; };
 $('hostBtn').onclick = () => { initAudio(); hostRoom(); };
 $('joinBtn').onclick = () => { initAudio(); goFullscreen(); joinRoom(); };
 $('roomCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinBtn').click(); });
@@ -1276,7 +1310,7 @@ function frame() {
     updateBalls(dt);
     net.sendT -= dt;
     if (net.sendT <= 0) {
-      net.sendT = 1 / 15;
+      net.sendT = 1 / 10;
       sendNet({ t: 's', p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch) });
     }
   } else if (state === 'play') {
