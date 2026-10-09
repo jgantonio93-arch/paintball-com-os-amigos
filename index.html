@@ -455,6 +455,14 @@
   .sw { width:34px; height:34px; border-radius:50%; border:3px solid transparent; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.4); }
   .sw.sel { border-color:#fff; transform:scale(1.1); }
   .fileBtn { text-align:center; display:block; }
+  .contaForm { display:flex; flex-direction:column; gap:10px; align-items:stretch; }
+  .contaForm .field { width:100%; text-align:left; }
+  .contaMsg { min-height:1.2em; margin:6px 0 0; font-weight:900; color:var(--yel); }
+  .contaUser { display:flex; gap:12px; align-items:center; }
+  .contaUser i { font-style:normal; font-size:34px; }
+  .contaUser small { display:block; color:var(--muted); font-weight:900; font-size:11px; letter-spacing:1px; text-transform:uppercase; }
+  .contaUser b { display:block; font-family:var(--disp); font-weight:400; font-size:24px; }
+  .contaUser span { color:var(--grn); font-weight:800; font-size:13px; }
   .locker { display:grid; grid-template-columns:minmax(220px,320px) 1fr; gap:12px; align-items:start; }
   .lkPrev { position:sticky; top:0; text-align:center; }
   #lkCanvas { width:100%; max-width:300px; aspect-ratio:300/380; height:auto; display:block; margin:0 auto 6px; border-radius:16px; background:radial-gradient(circle at 50% 40%, rgba(255,210,61,.18), transparent 65%); touch-action:none; cursor:grab; }
@@ -464,6 +472,14 @@
   .sw.orig::after { content:"↺"; position:absolute; inset:0; display:grid; place-items:center; color:#fff; font-weight:900; text-shadow:0 1px 2px #000; }
   .items { grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); }
   .card2.lock { opacity:.55; cursor:not-allowed; }
+  .card2.r-raro { border-color:rgba(61,184,255,.55); } .card2.r-epico { border-color:rgba(184,61,255,.6); }
+  .card2.r-lendario { border-color:rgba(255,210,61,.75); background:linear-gradient(160deg,rgba(255,210,61,.14),rgba(255,61,127,.08)); }
+  .card2.r-lendario:not(.lock) i { animation:pulse 1.2s ease-in-out infinite alternate; }
+  .card2.sel { border-color:var(--yel) !important; }
+  .lkCount { display:block; font-weight:900; color:var(--yel); font-size:13px; margin:2px 0; }
+  .raros { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:8px; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:1px; }
+  .raros span { padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
+  .raros .r-raro { color:#5aaeff; border-color:#5aaeff66; } .raros .r-epico { color:#c77bff; border-color:#c77bff66; } .raros .r-lendario { color:var(--yel); border-color:#ffd23d88; }
   .card2.lock b::after { content:" 🔒"; }
   .card2 .prog { display:block; height:4px; border-radius:2px; background:rgba(255,255,255,.12); margin-top:6px; overflow:hidden; }
   .card2 .prog::after { content:""; display:block; height:100%; width:var(--v); background:var(--yel); }
@@ -597,7 +613,7 @@
     </section>
     <section class="panel tabPane" id="tab-controles" hidden><div id="controlsSlot"></div></section>
     <section class="panel playerPanel">
-      <div class="pHead"><h3>👤 Seu jogador</h3><div class="row" style="flex-wrap:nowrap"><input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off"><button class="btn sm alt" id="lookBtn">🎨 Visual</button></div></div>
+      <div class="pHead"><h3>👤 Seu jogador</h3><div class="row" style="flex-wrap:nowrap"><input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off"><button class="btn sm alt" id="lookBtn">🎨 Visual</button><button class="btn sm ghost" id="contaBtn">👤 Entrar</button></div></div>
       <div class="chars" id="pickList"></div>
     </section>
     <div class="footer" id="verMain"></div>
@@ -646,18 +662,51 @@
   </div>
 </div>
 
+<!-- ============ Conta ============ -->
+<div class="screen" id="contaScreen" style="display:none">
+  <div class="menuWrap narrow">
+    <div class="screenHead"><button class="back" id="contaBackBtn">←</button><div><span class="tag">Não perca seu progresso</span><h2>Sua conta</h2></div></div>
+    <section class="panel" id="contaOff">
+      <div class="chips" id="contaTabs" style="margin-bottom:12px"></div>
+      <div class="contaForm">
+        <input class="field" id="contaNome" maxlength="20" placeholder="Nome da conta" autocomplete="username" autocapitalize="none">
+        <input class="field" id="contaSenha" type="password" maxlength="64" placeholder="Senha (mínimo 4)" autocomplete="current-password">
+        <button class="btn big" id="contaGo">ENTRAR</button>
+        <p id="contaMsg" class="contaMsg"></p>
+      </div>
+      <p class="hint">Com a conta, suas vitórias, abates, recordes, visual, itens destravados e personagens criados ficam salvos e voltam em qualquer celular ou computador. Tudo vai criptografado com a sua senha: sem ela ninguém lê. <b>Não dá para recuperar a senha</b>, então anote!</p>
+    </section>
+    <section class="panel" id="contaOn" hidden>
+      <div class="contaUser"><i>☁️</i><div><small>Conectado como</small><b id="contaUser"></b><span id="contaStatus"></span></div></div>
+      <p class="hint" id="contaResumo"></p>
+      <div class="row"><button class="btn alt" id="contaSalvar">☁️ Salvar agora</button><button class="btn danger" id="contaSair">Sair da conta</button></div>
+    </section>
+    <section class="panel">
+      <h3>🔑 Código de backup</h3>
+      <p class="hint" style="margin-top:0">Um texto com todo o seu progresso. Guarde em um lugar seguro; colando ele em outro aparelho, o progresso volta (junta com o que já tem lá).</p>
+      <div class="row" style="justify-content:flex-start"><button class="btn sm alt" id="backupCopy">📋 Copiar meu código</button></div>
+      <textarea id="backupTxt" class="field" rows="3" placeholder="Cole aqui um código de backup (começa com PBA1:)" style="width:100%;margin-top:10px;font-size:12px;text-align:left;resize:vertical"></textarea>
+      <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn sm" id="backupLoad">Restaurar código</button></div>
+      <p id="backupMsg" class="contaMsg"></p>
+    </section>
+  </div>
+</div>
+
 <!-- ============ Visual do jogador ============ -->
 <div class="screen" id="lockerScreen" style="display:none">
   <div class="menuWrap">
     <div class="screenHead"><button class="back" id="lockBackBtn">←</button><div><span class="tag">Personalize</span><h2>Visual do jogador</h2></div></div>
     <div class="locker">
-      <section class="panel lkPrev"><canvas id="lkCanvas" width="300" height="380"></canvas><b id="lkName"></b><small class="hint">arraste para girar · os amigos veem igualzinho</small></section>
+      <section class="panel lkPrev"><canvas id="lkCanvas" width="300" height="380"></canvas><b id="lkName"></b><span class="lkCount" id="lkCount"></span><small class="hint">arraste para girar · os amigos veem igualzinho</small>
+        <div class="raros"><span class="r-comum">comum</span><span class="r-raro">raro</span><span class="r-epico">épico</span><span class="r-lendario">lendário</span></div></section>
       <div class="lkOpts">
         <section class="panel"><h3>🥽 Máscara</h3><div class="swatches" id="lkMask"></div></section>
         <section class="panel"><h3>👕 Macacão</h3><div class="swatches" id="lkSuit"></div></section>
         <section class="panel"><h3>🎨 Cor da sua tinta</h3><div class="swatches" id="lkPaint"></div></section>
         <section class="panel"><h3>🎩 Chapéu</h3><div class="cards items" id="lkHat"></div></section>
-        <section class="panel"><h3>✨ Acessório</h3><div class="cards items" id="lkAcc"></div></section>
+        <section class="panel"><h3>😎 Rosto e pescoço</h3><div class="cards items" id="lkAcc"></div></section>
+        <section class="panel"><h3>🎒 Costas</h3><div class="cards items" id="lkBack"></div></section>
+        <section class="panel"><h3>✨ Efeito quando você pinta alguém</h3><div class="cards items" id="lkFx"></div></section>
       </div>
     </div>
   </div>
@@ -791,7 +840,15 @@ const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const load = (k, padrao) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? padrao; } catch { return padrao; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+// salvar no aparelho; o que é progresso também vai para a conta na nuvem (sync = veio da própria nuvem)
+const SYNC_EARLY = new Set(['pb-stats', 'pb-look', 'pb-custom', 'pb-nick', 'pb-char', 'pb-unl', 'pb-recorde-ondas', 'pb-recorde-onda', 'pb-recorde-zumbi']);
+const save = (k, v, sync) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+    if (!sync && SYNC_EARLY.has(k)) { localStorage.setItem('pb-save-ts', Date.now()); try { agendarNuvem(); } catch {} }
+    return true;
+  } catch { return false; }
+};
 
 // Personagens criados pelo jogador (foto enviada do aparelho): { id, nome, foto (dataURL jpeg), camisa }
 let CUSTOM = (load('pb-custom', []) || []).filter(c => c && typeof c.foto === 'string' && c.foto.startsWith('data:image/'));
@@ -1679,35 +1736,105 @@ function buildFriend(a) {
   return { root, body, legL, legR, armL, armR, head, torso, gun, mats: [shirt, pants, skin] };
 }
 
-// ===== Visual: máscara, macacão, cor da tinta, chapéus e acessórios =====
-// Chapéus e acessórios destravam com conquistas (números do jogador neste aparelho).
+// ===== Visual: máscara, macacão, cor da tinta, chapéus, rosto, costas e efeito ao pintar =====
+// Os itens destravam com conquistas (números do jogador: online + treino). Raridade só muda a moldura.
 const LOOK_CORES = [null, 0xe74c3c, 0xff7a1a, 0xffd23d, 0x27ae60, 0x3db8ff, 0x2e4f8c, 0xb83dff, 0xff3d7f, 0x1b1d26, 0xf2f2f2, 0x6b4a2b];
 const MASK_CORES = [0x1b1d26, 0xe74c3c, 0xff7a1a, 0xffd23d, 0x27ae60, 0x3db8ff, 0xb83dff, 0xff3d7f, 0xf2f2f2];
 const TINTAS = [null, 0xff3d7f, 0xffd23d, 0x3dffb0, 0x3db8ff, 0xb83dff, 0xff7a1a, 0xff2020, 0xf5f5f5];
-// req: [número, quanto precisa, texto]
+// ajudantes para montar os itens: P.add(geometria, material, x, y, z, pai) · P.anim(fn(t)) anima todo quadro
+const Lm = (c, e = 0, extra) => new THREE.MeshLambertMaterial({ color: c, emissive: e, ...extra });
+const Bx = (w, h, d) => new THREE.BoxGeometry(w, h, d), Cy = (a, b, h, s = 16, open) => new THREE.CylinderGeometry(a, b, h, s, 1, !!open), Sp = (r, a = 12, b = 10) => new THREE.SphereGeometry(r, a, b);
+const meiaEsfera = r => new THREE.SphereGeometry(r, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+// req: [número, quanto precisa, texto] · rar: comum, raro, epico, lendario
 const HATS = [
   { id: 'nada', nome: 'Sem chapéu', ic: '🚫' },
-  { id: 'bone', nome: 'Boné', ic: '🧢' },
-  { id: 'gorro', nome: 'Gorro', ic: '🧶', req: ['partidas', 1, 'jogar 1 partida online'] },
-  { id: 'capacete', nome: 'Capacete tático', ic: '⛑️', req: ['kills', 25, 'pintar 25 jogadores online'] },
-  { id: 'cowboy', nome: 'Chapéu de cowboy', ic: '🤠', req: ['hs', 10, 'acertar 10 tiros na cabeça'] },
-  { id: 'cartola', nome: 'Cartola', ic: '🎩', req: ['wins', 3, 'vencer 3 partidas'] },
-  { id: 'chifre', nome: 'Chifrinhos', ic: '😈', req: ['kills', 100, 'pintar 100 jogadores online'] },
-  { id: 'coroa', nome: 'Coroa', ic: '👑', req: ['wins', 15, 'vencer 15 partidas'] },
+  { id: 'bone', nome: 'Boné', ic: '🧢', fazer: (P, L) => { const c = Lm(MASK_CORES[L.m]); P.add(meiaEsfera(0.5), c, 0, 0.5, -0.12).scale.set(1.05, 0.75, 1.02); P.add(Bx(0.62, 0.05, 0.42), c, 0, 0.52, 0.4).rotation.x = 0.12; } },
+  { id: 'festa', nome: 'Chapéu de festa', ic: '🥳', fazer: P => { const c = P.add(new THREE.ConeGeometry(0.28, 0.75, 16), Lm(0xff3d7f), 0.05, 0.95, -0.05); c.rotation.z = -0.15; P.add(Sp(0.08), Lm(0xffd23d, 0x3a2a00), 0.1, 1.33, -0.05); P.add(new THREE.TorusGeometry(0.22, 0.03, 6, 16), Lm(0xffd23d), 0.02, 0.7, -0.05).rotation.x = Math.PI / 2; } },
+  { id: 'gorro', nome: 'Gorro', ic: '🧶', req: ['partidas', 1, 'jogar 1 partida online'], fazer: P => { P.add(meiaEsfera(0.52), Lm(0xc0392b), 0, 0.5, -0.12).scale.set(1.04, 0.95, 1); P.add(Sp(0.13), Lm(0xf2f2f2), 0, 1.02, -0.12); } },
+  { id: 'gatinho', nome: 'Orelhas de gato', ic: '🐱', rar: 'raro', req: ['kills', 10, 'pintar 10 jogadores online'], fazer: P => { for (const x of [-0.3, 0.3]) { const o = P.add(new THREE.ConeGeometry(0.16, 0.32, 4), Lm(0x2b2b2b), x, 0.72, -0.05); o.rotation.z = -x * 0.8; P.add(new THREE.ConeGeometry(0.09, 0.2, 4), Lm(0xff9ec7), x, 0.7, 0.02).rotation.z = -x * 0.8; } } },
+  { id: 'capacete', nome: 'Capacete tático', ic: '⛑️', rar: 'raro', req: ['kills', 25, 'pintar 25 jogadores online'], fazer: P => { P.add(meiaEsfera(0.6), Lm(0x4a5a3a), 0, 0.42, -0.12).scale.set(1, 0.85, 1); } },
+  { id: 'helice', nome: 'Boné de hélice', ic: '🚁', rar: 'raro', req: ['partidas', 5, 'jogar 5 partidas online'], fazer: P => {
+    P.add(meiaEsfera(0.5), Lm(0x3db8ff), 0, 0.5, -0.12).scale.set(1.05, 0.75, 1.02); P.add(Bx(0.6, 0.05, 0.4), Lm(0xffd23d), 0, 0.52, 0.4);
+    P.add(Cy(0.03, 0.03, 0.2), Lm(0x888888), 0, 0.95, -0.12);
+    const h = new THREE.Group(); h.position.set(0, 1.05, -0.12); P.head.add(h);
+    for (const [c, r] of [[0xff3d7f, 0], [0x3dffb0, Math.PI]]) { const pa = new THREE.Mesh(Bx(0.5, 0.02, 0.12), Lm(c)); pa.position.x = Math.cos(r) * 0.25; h.add(pa); }
+    P.anim(t => { h.rotation.y = t * 14; });
+  } },
+  { id: 'cowboy', nome: 'Chapéu de cowboy', ic: '🤠', rar: 'raro', req: ['hs', 10, 'acertar 10 tiros na cabeça'], fazer: P => { const c = Lm(0x8a5a2b); P.add(Cy(0.36, 0.42, 0.42), c, 0, 0.82, -0.1); P.add(Cy(0.85, 0.85, 0.05, 22), c, 0, 0.62, -0.1); } },
+  { id: 'fones', nome: 'Fones de ouvido', ic: '🎧', rar: 'raro', req: ['partidas', 20, 'jogar 20 partidas online'], fazer: P => { const c = Lm(0x1b1d26), r = Lm(0xff3d7f, 0x400010); const arco = P.add(new THREE.TorusGeometry(0.56, 0.05, 8, 24, Math.PI), c, 0, 0.1, -0.1); arco.rotation.z = 0; for (const x of [-0.56, 0.56]) P.add(Cy(0.17, 0.17, 0.14), r, x, 0.05, -0.1).rotation.z = Math.PI / 2; } },
+  { id: 'cartola', nome: 'Cartola', ic: '🎩', rar: 'epico', req: ['wins', 3, 'vencer 3 partidas'], fazer: P => { const c = Lm(0x15171d); P.add(Cy(0.34, 0.34, 0.7), c, 0, 0.95, -0.1); P.add(Cy(0.6, 0.6, 0.05, 20), c, 0, 0.62, -0.1); P.add(Cy(0.35, 0.35, 0.1), Lm(0xc0392b), 0, 0.7, -0.1); } },
+  { id: 'chef', nome: 'Chapéu de chef', ic: '👨‍🍳', rar: 'epico', req: ['zk', 100, 'pintar 100 zumbis'], fazer: P => { const b = Lm(0xffffff); P.add(Cy(0.4, 0.4, 0.3), b, 0, 0.7, -0.1); for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; P.add(Sp(0.25), b, Math.cos(a) * 0.22, 1.0, -0.1 + Math.sin(a) * 0.22); } P.add(Sp(0.28), b, 0, 1.08, -0.1); } },
+  { id: 'pirata', nome: 'Chapéu de pirata', ic: '🏴‍☠️', rar: 'epico', req: ['caps', 3, 'capturar 3 bandeiras'], fazer: P => { const c = Lm(0x15171d); const a = P.add(Cy(0.75, 0.75, 0.35, 3), c, 0, 0.75, -0.1); a.rotation.y = Math.PI / 2; a.scale.set(1, 1, 0.6); P.add(Sp(0.1), Lm(0xf2f2f2), 0, 0.82, 0.33); } },
+  { id: 'bruxa', nome: 'Chapéu de bruxa', ic: '🧙', rar: 'epico', req: ['rodada', 8, 'chegar na rodada 8 dos zumbis'], fazer: P => { const c = Lm(0x3a1f5a); P.add(Cy(0.85, 0.85, 0.04, 24), c, 0, 0.6, -0.1); const p = P.add(new THREE.ConeGeometry(0.4, 1.1, 16), c, 0, 1.15, -0.15); p.rotation.x = -0.25; P.add(Cy(0.42, 0.42, 0.1), Lm(0xb83dff, 0x2a0a40), 0, 0.68, -0.1); } },
+  { id: 'sombrero', nome: 'Sombrero', ic: '🪅', rar: 'epico', req: ['wins', 8, 'vencer 8 partidas'], fazer: P => { const c = Lm(0xe0b04a); P.add(Cy(1.1, 1.1, 0.05, 28), c, 0, 0.62, -0.1); P.add(new THREE.ConeGeometry(0.42, 0.6, 18), c, 0, 0.92, -0.1); P.add(new THREE.TorusGeometry(1.05, 0.05, 6, 28), Lm(0xe74c3c), 0, 0.64, -0.1).rotation.x = Math.PI / 2; } },
+  { id: 'flores', nome: 'Coroa de flores', ic: '🌸', rar: 'raro', req: ['onda', 10, 'chegar na onda 10 do treino'], fazer: P => { const cs = [0xff3d7f, 0xffd23d, 0xffffff, 0xb83dff]; for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; P.add(Sp(0.1, 8, 6), Lm(cs[k % 4]), Math.cos(a) * 0.5, 0.48, -0.12 + Math.sin(a) * 0.42); } } },
+  { id: 'viking', nome: 'Capacete viking', ic: '🪓', rar: 'epico', req: ['zk', 300, 'pintar 300 zumbis'], fazer: P => { P.add(meiaEsfera(0.58), Lm(0x9aa0a8), 0, 0.42, -0.12).scale.set(1, 0.85, 1); for (const x of [-1, 1]) { const ch = P.add(new THREE.ConeGeometry(0.1, 0.55, 10), Lm(0xf0e6c8), x * 0.62, 0.72, -0.1); ch.rotation.z = -x * 0.9; } } },
+  { id: 'chifre', nome: 'Chifrinhos', ic: '😈', rar: 'epico', req: ['kills', 100, 'pintar 100 jogadores online'], fazer: P => { for (const x of [-0.28, 0.28]) { const h = P.add(new THREE.ConeGeometry(0.09, 0.32, 8), Lm(0xd61f2c), x, 0.72, 0); h.rotation.z = -x * 1.2; } } },
+  { id: 'astronauta', nome: 'Capacete de astronauta', ic: '🧑‍🚀', rar: 'lendario', req: ['boss', 3, 'derrotar 3 chefões'], fazer: P => { P.add(Sp(0.82, 22, 16), Lm(0xcfe8ff, 0x1a2a40, { transparent: true, opacity: 0.25, depthWrite: false }), 0, 0, 0); P.add(new THREE.TorusGeometry(0.62, 0.08, 8, 24), Lm(0xf2f2f2), 0, -0.68, 0).rotation.x = Math.PI / 2; } },
+  { id: 'coroa', nome: 'Coroa', ic: '👑', rar: 'lendario', req: ['wins', 15, 'vencer 15 partidas'], fazer: P => { const c = Lm(0xffd23d, 0x3a2a00); P.add(Cy(0.4, 0.4, 0.22, 16, true), Lm(0xffd23d, 0x3a2a00, { side: THREE.DoubleSide }), 0, 0.72, -0.1); for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; P.add(new THREE.ConeGeometry(0.08, 0.2, 6), c, Math.sin(a) * 0.4, 0.92, -0.1 + Math.cos(a) * 0.4); } } },
+  { id: 'aureola', nome: 'Auréola', ic: '😇', rar: 'lendario', req: ['hs', 100, 'acertar 100 tiros na cabeça'], fazer: P => { const a = P.add(new THREE.TorusGeometry(0.38, 0.05, 8, 28), new THREE.MeshBasicMaterial({ color: 0xfff3a0 }), 0, 1.0, -0.1); a.rotation.x = Math.PI / 2; P.anim(t => { a.position.y = 1.0 + Math.sin(t * 2.5) * 0.06; a.rotation.z = t; }); } },
 ];
 const ACCS = [
   { id: 'nada', nome: 'Nada', ic: '🚫' },
-  { id: 'escuros', nome: 'Óculos escuros', ic: '🕶️', req: ['onda', 5, 'chegar na onda 5 do treino'] },
-  { id: 'bigode', nome: 'Bigodão', ic: '🥸', req: ['rodada', 5, 'chegar na rodada 5 dos zumbis'] },
-  { id: 'ninja', nome: 'Faixa ninja', ic: '🥷', req: ['hs', 40, 'acertar 40 tiros na cabeça'] },
-  { id: 'palhaco', nome: 'Nariz de palhaço', ic: '🤡', req: ['deaths', 30, 'ser pintado 30 vezes (faz parte!)'] },
+  { id: 'gravata', nome: 'Gravata-borboleta', ic: '🎀', fazer: P => { const c = Lm(0xd61f2c); for (const x of [-0.12, 0.12]) P.add(new THREE.ConeGeometry(0.1, 0.2, 4), c, x, 1.85, 0.27, P.body).rotation.z = x > 0 ? Math.PI / 2 : -Math.PI / 2; P.add(Sp(0.05), c, 0, 1.85, 0.28, P.body); } },
+  { id: 'escuros', nome: 'Óculos escuros', ic: '🕶️', rar: 'raro', req: ['onda', 5, 'chegar na onda 5 do treino'], fazer: P => { P.add(Bx(0.8, 0.17, 0.04), Lm(0x0d0d10), 0, 0.08, 0.36); } },
+  { id: 'coracao', nome: 'Óculos de coração', ic: '😍', rar: 'raro', req: ['kills', 50, 'pintar 50 jogadores online'], fazer: P => { const c = Lm(0xff3d7f, 0x40001a); for (const x of [-0.2, 0.2]) { const s = new THREE.Shape(); s.moveTo(0, -0.1); s.bezierCurveTo(-0.2, 0.02, -0.12, 0.16, 0, 0.07); s.bezierCurveTo(0.12, 0.16, 0.2, 0.02, 0, -0.1); P.add(new THREE.ShapeGeometry(s), c, x, 0.08, 0.37); } P.add(Bx(0.1, 0.02, 0.02), c, 0, 0.1, 0.37); } },
+  { id: '3d', nome: 'Óculos 3D', ic: '🎬', rar: 'raro', req: ['onda', 8, 'chegar na onda 8 do treino'], fazer: P => { P.add(Bx(0.82, 0.2, 0.03), Lm(0xf2f2f2), 0, 0.08, 0.35); P.add(Bx(0.28, 0.13, 0.02), Lm(0xff2020, 0x500000, { transparent: true, opacity: 0.85 }), -0.2, 0.08, 0.37); P.add(Bx(0.28, 0.13, 0.02), Lm(0x2a8aff, 0x00205a, { transparent: true, opacity: 0.85 }), 0.2, 0.08, 0.37); } },
+  { id: 'monoculo', nome: 'Monóculo chique', ic: '🧐', rar: 'raro', req: ['hs', 25, 'acertar 25 tiros na cabeça'], fazer: P => { P.add(new THREE.TorusGeometry(0.13, 0.025, 8, 20), Lm(0xffd23d, 0x3a2a00), 0.2, 0.08, 0.37); P.add(Cy(0.008, 0.008, 0.5), Lm(0xffd23d), 0.3, -0.18, 0.36); } },
+  { id: 'heroi', nome: 'Máscara de herói', ic: '🦸', rar: 'raro', req: ['caps', 1, 'capturar 1 bandeira'], fazer: P => { const m = P.add(Bx(0.92, 0.2, 0.03), Lm(0x1b1d26), 0, 0.08, 0.35); for (const x of [-0.2, 0.2]) P.add(Cy(0.08, 0.08, 0.02, 12), Lm(0xffffff), x, 0.08, 0.37).rotation.x = Math.PI / 2; } },
+  { id: 'curativo', nome: 'Curativo', ic: '🩹', req: ['deaths', 10, 'ser pintado 10 vezes'], fazer: P => { const c = P.add(Bx(0.26, 0.09, 0.02), Lm(0xf0c8a0), 0.24, -0.08, 0.36); c.rotation.z = 0.5; } },
+  { id: 'bigode', nome: 'Bigodão', ic: '🥸', rar: 'raro', req: ['rodada', 5, 'chegar na rodada 5 dos zumbis'], fazer: P => { const m = Lm(0x2a1c14); P.add(Bx(0.4, 0.09, 0.05), m, 0, -0.22, 0.36); P.add(Bx(0.14, 0.08, 0.05), m, -0.22, -0.26, 0.36).rotation.z = 0.5; P.add(Bx(0.14, 0.08, 0.05), m, 0.22, -0.26, 0.36).rotation.z = -0.5; } },
+  { id: 'barba', nome: 'Barba de lenhador', ic: '🧔', rar: 'raro', req: ['partidas', 10, 'jogar 10 partidas online'], fazer: P => { const m = Lm(0x5a3a1e); const b = P.add(Sp(0.34, 14, 10), m, 0, -0.6, 0.18); b.scale.set(1.05, 0.75, 0.42); } },
+  { id: 'guerra', nome: 'Pintura de guerra', ic: '🎨', rar: 'raro', req: ['zk', 50, 'pintar 50 zumbis'], fazer: P => { for (const [x, c] of [[-0.3, 0xff3d7f], [-0.24, 0xffd23d], [0.24, 0x3db8ff], [0.3, 0x3dffb0]]) P.add(Bx(0.035, 0.22, 0.02), Lm(c, c), x, -0.02, 0.36); } },
+  { id: 'ninja', nome: 'Faixa ninja', ic: '🥷', rar: 'epico', req: ['hs', 40, 'acertar 40 tiros na cabeça'], fazer: P => { const f = P.add(Cy(0.56, 0.56, 0.1, 22, true), Lm(0xd61f2c, 0, { side: THREE.DoubleSide }), 0, 0.28, -0.1); f.scale.set(1, 1, 0.8); const r = P.add(Bx(0.06, 0.4, 0.06), Lm(0xd61f2c), 0.12, 0.12, -0.6); P.anim(t => { r.rotation.z = 0.4 + Math.sin(t * 6) * 0.25; }); } },
+  { id: 'palhaco', nome: 'Nariz de palhaço', ic: '🤡', req: ['deaths', 30, 'ser pintado 30 vezes (faz parte!)'], fazer: P => { P.add(Sp(0.1, 12, 10), Lm(0xff2020, 0x330000), 0, -0.05, 0.4); } },
+  { id: 'colar', nome: 'Corrente de ouro', ic: '📿', rar: 'lendario', req: ['wins', 10, 'vencer 10 partidas'], fazer: P => { const c = P.add(new THREE.TorusGeometry(0.3, 0.04, 8, 28), Lm(0xffd23d, 0x5a4000), 0, 1.72, 0.12, P.body); c.rotation.x = 1.2; P.add(Cy(0.11, 0.11, 0.03, 16), Lm(0xffd23d, 0x5a4000), 0, 1.52, 0.27, P.body).rotation.x = Math.PI / 2; } },
 ];
-const LOOK_PADRAO = { m: 0, s: 0, p: 0, h: 'bone', a: 'nada' };
+// nas costas (por cima dos potes de tinta)
+const BACKS = [
+  { id: 'nada', nome: 'Nada', ic: '🚫' },
+  { id: 'tanques', nome: 'Tanques de tinta', ic: '🧪', fazer: P => { for (const [x, c] of [[-0.2, 0xff3d7f], [0.2, 0x3db8ff]]) { P.add(Cy(0.14, 0.14, 0.7), Lm(c, c & 0x3f3f3f), x, 1.45, -0.42, P.body); P.add(Sp(0.14), Lm(0xd8dde6), x, 1.82, -0.42, P.body); } } },
+  { id: 'mochila', nome: 'Mochila da escola', ic: '🎒', req: ['onda', 3, 'chegar na onda 3 do treino'], fazer: P => { P.add(Bx(0.7, 0.75, 0.32), Lm(0x3db8ff), 0, 1.4, -0.42, P.body); P.add(Bx(0.5, 0.3, 0.12), Lm(0xffd23d), 0, 1.25, -0.6, P.body); } },
+  { id: 'capa', nome: 'Capa de herói', ic: '🦸', rar: 'raro', req: ['wins', 2, 'vencer 2 partidas'], fazer: P => { const g = new THREE.Group(); g.position.set(0, 1.85, -0.28); P.body.add(g); const c = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 1.5, 1, 4), Lm(0xd61f2c, 0, { side: THREE.DoubleSide })); c.position.y = -0.75; g.add(c); P.anim(t => { g.rotation.x = 0.15 + Math.sin(t * 3) * 0.08; }); } },
+  { id: 'guitarra', nome: 'Violão', ic: '🎸', rar: 'raro', req: ['partidas', 15, 'jogar 15 partidas online'], fazer: P => { const g = new THREE.Group(); g.position.set(0, 1.3, -0.42); g.rotation.z = 0.6; P.body.add(g); const cor = Lm(0xc06a2b); for (const [y, r] of [[-0.25, 0.3], [0.1, 0.24]]) { const b = new THREE.Mesh(Cy(r, r, 0.14, 18), cor); b.rotation.x = Math.PI / 2; b.position.y = y; g.add(b); } const br = new THREE.Mesh(Bx(0.1, 0.8, 0.06), Lm(0x3a2410)); br.position.y = 0.6; g.add(br); } },
+  { id: 'casco', nome: 'Casco de tartaruga', ic: '🐢', rar: 'raro', req: ['deaths', 20, 'ser pintado 20 vezes'], fazer: P => { const c = P.add(meiaEsfera(0.55), Lm(0x2f8a4a), 0, 1.35, -0.3, P.body); c.rotation.x = -Math.PI / 2; c.scale.set(1, 1, 0.6); } },
+  { id: 'pincel', nome: 'Pincelzão', ic: '🖌️', rar: 'epico', req: ['kills', 75, 'pintar 75 jogadores online'], fazer: P => { const g = new THREE.Group(); g.position.set(0, 1.4, -0.4); g.rotation.z = -0.7; P.body.add(g); const cabo = new THREE.Mesh(Cy(0.05, 0.05, 1.6), Lm(0x8a5a2b)); g.add(cabo); const ponta = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.45, 12), Lm(0xff3d7f, 0x400018)); ponta.position.y = 1.0; g.add(ponta); } },
+  { id: 'asas', nome: 'Asas de anjo', ic: '🪽', rar: 'epico', req: ['hs', 60, 'acertar 60 tiros na cabeça'], fazer: P => asas(P, 0xffffff, 0) },
+  { id: 'morcego', nome: 'Asas de morcego', ic: '🦇', rar: 'epico', req: ['boss', 1, 'derrotar 1 chefão'], fazer: P => asas(P, 0x2a1530, 1) },
+  { id: 'jetpack', nome: 'Jetpack', ic: '🚀', rar: 'lendario', req: ['zk', 200, 'pintar 200 zumbis'], fazer: P => {
+    for (const x of [-0.2, 0.2]) { P.add(Cy(0.15, 0.15, 0.75), Lm(0x9aa0a8), x, 1.45, -0.45, P.body); P.add(new THREE.ConeGeometry(0.15, 0.25, 12), Lm(0xd61f2c), x, 1.95, -0.45, P.body); }
+    const fogo = []; for (const x of [-0.2, 0.2]) { const f = P.add(new THREE.ConeGeometry(0.11, 0.45, 10), new THREE.MeshBasicMaterial({ color: 0xffa83d, transparent: true, opacity: 0.85 }), x, 0.85, -0.45, P.body); f.rotation.x = Math.PI; fogo.push(f); }
+    P.anim(t => { for (const f of fogo) f.scale.y = 0.7 + Math.random() * 0.6; });
+  } },
+];
+function asas(P, cor, morcego) {
+  for (const s of [-1, 1]) {
+    const g = new THREE.Group(); g.position.set(s * 0.2, 1.6, -0.35); P.body.add(g);
+    const forma = new THREE.Shape(); forma.moveTo(0, 0); forma.quadraticCurveTo(0.6, 0.6, 1.1, 0.35);
+    if (morcego) { forma.lineTo(0.9, 0.1); forma.lineTo(0.75, 0.2); forma.lineTo(0.6, -0.05); forma.lineTo(0.4, 0.05); } else forma.quadraticCurveTo(0.9, -0.2, 0.5, -0.35);
+    forma.lineTo(0, 0);
+    const w = new THREE.Mesh(new THREE.ShapeGeometry(forma), Lm(cor, morcego ? 0 : 0x333333, { side: THREE.DoubleSide })); w.scale.x = s; g.add(w);
+    P.anim(t => { g.rotation.y = -s * (0.5 + Math.sin(t * 5) * 0.3); });
+  }
+}
+// efeito quando você pinta alguém
+const FXS = [
+  { id: 'nada', nome: 'Respingo', ic: '💦' },
+  { id: 'confete', nome: 'Confete', ic: '🎉' },
+  { id: 'coracoes', nome: 'Corações', ic: '❤️', rar: 'raro', req: ['kills', 20, 'pintar 20 jogadores online'] },
+  { id: 'estrelas', nome: 'Estrelas', ic: '⭐', rar: 'raro', req: ['hs', 30, 'acertar 30 tiros na cabeça'] },
+  { id: 'fogo', nome: 'Fogo', ic: '🔥', rar: 'epico', req: ['zk', 150, 'pintar 150 zumbis'] },
+  { id: 'raios', nome: 'Raios', ic: '⚡', rar: 'epico', req: ['wins', 5, 'vencer 5 partidas'] },
+  { id: 'caveiras', nome: 'Caveiras', ic: '💀', rar: 'epico', req: ['kills', 150, 'pintar 150 jogadores online'] },
+  { id: 'dinheiro', nome: 'Chuva de grana', ic: '💸', rar: 'lendario', req: ['zk', 400, 'pintar 400 zumbis'] },
+  { id: 'arcoiris', nome: 'Arco-íris', ic: '🌈', rar: 'lendario', req: ['boss', 5, 'derrotar 5 chefões'] },
+];
+const LOOK_PADRAO = { m: 0, s: 0, p: 0, h: 'bone', a: 'nada', b: 'tanques', f: 'confete' };
 function cleanLook(l) {
   l = l && typeof l === 'object' ? l : {};
   const idx = (v, n) => Number.isInteger(v) && v >= 0 && v < n ? v : 0;
-  return { m: idx(l.m, MASK_CORES.length), s: idx(l.s, LOOK_CORES.length), p: idx(l.p, TINTAS.length),
-    h: HATS.some(x => x.id === l.h) ? l.h : 'nada', a: ACCS.some(x => x.id === l.a) ? l.a : 'nada' };
+  const de = (lista, v) => lista.some(x => x.id === v) ? v : 'nada';
+  return { m: idx(l.m, MASK_CORES.length), s: idx(l.s, LOOK_CORES.length), p: idx(l.p, TINTAS.length), h: de(HATS, l.h), a: de(ACCS, l.a), b: de(BACKS, l.b), f: de(FXS, l.f) };
 }
 let myLook = cleanLook({ ...LOOK_PADRAO, ...(load('pb-look', {}) || {}) });
 // valor de uma conquista (números online + recordes do treino)
@@ -1717,60 +1844,68 @@ function reqValue(k) {
   return +(stats?.[k] || 0);
 }
 const unlocked = item => !item.req || reqValue(item.req[0]) >= item.req[1];
-// quantos itens destravados (para avisar quando aparece um novo)
-const unlockedIds = () => [...HATS, ...ACCS].filter(unlocked).map(i => i.id).join(',');
+const TODOS_ITENS = () => [...HATS, ...ACCS, ...BACKS, ...FXS];
+const unlockedIds = () => TODOS_ITENS().filter(unlocked).map(i => i.id).join(',');
 // cor da tinta dos meus tiros
 const myPaint = () => TINTAS[myLook.p] ?? null;
 
-// veste o boneco: macacão, máscara na testa, chapéu e acessório
+// veste o boneco: macacão, máscara na testa, chapéu, rosto e costas (parts.anims anima os que mexem)
 function applyLook(parts, look) {
   look = cleanLook(look);
   const [shirt, pants] = parts.mats;
   if (LOOK_CORES[look.s] !== null) { shirt.color.setHex(LOOK_CORES[look.s]); pants.color.setHex(LOOK_CORES[look.s]).multiplyScalar(0.7); }
-  const head = parts.head, L = (c, extra) => new THREE.MeshLambertMaterial({ color: c, ...extra });
-  const add = (geo, m, x, y, z, parent = head) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); parent.add(o); return o; };
-  // máscara de paintball levantada na testa
-  const mc = MASK_CORES[look.m];
-  const strap = add(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 22, 1, true), L(0x15171d, { side: THREE.DoubleSide }), 0, 0.42, -0.1);
-  strap.scale.set(1, 1, 0.82);
-  add(new THREE.BoxGeometry(0.86, 0.2, 0.14), L(mc), 0, 0.44, 0.33);
-  for (const x of [-0.2, 0.2]) add(new THREE.BoxGeometry(0.3, 0.13, 0.04), L(0x2a3a55, { emissive: 0x111a33 }), x, 0.44, 0.41);
-  // chapéus
-  const H = look.h;
-  if (H === 'bone') {
-    const c = L(mc); add(new THREE.SphereGeometry(0.5, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), c, 0, 0.5, -0.12).scale.set(1.05, 0.75, 1.02);
-    add(new THREE.BoxGeometry(0.62, 0.05, 0.42), c, 0, 0.52, 0.4).rotation.x = 0.12;
-  } else if (H === 'gorro') {
-    const c = L(0xc0392b); add(new THREE.SphereGeometry(0.52, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), c, 0, 0.5, -0.12).scale.set(1.04, 0.95, 1);
-    add(new THREE.SphereGeometry(0.13, 10, 8), L(0xf2f2f2), 0, 1.02, -0.12);
-  } else if (H === 'capacete') {
-    add(new THREE.SphereGeometry(0.6, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), L(0x4a5a3a), 0, 0.42, -0.12).scale.set(1, 0.85, 1);
-  } else if (H === 'cowboy') {
-    const c = L(0x8a5a2b); add(new THREE.CylinderGeometry(0.36, 0.42, 0.42, 16), c, 0, 0.82, -0.1);
-    add(new THREE.CylinderGeometry(0.85, 0.85, 0.05, 22), c, 0, 0.62, -0.1);
-  } else if (H === 'cartola') {
-    const c = L(0x15171d); add(new THREE.CylinderGeometry(0.34, 0.34, 0.7, 16), c, 0, 0.95, -0.1);
-    add(new THREE.CylinderGeometry(0.6, 0.6, 0.05, 20), c, 0, 0.62, -0.1);
-    add(new THREE.CylinderGeometry(0.35, 0.35, 0.1, 16), L(0xc0392b), 0, 0.7, -0.1);
-  } else if (H === 'coroa') {
-    const c = L(0xffd23d, { emissive: 0x3a2a00 });
-    add(new THREE.CylinderGeometry(0.4, 0.4, 0.22, 16, 1, true), L(0xffd23d, { emissive: 0x3a2a00, side: THREE.DoubleSide }), 0, 0.72, -0.1);
-    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; add(new THREE.ConeGeometry(0.08, 0.2, 6), c, Math.sin(a) * 0.4, 0.92, -0.1 + Math.cos(a) * 0.4); }
-  } else if (H === 'chifre') {
-    for (const x of [-0.28, 0.28]) { const h = add(new THREE.ConeGeometry(0.09, 0.32, 8), L(0xd61f2c), x, 0.72, 0); h.rotation.z = -x * 1.2; }
+  parts.anims = parts.anims || [];
+  const P = { head: parts.head, body: parts.body, anim: f => parts.anims.push(f),
+    add: (geo, m, x, y, z, parent = parts.head) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); parent.add(o); return o; } };
+  // máscara de paintball levantada na testa (some com capacete de astronauta)
+  if (look.h !== 'astronauta') {
+    const strap = P.add(Cy(0.55, 0.55, 0.1, 22, true), Lm(0x15171d, 0, { side: THREE.DoubleSide }), 0, 0.42, -0.1); strap.scale.set(1, 1, 0.82);
+    P.add(Bx(0.86, 0.2, 0.14), Lm(MASK_CORES[look.m]), 0, 0.44, 0.33);
+    for (const x of [-0.2, 0.2]) P.add(Bx(0.3, 0.13, 0.04), Lm(0x2a3a55, 0x111a33), x, 0.44, 0.41);
   }
-  // acessórios no rosto
-  const A = look.a;
-  if (A === 'escuros') { add(new THREE.BoxGeometry(0.8, 0.17, 0.04), L(0x0d0d10), 0, 0.08, 0.36); }
-  else if (A === 'bigode') { const b = add(new THREE.BoxGeometry(0.4, 0.09, 0.05), L(0x2a1c14), 0, -0.22, 0.36); b.rotation.z = 0; add(new THREE.BoxGeometry(0.14, 0.08, 0.05), L(0x2a1c14), -0.22, -0.26, 0.36).rotation.z = 0.5; add(new THREE.BoxGeometry(0.14, 0.08, 0.05), L(0x2a1c14), 0.22, -0.26, 0.36).rotation.z = -0.5; }
-  else if (A === 'ninja') { const f = add(new THREE.CylinderGeometry(0.56, 0.56, 0.1, 22, 1, true), L(0xd61f2c, { side: THREE.DoubleSide }), 0, 0.28, -0.1); f.scale.set(1, 1, 0.8); add(new THREE.BoxGeometry(0.06, 0.4, 0.06), L(0xd61f2c), 0.12, 0.12, -0.6).rotation.z = 0.4; }
-  else if (A === 'palhaco') { add(new THREE.SphereGeometry(0.1, 12, 10), L(0xff2020, { emissive: 0x330000 }), 0, -0.05, 0.4); }
+  for (const [lista, k] of [[HATS, 'h'], [ACCS, 'a'], [BACKS, 'b']]) lista.find(x => x.id === look[k])?.fazer?.(P, look);
   return parts;
 }
 // visual aleatório para inimigos do treino e bots
 function randomLook() {
-  const r = n => Math.floor(Math.random() * n);
-  return { m: r(MASK_CORES.length), s: Math.random() < 0.5 ? 0 : r(LOOK_CORES.length), p: r(TINTAS.length), h: HATS[r(HATS.length)].id, a: Math.random() < 0.7 ? 'nada' : ACCS[1 + r(ACCS.length - 1)].id };
+  const r = n => Math.floor(Math.random() * n), pega = l => l[r(l.length)].id;
+  return { m: r(MASK_CORES.length), s: Math.random() < 0.5 ? 0 : r(LOOK_CORES.length), p: r(TINTAS.length), h: pega(HATS), a: Math.random() < 0.6 ? 'nada' : pega(ACCS), b: Math.random() < 0.5 ? 'nada' : pega(BACKS), f: pega(FXS) };
+}
+// ----- efeito ao pintar alguém: emojis / confete saindo do alvo -----
+const fxParts = [], emojiTex = new Map();
+function emojiSprite(e) {
+  if (!emojiTex.has(e)) {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d'); g.font = '52px system-ui, "Apple Color Emoji", "Noto Color Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 32, 36);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; emojiTex.set(e, t);
+  }
+  return new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex.get(e), transparent: true, depthWrite: false }));
+}
+function fxBurst(pos, fxId, alvoScene = scene) {
+  const F = FXS.find(x => x.id === fxId); if (!F || F.id === 'nada' || !pos) return;
+  const n = F.id === 'confete' || F.id === 'arcoiris' ? 30 : 12;
+  for (let i = 0; i < n; i++) {
+    let o;
+    if (F.id === 'confete') { o = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.08), new THREE.MeshBasicMaterial({ color: PAINT[i % PAINT.length], side: THREE.DoubleSide, transparent: true })); }
+    else if (F.id === 'arcoiris') { o = new THREE.Mesh(Sp(0.09, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(i / n, 1, 0.55), transparent: true })); }
+    else { o = emojiSprite(F.ic); o.scale.setScalar(0.45 + Math.random() * 0.3); }
+    o.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 1.4 + Math.random() * 0.8, (Math.random() - 0.5) * 0.6));
+    const sobe = ['fogo', 'coracoes', 'caveiras', 'raios'].includes(F.id);
+    const ang = i / n * Math.PI * 2;
+    const v = F.id === 'arcoiris' ? new THREE.Vector3(Math.cos(ang) * 3, 5 + Math.sin(i) * 0.5, Math.sin(ang) * 3)
+      : new THREE.Vector3((Math.random() - 0.5) * 4, sobe ? 1.5 + Math.random() * 2 : 3 + Math.random() * 4, (Math.random() - 0.5) * 4);
+    alvoScene.add(o);
+    fxParts.push({ o, v, t: 0, vida: 1.2 + Math.random() * 0.6, g: sobe ? -1 : F.id === 'dinheiro' ? 4 : 9, cena: alvoScene, gira: Math.random() * 10 });
+  }
+}
+function updateFxParts(dt) {
+  for (let i = fxParts.length - 1; i >= 0; i--) {
+    const p = fxParts[i]; p.t += dt;
+    p.v.y -= p.g * dt; p.o.position.addScaledVector(p.v, dt);
+    if (p.o.isMesh) { p.o.rotation.x += dt * p.gira; p.o.rotation.y += dt * p.gira * 0.7; }
+    const a = Math.max(0, 1 - p.t / p.vida); p.o.material.opacity = a;
+    if (p.t >= p.vida) { p.cena.remove(p.o); p.o.material.dispose(); if (p.o.isMesh) p.o.geometry.dispose(); fxParts.splice(i, 1); }
+  }
 }
 
 function randomSpawn() {
@@ -2418,7 +2553,7 @@ function chatLine(nome, txt, cor = '#ffd23d') {
 }
 
 // ===== Telas e pausa =====
-const SCREENS = ['startScreen', 'roomScreen', 'soloScreen', 'charScreen', 'lockerScreen', 'controlsScreen', 'pauseScreen', 'overScreen'];
+const SCREENS = ['startScreen', 'roomScreen', 'soloScreen', 'charScreen', 'lockerScreen', 'contaScreen', 'controlsScreen', 'pauseScreen', 'overScreen'];
 function showScreen(id) { for (const s of SCREENS) $(s).style.display = s === id ? 'flex' : 'none'; if (id) $(id).scrollTop = 0; }
 function hideScreens() { showScreen(null); }
 function togglePause() { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); }
@@ -2576,7 +2711,8 @@ function showResults(title, text, stats) {
 }
 function recorde(chave, valor) {
   let antigo = 0;
-  try { antigo = +localStorage.getItem(chave) || 0; if (valor > antigo) localStorage.setItem(chave, valor); } catch {}
+  antigo = +load(chave, 0) || 0;
+  if (valor > antigo) save(chave, valor);
   return valor > antigo;
 }
 function gameOver() {
@@ -2766,7 +2902,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 15;
+const VERSAO = 16;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -3086,6 +3222,7 @@ function onNet(m) {
         else { bumpStat('kills'); killStreak(); }
       }
       const r = remotes.get(m.victim); if (r) setRemoteDead(r, true);
+      fxBurst(m.victim === net.myId ? player.pos : r?.pos, (m.killer === net.myId ? myLook : net.players[m.killer]?.lk)?.f);
       break;
     }
     case 'respawn':
@@ -3208,6 +3345,7 @@ function updateRemotes(dt, t) {
     if (r.glow !== glow) { r.glow = glow; for (const mt of r.mats) { mt.emissive.setHex(glow); mt.emissiveIntensity = glow ? 0.7 : 0; } }
     r.armR.rotation.x += (-Math.PI / 2 - r.pitch - r.armR.rotation.x) * Math.min(1, dt * 8);
     hitReact(r, dt);
+    if (r.anims) for (const f of r.anims) f(t);
   }
 }
 // levou tiro: dá um "tranco" para trás e pisca
@@ -3596,8 +3734,8 @@ function renderLobby() {
 let pid = load('pb-pid', null);
 if (typeof pid !== 'string' || !/^[a-z0-9]{6,12}$/.test(pid)) { pid = newId(); save('pb-pid', pid); }
 const stats = { kills: 0, deaths: 0, wins: 0, partidas: 0, hs: 0, ...(load('pb-stats', {}) || {}) };
-function bumpStat(k, n = 1) {
-  if (net.local) return;
+function bumpStat(k, n = 1, local = false) {
+  if (net.local && !local) return; // treino conta só para conquistas de zumbi
   stats[k] = (stats[k] | 0) + n; save('pb-stats', stats);
   bumpWeek(k, n); checkUnlocks();
   clearTimeout(bumpStat.t); bumpStat.t = setTimeout(() => publishRank(), 1500);
@@ -3606,8 +3744,8 @@ function bumpStat(k, n = 1) {
 function checkUnlocks() {
   const antes = new Set(String(load('pb-unl', '') || '').split(','));
   const agora = unlockedIds();
-  if (!load('pb-unl', null)) { save('pb-unl', agora); return; }
-  const novos = [...HATS, ...ACCS].filter(i => unlocked(i) && !antes.has(i.id));
+  if (!load('pb-unl', null)) { save('pb-unl', agora, true); return; }
+  const novos = TODOS_ITENS().filter(i => unlocked(i) && !antes.has(i.id));
   save('pb-unl', agora);
   for (const i of novos) { feed(`🔓 Destravou: ${i.ic} ${i.nome}! (menu › Visual)`); sfx.power(); }
 }
@@ -3621,7 +3759,7 @@ function weekKey(d = new Date()) {
 }
 const WK = { kills: 'wk_k', wins: 'wk_w', hs: 'wk_h', deaths: 'wk_d', partidas: 'wk_p' };
 function weekStats() {
-  if (stats.wk !== weekKey()) { stats.wk = weekKey(); for (const f of Object.values(WK)) stats[f] = 0; save('pb-stats', stats); }
+  if (stats.wk !== weekKey()) { stats.wk = weekKey(); for (const f of Object.values(WK)) stats[f] = 0; save('pb-stats', stats, true); }
   return stats;
 }
 function bumpWeek(k, n) { if (!WK[k]) return; weekStats(); stats[WK[k]] = (stats[WK[k]] | 0) + n; save('pb-stats', stats); }
@@ -3925,6 +4063,211 @@ $('crSave').onclick = () => {
   sfx.power(); openHome();
 };
 
+// ===== Conta (nome + senha): progresso salvo na nuvem =====
+// Sem servidor próprio: o progresso vai CRIPTOGRAFADO (AES-GCM, chave tirada da senha com PBKDF2)
+// como mensagem retida nos mesmos servidores MQTT públicos do online. O endereço também sai da senha,
+// então ninguém acha nem lê o save sem nome + senha. Fica uma cópia no aparelho e dá para exportar
+// um código de backup.
+const CONTA_TOPIC = 'pbamigos/conta';
+const conta = { user: null, topic: null, key: null, timer: null, ultimo: 0, status: '' };
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
+const normUser = u => String(u || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_.-]/g, '');
+async function derivarConta(user, senha) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(senha), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode('pbamigos-conta:' + user), iterations: 150000, hash: 'SHA-256' }, base, 512);
+  const raw = bits.slice(0, 32), topic = hex(bits.slice(32)).slice(0, 32);
+  return { raw: b64(raw), topic, key: await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']) };
+}
+const nomeTopic = async user => `${CONTA_TOPIC}/nome/${hex(await crypto.subtle.digest('SHA-256', enc.encode('pbnome:' + user))).slice(0, 32)}`;
+const saveTopic = t => `${CONTA_TOPIC}/save/${t}`;
+async function cifrar(obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, conta.key, enc.encode(JSON.stringify(obj)));
+  return JSON.stringify({ iv: b64(iv), ct: b64(ct) });
+}
+async function decifrar(txt, key = conta.key) {
+  const m = JSON.parse(txt);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(m.iv) }, key, unb64(m.ct));
+  return JSON.parse(dec.decode(pt));
+}
+// conexões rápidas com os servidores só para ler/gravar o save
+function contaConectar(subs, onMsg, prazo = 6000) {
+  return new Promise(res => {
+    if (!window.mqtt) return res([]);
+    const cs = []; let ok = 0;
+    for (const url of BROKERS) {
+      let c; try { c = mqtt.connect(url, { clientId: 'pbc_' + newId(), keepalive: 20, reconnectPeriod: 0, connectTimeout: prazo, clean: true }); } catch { continue; }
+      cs.push(c);
+      c.on('connect', () => { ok++; for (const s of subs) c.subscribe(s); if (ok === 1) setTimeout(() => res(cs), 300); });
+      c.on('message', (tp, buf) => onMsg?.(tp, buf));
+      c.on('error', () => {});
+    }
+    setTimeout(() => res(cs), prazo);
+  });
+}
+const contaFechar = cs => setTimeout(() => { for (const c of cs) try { c.end(true); } catch {} }, 1500);
+
+// o que vai no save
+function juntarSave() {
+  return {
+    v: 1, ts: +load('pb-save-ts', 0) || 0, pid, stats: { ...stats }, look: myLook, custom: CUSTOM, nick: $('nick').value.trim(), char: myChar,
+    unl: String(load('pb-unl', '') || ''), rec: { ondas: +load('pb-recorde-ondas', 0) || 0, onda: +load('pb-recorde-onda', 0) || 0, zumbi: +load('pb-recorde-zumbi', 0) || 0 },
+  };
+}
+// junta o que veio da nuvem com o que está no aparelho sem perder nada (números: o maior; visual: o mais novo)
+function mesclarSave(r) {
+  if (!r || typeof r !== 'object' || !r.stats) return false;
+  const local = juntarSave(), novo = (+r.ts || 0) > (local.ts || 0);
+  const st = {};
+  for (const k of new Set([...Object.keys(local.stats), ...Object.keys(r.stats)])) {
+    if (k === 'wk' || k.startsWith('wk_')) continue;
+    const a = +local.stats[k] || 0, b = +r.stats[k] || 0; st[k] = Math.max(a, b);
+  }
+  // semana: fica a mais recente; se for a mesma, o maior de cada número
+  const wl = local.stats.wk || '', wr = r.stats.wk || '';
+  const semMaior = (a, b) => { const [ya, wa] = String(a).split('-').map(Number), [yb, wb] = String(b).split('-').map(Number); return (ya || 0) * 100 + (wa || 0) >= (yb || 0) * 100 + (wb || 0); };
+  st.wk = wl === wr ? wl : semMaior(wl, wr) ? wl : wr;
+  for (const f of Object.values(WK)) st[f] = wl === wr ? Math.max(+local.stats[f] || 0, +r.stats[f] || 0) : (st.wk === wl ? +local.stats[f] || 0 : +r.stats[f] || 0);
+  Object.keys(stats).forEach(k => delete stats[k]); Object.assign(stats, st); save('pb-stats', stats, true);
+  for (const [k, ch] of [['ondas', 'pb-recorde-ondas'], ['onda', 'pb-recorde-onda'], ['zumbi', 'pb-recorde-zumbi']]) save(ch, Math.max(+local.rec[k] || 0, +r.rec?.[k] || 0), true);
+  if (r.look && (novo || load('pb-look', null) === null)) { myLook = cleanLook(r.look); save('pb-look', myLook, true); }
+  const porId = new Map(); for (const c of [...(Array.isArray(r.custom) ? r.custom : []), ...CUSTOM]) if (c?.id && typeof c.foto === 'string' && c.foto.startsWith('data:image/')) porId.set(c.id, c);
+  CUSTOM = [...porId.values()].slice(-8); save('pb-custom', CUSTOM, true);
+  if (typeof r.nick === 'string' && r.nick && (novo || !$('nick').value.trim())) { $('nick').value = r.nick.slice(0, 14); save('pb-nick', $('nick').value, true); }
+  if (typeof r.char === 'string' && (novo || load('pb-char', null) === null)) { myChar = r.char; save('pb-char', myChar, true); }
+  save('pb-unl', [...new Set([...String(local.unl).split(','), ...String(r.unl || '').split(',')])].filter(Boolean).join(','), true);
+  if (typeof r.pid === 'string' && /^[a-z0-9]{6,12}$/.test(r.pid)) { pid = r.pid; save('pb-pid', pid, true); } // ranking continua com o mesmo id
+  save('pb-save-ts', Math.max(local.ts || 0, +r.ts || 0), true);
+  renderChars(); if (tab === 'ranking') renderRanking(); renderWeekStar();
+  return true;
+}
+// manda o save para a nuvem (alguns segundos depois da última mudança)
+function agendarNuvem() {
+  if (!conta.key) return;
+  clearTimeout(conta.timer); conta.timer = setTimeout(salvarNuvem, 4000);
+}
+async function salvarNuvem() {
+  if (!conta.key) return false;
+  try {
+    let dados = juntarSave(); dados.ts = Date.now(); save('pb-save-ts', dados.ts, true);
+    let txt = await cifrar(dados);
+    // fotos pesadas demais? manda sem as mais antigas
+    while (txt.length > 230000 && dados.custom.length) { dados = { ...dados, custom: dados.custom.slice(1) }; txt = await cifrar(dados); }
+    const cs = await contaConectar([]);
+    const ligados = cs.filter(c => c.connected);
+    for (const c of ligados) c.publish(saveTopic(conta.topic), txt, { retain: true, qos: 1 });
+    contaFechar(cs);
+    if (!ligados.length) { conta.status = '⚠️ Sem internet: salvo só no aparelho, tento de novo depois'; renderConta(); setTimeout(agendarNuvem, 20000); return false; }
+    conta.ultimo = Date.now(); conta.status = '☁️ Salvo na nuvem agora'; renderConta();
+    return true;
+  } catch (e) { conta.status = '⚠️ Não consegui salvar agora'; renderConta(); return false; }
+}
+// lê o save da nuvem (resolve null se não achar)
+function lerNuvem(topic, key, prazo = 6000) {
+  return new Promise(async res => {
+    let melhor = null, fim = false;
+    const cs = await contaConectar([saveTopic(topic)], async (tp, buf) => {
+      if (!buf.length) return;
+      try { const d = await decifrar(buf.toString(), key); if (!melhor || (+d.ts || 0) > (+melhor.ts || 0)) melhor = d; } catch {}
+    }, prazo);
+    setTimeout(() => { fim = true; contaFechar(cs); res(melhor); }, cs.some(c => c.connected) ? 2500 : 0);
+  });
+}
+function nomeExiste(user) {
+  return new Promise(async res => {
+    let achou = false; const t = await nomeTopic(user);
+    const cs = await contaConectar([t], (tp, buf) => { if (buf.length) achou = true; });
+    setTimeout(() => { contaFechar(cs); res(cs.some(c => c.connected) ? achou : null); }, 2500);
+  });
+}
+async function entrarConta(criar) {
+  const nome = $('contaNome').value.trim(), user = normUser(nome), senha = $('contaSenha').value;
+  const msg = t => { $('contaMsg').textContent = t; };
+  if (user.length < 3) return msg('O nome precisa ter pelo menos 3 letras ou números.');
+  if (senha.length < 4) return msg('A senha precisa ter pelo menos 4 caracteres.');
+  if (!crypto?.subtle) return msg('Este navegador não deixa criar conta (abra pelo site do jogo).');
+  $('contaGo').disabled = true; msg('Conectando…');
+  try {
+    const d = await derivarConta(user, senha);
+    if (criar) {
+      const existe = await nomeExiste(user);
+      if (existe === null) { msg('Sem conexão com os servidores. Confira a internet.'); return; }
+      if (existe) { msg('Esse nome já tem conta. Use "Entrar" com a senha dela, ou escolha outro nome.'); return; }
+      Object.assign(conta, { user: nome, topic: d.topic, key: d.key });
+      const cs = await contaConectar([]); for (const c of cs) if (c.connected) c.publish(await nomeTopic(user), '1', { retain: true, qos: 1 }); contaFechar(cs);
+      save('pb-conta', { user: nome, topic: d.topic, k: d.raw }, true);
+      await salvarNuvem();
+      msg(''); ui.confirm(); feed(`☁️ Conta "${nome}" criada! Seu progresso agora fica salvo.`);
+    } else {
+      const r = await lerNuvem(d.topic, d.key);
+      if (!r) { msg('Não achei conta com esse nome e senha. Confira (maiúsculas não importam no nome, na senha sim).'); return; }
+      Object.assign(conta, { user: nome, topic: d.topic, key: d.key });
+      save('pb-conta', { user: nome, topic: d.topic, k: d.raw }, true);
+      mesclarSave(r); await salvarNuvem();
+      msg(''); ui.confirm(); feed(`☁️ Bem-vindo de volta, ${nome}! Progresso carregado.`);
+    }
+    $('contaSenha').value = '';
+    renderConta(); renderContaBtn();
+  } catch (e) { msg('Deu algum problema. Tente de novo.'); }
+  finally { $('contaGo').disabled = false; }
+}
+function sairConta() {
+  if (!confirm('Sair da conta neste aparelho? O progresso continua salvo na nuvem e aqui.')) return;
+  Object.assign(conta, { user: null, topic: null, key: null, status: '' });
+  try { localStorage.removeItem('pb-conta'); } catch {}
+  renderConta(); renderContaBtn();
+}
+// ao abrir o jogo: se já tem conta, puxa o que mudou em outro aparelho
+async function contaAuto() {
+  const c = load('pb-conta', null);
+  if (!c?.topic || !c?.k || !crypto?.subtle) return;
+  try {
+    const key = await crypto.subtle.importKey('raw', unb64(c.k), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    Object.assign(conta, { user: c.user, topic: c.topic, key });
+    renderContaBtn();
+    const r = await lerNuvem(c.topic, key);
+    if (r) mesclarSave(r);
+    agendarNuvem();
+  } catch {}
+}
+// código de backup: o progresso inteiro num texto para copiar e colar
+function codigoBackup() { return 'PBA1:' + btoa(unescape(encodeURIComponent(JSON.stringify({ ...juntarSave(), ts: Date.now() })))); }
+async function copiarBackup() {
+  const txt = codigoBackup();
+  $('backupTxt').value = txt; $('backupTxt').select();
+  try { await navigator.clipboard.writeText(txt); $('backupMsg').textContent = '📋 Código copiado! Guarde em um lugar seguro (ex.: mande para você mesmo no WhatsApp).'; }
+  catch { $('backupMsg').textContent = 'Copie o texto acima e guarde em um lugar seguro.'; }
+}
+function restaurarBackup() {
+  const txt = $('backupTxt').value.trim();
+  try {
+    if (!txt.startsWith('PBA1:')) throw 0;
+    const r = JSON.parse(decodeURIComponent(escape(atob(txt.slice(5)))));
+    if (!mesclarSave(r)) throw 0;
+    $('backupTxt').value = ''; $('backupMsg').textContent = '✅ Progresso restaurado e juntado com o deste aparelho.'; ui.confirm(); agendarNuvem();
+  } catch { $('backupMsg').textContent = '❌ Esse código não é válido.'; ui.erro(); }
+}
+let contaCriar = false;
+function openConta() { renderConta(); showScreen('contaScreen'); }
+function renderConta() {
+  if (!$('contaScreen')) return;
+  const on = !!conta.key;
+  $('contaOff').hidden = on; $('contaOn').hidden = !on;
+  choice($('contaTabs'), [{ v: false, t: '🔑 Entrar' }, { v: true, t: '✨ Criar conta' }], v => v === contaCriar, v => { contaCriar = v; renderConta(); });
+  $('contaGo').textContent = contaCriar ? 'CRIAR CONTA' : 'ENTRAR';
+  $('contaSenha').autocomplete = contaCriar ? 'new-password' : 'current-password';
+  if (on) {
+    $('contaUser').textContent = conta.user;
+    $('contaStatus').textContent = conta.status || (conta.ultimo ? `☁️ Último salvamento: ${new Date(conta.ultimo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '☁️ Sincronizando…');
+    const tot = TODOS_ITENS().filter(i => i.id !== 'nada');
+    $('contaResumo').textContent = `${stats.partidas | 0} partidas · ${stats.wins | 0} vitórias · ${stats.kills | 0} abates · ${stats.zk | 0} zumbis · ${tot.filter(unlocked).length}/${tot.length} itens`;
+  }
+}
+function renderContaBtn() { $('contaBtn').textContent = conta.key ? `☁️ ${conta.user}` : '👤 Entrar'; $('contaBtn').classList.toggle('alt', !!conta.key); }
+
 // ===== Visual do jogador (prévia 3D) =====
 const lk = { renderer: null, scene: null, cam: null, fig: null, rot: 0, base: 0, drag: null, open: false };
 function openLocker() {
@@ -3962,7 +4305,7 @@ function renderLocker() {
   sw($('lkPaint'), TINTAS, 'p', 'arco-íris (cor aleatória)');
   const items = (el, list, k) => el.replaceChildren(...list.map(it => {
     const ok = unlocked(it), b = document.createElement('button');
-    b.className = 'card2' + (myLook[k] === it.id ? ' sel' : '') + (ok ? '' : ' lock');
+    b.className = 'card2 r-' + (it.rar || 'comum') + (myLook[k] === it.id ? ' sel' : '') + (ok ? '' : ' lock');
     const i = document.createElement('i'); i.textContent = it.ic;
     const n = document.createElement('b'); n.textContent = it.nome;
     b.append(i, n);
@@ -3972,11 +4315,15 @@ function renderLocker() {
       b.append(sm);
       if (!ok) { const pr = document.createElement('span'); pr.className = 'prog'; pr.style.setProperty('--v', Math.round(Math.min(1, v / it.req[1]) * 100) + '%'); b.append(pr); }
     }
-    b.onclick = () => { if (ok) set(k, it.id); };
+    b.onclick = () => { if (!ok) return; set(k, it.id); if (k === 'f') setTimeout(() => fxBurst(new THREE.Vector3(0, 0.8, 0.6), it.id, lk.scene), 50); };
     return b;
   }));
   items($('lkHat'), HATS, 'h');
   items($('lkAcc'), ACCS, 'a');
+  items($('lkBack'), BACKS, 'b');
+  items($('lkFx'), FXS, 'f');
+  const tot = TODOS_ITENS().filter(i => i.id !== 'nada'), tem = tot.filter(unlocked).length;
+  $('lkCount').textContent = `${tem}/${tot.length} itens destravados`;
   lockerFigure();
 }
 function renderLockerFrame(dt) {
@@ -3985,6 +4332,7 @@ function renderLockerFrame(dt) {
   if (lk.drag === null) lk.base *= Math.exp(-dt * 1.5);
   lk.fig.root.rotation.y = lk.base + Math.sin(performance.now() / 1400) * 0.55;
   lk.fig.head.rotation.z = Math.sin(performance.now() / 600) * 0.06;
+  if (lk.fig.anims) for (const f of lk.fig.anims) f(performance.now() / 1000);
   lk.renderer.render(lk.scene, lk.cam);
 }
 
@@ -4035,6 +4383,14 @@ $('overMenuBtn').onclick = backToMenu;
 $('crBackBtn').onclick = openHome;
 $('shopClose').onclick = () => toggleShop(false);
 $('lookBtn').onclick = () => { initAudio(); openLocker(); };
+$('contaBtn').onclick = () => { initAudio(); openConta(); };
+$('contaBackBtn').onclick = openHome;
+$('contaGo').onclick = () => entrarConta(contaCriar);
+$('contaSenha').addEventListener('keydown', e => { if (e.key === 'Enter') entrarConta(contaCriar); });
+$('contaSalvar').onclick = () => { conta.status = 'Salvando…'; renderConta(); salvarNuvem(); };
+$('contaSair').onclick = sairConta;
+$('backupCopy').onclick = copiarBackup;
+$('backupLoad').onclick = restaurarBackup;
 $('lockBackBtn').onclick = () => { lk.open = false; openHome(); };
 $('pauseSettingsBtn').onclick = () => openControls('pauseScreen');
 $('pauseRoomBtn').onclick = () => showRoomScreen('pauseScreen');
@@ -4672,7 +5028,8 @@ function zOnNet(m) {
       const o = zombies.get(m.id);
       if (o && !o.dead) { o.dead = true; o.deadT = 0; burst(o.pos.clone().setY(o.pos.y + 1.4), o.T?.id === 'cuspidor' ? 0x7dff3a : 0x86a86e, 24, 6); }
       if (o && m.ex) removeZombie(m.id);
-      if (m.by === net.myId) { sfx.ko(); hitMarker('kill'); if (typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); } }
+      if (m.by === net.myId) { sfx.ko(); hitMarker('kill'); bumpStat('zk', 1, true); if (m.b) bumpStat('boss', 1, true); if (typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); } }
+      if (o && m.by) fxBurst(o.pos, (m.by === net.myId ? myLook : net.players[m.by]?.lk)?.f);
       if (m.b) { banner(`👹 ${m.by === net.myId ? 'Você derrotou' : nameOf(m.by) + ' derrotou'} o CHEFÃO!`, 3); sfx.win(); if (o) burst(o.pos.clone().setY(o.pos.y + 3), 0xff3b3b, 60, 10); }
       if (m.by) killFeed(nameOf(m.by), m.b ? '👹 Chefão' : `${o?.T?.ic || '🧟'} ${o?.T?.nome || 'Zumbi'}`, m.ex ? 'balde' : null, m.h, m.by === net.myId, false);
       return true;
@@ -5890,6 +6247,7 @@ function updateEnemies(dt, t) {
 
     // tranco quando leva tiro
     hitReact(e, dt);
+    if (e.anims) for (const f of e.anims) f(t);
 
     // atira tinta no jogador
     e.shootCd -= dt;
@@ -5927,6 +6285,7 @@ function hitEnemy(e, point, color, dir, dmg = 25, head = false) {
     sfx.ko(); hitMarker('kill');
     burst(point, color, 30, 6);
     killFeed('Você', e.a.nome, player.weapon, head, true, false);
+    fxBurst(e.pos, myLook.f);
     killStreak();
   } else hitMarker(head ? 'head' : '');
   updateHud();
@@ -6154,6 +6513,7 @@ function frame() {
   if (hitT > 0) { hitT -= dt; if (hitT <= 0) $('hitmark').style.opacity = 0; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').style.opacity = 0; }
   if (state !== 'menu') updateFloats(dt);
+  updateFxParts(dt);
   renderLockerFrame(dt);
   if (state !== 'menu') updateWalls(dt);
   updateDoors(dt); updateClima(dt);
@@ -6161,8 +6521,9 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
+renderContaBtn(); contaAuto();
 stickRest();
 frame();
 
