@@ -1,9 +1,8 @@
-"""Gera paintball-com-os-amigos.html: o jogo inteiro em um arquivo só (fotos, Three.js e MQTT embutidos).
+"""Gera paintball-com-os-amigos.html: o jogo inteiro em um arquivo só (amigos secretos, Three.js e MQTT embutidos).
 
 Uso (na raiz do repositório):  python3 jogo/tools/montar_arquivo_unico.py
 Precisa de npm (baixa three e mqtt com `npm pack`). O arquivo gerado fica na raiz e não vai para o git.
 """
-import base64
 import pathlib
 import subprocess
 import tarfile
@@ -17,9 +16,10 @@ LIBS = {
 }
 
 html = (JOGO / 'index.html').read_text(encoding='utf-8')
-for foto in sorted(JOGO.glob('amigo*.jpg')):
-    dados = base64.b64encode(foto.read_bytes()).decode()
-    html = html.replace(f"foto: '{foto.name}'", f"foto: 'data:image/jpeg;base64,{dados}'")
+# amigos secretos (continuam criptografados dentro do arquivo)
+tag = '<script src="amigos.secreto.js"></script>'
+assert tag in html
+html = html.replace(tag, '<script>' + (JOGO / 'amigos.secreto.js').read_text(encoding='utf-8') + '</script>')
 
 with tempfile.TemporaryDirectory() as tmp:
     for pacote, (caminho, tag) in LIBS.items():

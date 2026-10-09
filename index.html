@@ -29,6 +29,7 @@
   /* ================= HUD ================= */
   #hud { position:fixed; inset:0; pointer-events:none; }
   .stat { position:absolute; background:var(--hud); padding:7px 12px; border-radius:12px; font-weight:800; font-size:15px; border:1px solid rgba(255,255,255,.08); }
+  body.raiz #cross { display:none !important; }
   #cross { position:absolute; left:50%; top:50%; width:24px; height:24px; transform:translate(-50%,-50%); }
   #cross::before, #cross::after { content:""; position:absolute; background:#fff; box-shadow:0 0 3px #000; border-radius:2px; }
   #cross::before { left:11px; top:0; width:2px; height:24px; clip-path:polygon(0 0,100% 0,100% 38%,0 38%,0 62%,100% 62%,100% 100%,0 100%); }
@@ -324,6 +325,18 @@
   .ch.sel::after { content:"✓"; position:absolute; top:6px; right:6px; background:var(--yel); color:#1a0b2e; width:20px; height:20px; border-radius:50%; font-weight:900; font-size:12px; display:grid; place-items:center; }
   .ch.new { border:2px dashed rgba(255,255,255,.3); }
   .ch.new .plus { display:grid; place-items:center; font-size:34px; background:rgba(255,255,255,.06); border-style:dashed; color:var(--yel); }
+  .ch .badge { position:absolute; top:4px; right:4px; font-size:13px; line-height:1; filter:drop-shadow(0 1px 2px #000); }
+  .ch.lock .plus { color:#c9b6ff; }
+  .aviso { display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; padding:10px 14px; border-radius:14px; background:rgba(61,184,255,.14); border:1px solid rgba(61,184,255,.45); font-weight:700; white-space:pre-wrap; word-break:break-word; }
+  .aviso i { font-style:normal; font-size:22px; }
+  .admGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:10px; }
+  .admItem { position:relative; background:rgba(255,255,255,.06); border-radius:12px; padding:6px; text-align:center; font-size:12px; font-weight:800; }
+  .admItem img { width:100%; aspect-ratio:4/5; object-fit:cover; border-radius:10px; display:block; margin-bottom:4px; }
+  .admRow { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.05); margin-bottom:6px; font-weight:800; }
+  .admRow span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .admRow small { color:var(--muted); font-weight:700; }
+  .admX { border:0; border-radius:10px; background:#e74c3c; color:#fff; font-weight:900; padding:6px 10px; cursor:pointer; }
+  .admItem .admX { position:absolute; top:4px; right:4px; padding:3px 7px; }
   .ch .del { position:absolute; top:4px; left:4px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; font-size:12px; font-weight:900; cursor:pointer; display:grid; place-items:center; padding:0; }
   .field { font:inherit; font-weight:900; font-size:17px; padding:11px 14px; border-radius:12px; border:2px solid var(--line); background:rgba(255,255,255,.07); color:#fff; outline:none; width:min(260px,100%); }
   .field:focus { border-color:var(--yel); }
@@ -508,6 +521,7 @@
   body.inmenu #hud, body.inmenu #touch { display:none !important; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="amigos.secreto.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
 <body>
@@ -591,6 +605,7 @@
       <button data-tab="controles">🎮<span>Controles</span></button>
     </nav>
     <section class="panel tabPane" id="tab-salas">
+      <div class="aviso" id="avisoBox" hidden><i>📢</i><div id="avisoTxt"></div></div>
       <div class="weekStar" id="weekStar" hidden><i>🏆</i><div><small>Pintor da semana</small><b id="weekName"></b><span id="weekInfo"></span></div></div>
       <div class="actions">
         <button class="act a1" id="createBtn"><i>＋</i><b>Criar sala</b><small>escolha o modo, o mapa e as regras</small></button>
@@ -613,7 +628,7 @@
     </section>
     <section class="panel tabPane" id="tab-controles" hidden><div id="controlsSlot"></div></section>
     <section class="panel playerPanel">
-      <div class="pHead"><h3>👤 Seu jogador</h3><div class="row" style="flex-wrap:nowrap"><input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off"><button class="btn sm alt" id="lookBtn">🎨 Visual</button><button class="btn sm ghost" id="contaBtn">👤 Entrar</button></div></div>
+      <div class="pHead"><h3>👤 Seu jogador</h3><div class="row" style="flex-wrap:nowrap"><input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off"><button class="btn sm alt" id="lookBtn">🎨 Visual</button><button class="btn sm ghost" id="contaBtn">👤 Entrar</button><button class="btn sm" id="admBtn" hidden>🛡️ Admin</button></div></div>
       <div class="chars" id="pickList"></div>
     </section>
     <div class="footer" id="verMain"></div>
@@ -669,7 +684,7 @@
     <section class="panel" id="contaOff">
       <div class="chips" id="contaTabs" style="margin-bottom:12px"></div>
       <div class="contaForm">
-        <input class="field" id="contaNome" maxlength="20" placeholder="Nome da conta" autocomplete="username" autocapitalize="none">
+        <input class="field" id="contaNome" maxlength="40" placeholder="Nome ou e-mail da conta" autocomplete="username" autocapitalize="none">
         <input class="field" id="contaSenha" type="password" maxlength="64" placeholder="Senha (mínimo 4)" autocomplete="current-password">
         <button class="btn big" id="contaGo">ENTRAR</button>
         <p id="contaMsg" class="contaMsg"></p>
@@ -688,6 +703,39 @@
       <textarea id="backupTxt" class="field" rows="3" placeholder="Cole aqui um código de backup (começa com PBA1:)" style="width:100%;margin-top:10px;font-size:12px;text-align:left;resize:vertical"></textarea>
       <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn sm" id="backupLoad">Restaurar código</button></div>
       <p id="backupMsg" class="contaMsg"></p>
+    </section>
+  </div>
+</div>
+
+<!-- ============ Administrador ============ -->
+<div class="screen" id="admScreen" style="display:none">
+  <div class="menuWrap">
+    <div class="screenHead"><button class="back" id="admBackBtn">←</button><div><span class="tag">Só para o dono do jogo</span><h2>🛡️ Painel do administrador</h2></div></div>
+    <section class="panel">
+      <h3>📢 Aviso para todo mundo</h3>
+      <p class="hint" style="margin-top:0">Aparece no menu de todos os jogadores, em cima das salas.</p>
+      <textarea id="admAviso" class="field" rows="2" maxlength="200" placeholder="Ex.: Hoje às 20h tem campeonato no modo Zumbi!" style="width:100%;text-align:left;resize:vertical"></textarea>
+      <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn sm" id="admAvisoGo">Publicar aviso</button><button class="btn sm ghost" id="admAvisoDel">Apagar aviso</button></div>
+    </section>
+    <section class="panel">
+      <h3>🌎 Galeria de personagens <span id="admGalN"></span></h3>
+      <p class="hint" style="margin-top:0">Fotos que o pessoal colocou na galeria (viram personagem e zumbi para todos). ✕ apaga para sempre.</p>
+      <div class="admGrid" id="admGal"></div>
+    </section>
+    <section class="panel">
+      <h3>🎯 Salas abertas</h3>
+      <div id="admSalas"></div>
+    </section>
+    <section class="panel">
+      <h3>🏆 Ranking</h3>
+      <p class="hint" style="margin-top:0">✕ tira o jogador do ranking (ex.: nome ofensivo ou trapaça).</p>
+      <div id="admRank"></div>
+    </section>
+    <section class="panel">
+      <h3>⭐ Extras do admin</h3>
+      <p class="hint" style="margin-top:0">Todos os itens do 🎨 Visual ficam liberados para você.</p>
+      <div class="row" style="justify-content:flex-start"><button class="btn sm ghost" id="admEsconder">🔒 Esconder os amigos secretos neste aparelho</button><button class="btn sm ghost" id="admDesban">↩️ Desfazer todas as remoções</button></div>
+      <p id="admMsg" class="contaMsg"></p>
     </section>
   </div>
 </div>
@@ -723,8 +771,9 @@
         <label class="optR">🔍 Zoom <input type="range" id="crZoom" min="1" max="3" step="0.01" value="1"></label>
         <input class="field" id="crName" maxlength="14" placeholder="Nome do personagem" autocomplete="off">
         <div><div class="tag" style="margin-bottom:6px">Cor da camisa</div><div class="swatches" id="crColors"></div></div>
+        <label class="optR" style="justify-content:flex-start;gap:8px"><input type="checkbox" id="crPub" checked> 🌎 Colocar na galeria do jogo</label>
         <button class="btn big" id="crSave">SALVAR PERSONAGEM</button>
-        <p class="hint" id="crMsg">A foto fica só neste aparelho e vai para os amigos quando você entra numa sala.</p>
+        <p class="hint" id="crMsg"></p>
       </div>
     </section>
   </div>
@@ -825,23 +874,76 @@
 <script>
 (() => {
 
-// ===== Configuração: troque os nomes aqui =====
-const AMIGOS = [
-  { nome: 'Arthur', foto: 'amigo1.jpg', camisa: 0x1b1d26, cabelo: 0x3a2a1e, calca: 0x22242e, velocidade: 1.15 },
-  { nome: 'Igor', foto: 'amigo2.jpg', camisa: 0x3b4429, cabelo: 0x2a1c14, calca: 0x2b3550, velocidade: 0.95 },
-  { nome: 'Hugo', foto: 'amigo3.jpg', camisa: 0x7a6a58, cabelo: 0x141010, calca: 0x1e2028, velocidade: 1.05, pele: 0xb07a55 },
-  { nome: 'Lucas', foto: 'amigo4.jpg', camisa: 0x1f5a4f, cabelo: 0x4a3324, calca: 0x2b3550, velocidade: 1 },
-  { nome: 'Isabela', foto: 'amigo5.jpg', camisa: 0xf2f2f2, cabelo: 0x5a3b26, calca: 0x3a4a6a, velocidade: 1.1 },
-  { nome: 'Guilherme', foto: 'amigo6.jpg', camisa: 0x1d2236, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1.05 },
-  { nome: 'Ana Lara', foto: 'amigo7.jpg', camisa: 0x1b1b1f, cabelo: 0x2b1a12, calca: 0x22242e, velocidade: 1 },
-  { nome: 'Amanda', foto: 'amigo8.jpg', camisa: 0xeeeeee, cabelo: 0x6b4a2e, calca: 0x4a6a8a, velocidade: 1.1 },
+// ===== Personagens =====
+// Os 8 que todo mundo vê são bonecos desenhados (sem foto de ninguém). Os amigos de verdade ficam
+// criptografados em amigos.secreto.js e só aparecem para quem digita o código secreto (SECRETOS).
+const ROSTOS = [
+  { nome: 'Pingo', pele: 0xf3c9a5, cab: 0xff7a1a, estilo: 'espetado', olho: 'grande', boca: 'sorriso', extra: 'sardas', tinta: '#3db8ff', camisa: 0xff7a1a, calca: 0x2b3550, velocidade: 1.1 },
+  { nome: 'Borrão', pele: 0xb07a55, cab: 0x141010, estilo: 'curto', olho: 'normal', boca: 'lado', extra: 'oculos', tinta: '#ffd23d', camisa: 0x2e4f8c, calca: 0x22242e, velocidade: 0.95 },
+  { nome: 'Respingo', pele: 0xe8b796, cab: 0xff5fae, estilo: 'franja', olho: 'feliz', boca: 'sorriso', extra: 'bochecha', tinta: '#27ae60', camisa: 0xb83dff, calca: 0x3a4a6a, velocidade: 1.1 },
+  { nome: 'Mancha', pele: 0x7a4a2e, cab: 0x1a0f0a, estilo: 'black', olho: 'normal', boca: 'dentes', extra: '', tinta: '#ff3d7f', camisa: 0x27ae60, calca: 0x22242e, velocidade: 1.05 },
+  { nome: 'Rolinho', pele: 0xf0c8a8, cab: 0xf2d25a, estilo: 'lado', olho: 'normal', boca: 'reta', extra: 'bigode', tinta: '#e74c3c', camisa: 0xe74c3c, calca: 0x1e2028, velocidade: 1 },
+  { nome: 'Spray', pele: 0xc89070, cab: 0x2e86de, estilo: 'moicano', olho: 'pisca', boca: 'lingua', extra: '', tinta: '#ff7a1a', camisa: 0x1b1d26, calca: 0x2b3550, velocidade: 1.15 },
+  { nome: 'Pincel', pele: 0xf6d2b8, cab: 0x5a3b26, estilo: 'coque', olho: 'grande', boca: 'sorriso', extra: 'laco', tinta: '#b83dff', camisa: 0xffd23d, calca: 0x4a6a8a, velocidade: 1.05 },
+  { nome: 'Tintim', pele: 0x9a6444, cab: 0x2ecc71, estilo: 'cacheado', olho: 'normal', boca: 'o', extra: 'sobrancelha', tinta: '#ffd23d', camisa: 0x1f5a4f, calca: 0x22242e, velocidade: 1 },
 ];
+// desenha o rosto de um boneco (vira dataURL: o resto do jogo trata igual a uma foto)
+function rostoDesenhado(o) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 320;
+  const g = c.getContext('2d'), hx = n => '#' + (n >>> 0).toString(16).padStart(6, '0').slice(-6);
+  const circ = (x, y, rx, ry = rx, cor) => { if (cor) g.fillStyle = cor; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  g.fillStyle = hx(o.pele); g.fillRect(0, 0, 256, 320);
+  // sombra do queixo
+  g.fillStyle = 'rgba(0,0,0,.08)'; g.beginPath(); g.ellipse(128, 300, 120, 50, 0, 0, Math.PI * 2); g.fill();
+  // cabelo
+  g.fillStyle = hx(o.cab);
+  const e = o.estilo;
+  if (e === 'espetado') { g.beginPath(); g.moveTo(0, 110); for (let i = 0; i <= 8; i++) g.lineTo(i * 32, i % 2 ? 10 : 70); g.lineTo(256, 110); g.closePath(); g.fill(); g.fillRect(0, 60, 256, 40); }
+  else if (e === 'curto') { circ(128, 30, 150, 80); g.fillRect(0, 0, 18, 170); g.fillRect(238, 0, 18, 170); }
+  else if (e === 'franja') { circ(128, 20, 160, 100); g.beginPath(); g.moveTo(30, 90); g.quadraticCurveTo(128, 150, 226, 90); g.lineTo(226, 60); g.lineTo(30, 60); g.fill(); g.fillRect(0, 0, 30, 260); g.fillRect(226, 0, 30, 260); }
+  else if (e === 'black') { for (let i = 0; i < 22; i++) circ(14 + (i % 11) * 23, 18 + Math.floor(i / 11) * 44 + (i % 2) * 10, 30); g.fillRect(0, 0, 22, 190); g.fillRect(234, 0, 22, 190); }
+  else if (e === 'lado') { g.beginPath(); g.moveTo(0, 130); g.quadraticCurveTo(40, 30, 256, 60); g.lineTo(256, 0); g.lineTo(0, 0); g.fill(); g.beginPath(); g.moveTo(256, 60); g.quadraticCurveTo(170, 120, 60, 80); g.lineTo(256, 20); g.fill(); }
+  else if (e === 'moicano') { g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, 0, 256, 50); g.fillStyle = hx(o.cab); g.beginPath(); g.moveTo(90, 75); for (let i = 0; i <= 6; i++) g.lineTo(90 + i * 13, i % 2 ? -10 : 35); g.lineTo(168, 75); g.fill(); }
+  else if (e === 'coque') { circ(128, 26, 150, 78); circ(128, -6, 46, 40); g.fillRect(0, 0, 20, 200); g.fillRect(236, 0, 20, 200); }
+  else if (e === 'cacheado') { for (let i = 0; i < 14; i++) circ(8 + i * 18.5, 40 + (i % 3) * 14, 24); for (let i = 0; i < 6; i++) { circ(10, 90 + i * 22, 18); circ(246, 90 + i * 22, 18); } }
+  if (o.extra === 'laco') { g.fillStyle = '#ff3d7f'; g.beginPath(); g.moveTo(190, 40); g.lineTo(150, 15); g.lineTo(150, 65); g.closePath(); g.fill(); g.beginPath(); g.moveTo(190, 40); g.lineTo(230, 15); g.lineTo(230, 65); g.closePath(); g.fill(); circ(190, 40, 12); }
+  // olhos
+  const olhos = (x) => {
+    if (o.olho === 'feliz' || (o.olho === 'pisca' && x > 128)) { g.strokeStyle = '#1a0b2e'; g.lineWidth = 9; g.lineCap = 'round'; g.beginPath(); g.arc(x, 160, 18, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); return; }
+    const r = o.olho === 'grande' ? 26 : 20;
+    circ(x, 155, r, r * 1.15, '#fff'); circ(x + 3, 158, r * 0.55, r * 0.62, '#1a0b2e'); circ(x + 8, 150, r * 0.2, r * 0.2, '#fff');
+  };
+  olhos(88); olhos(168);
+  if (o.extra === 'oculos') { g.strokeStyle = '#1a0b2e'; g.lineWidth = 7; for (const x of [88, 168]) { g.beginPath(); g.arc(x, 156, 33, 0, Math.PI * 2); g.stroke(); } g.beginPath(); g.moveTo(121, 152); g.lineTo(135, 152); g.stroke(); }
+  if (o.extra === 'sobrancelha') { g.strokeStyle = hx(o.cab); g.lineWidth = 10; g.lineCap = 'round'; for (const x of [88, 168]) { g.beginPath(); g.moveTo(x - 22, 112); g.lineTo(x + 22, 104); g.stroke(); } }
+  if (o.extra === 'sardas') { g.fillStyle = 'rgba(150,80,40,.55)'; for (const [x, y] of [[70, 200], [84, 210], [62, 214], [186, 200], [172, 210], [194, 214]]) circ(x, y, 4); }
+  if (o.extra === 'bochecha' || o.boca === 'sorriso') { g.fillStyle = 'rgba(255,90,110,.28)'; circ(64, 210, 22, 14); circ(192, 210, 22, 14); }
+  // boca
+  g.strokeStyle = '#5a1a1a'; g.fillStyle = '#5a1a1a'; g.lineWidth = 8; g.lineCap = 'round';
+  if (o.boca === 'sorriso') { g.beginPath(); g.arc(128, 215, 38, 0.15 * Math.PI, 0.85 * Math.PI); g.fill(); g.fillStyle = '#ff7b8a'; circ(128, 246, 16, 7); }
+  else if (o.boca === 'dentes') { g.beginPath(); g.arc(128, 212, 42, 0.1 * Math.PI, 0.9 * Math.PI); g.closePath(); g.fill(); g.fillStyle = '#fff'; g.fillRect(96, 216, 64, 12); }
+  else if (o.boca === 'lado') { g.beginPath(); g.moveTo(100, 235); g.quadraticCurveTo(140, 250, 168, 222); g.stroke(); }
+  else if (o.boca === 'reta') { g.beginPath(); g.moveTo(104, 240); g.lineTo(152, 240); g.stroke(); }
+  else if (o.boca === 'lingua') { g.beginPath(); g.arc(128, 222, 32, 0.1 * Math.PI, 0.9 * Math.PI); g.stroke(); g.fillStyle = '#ff5f7e'; circ(140, 252, 14, 16); }
+  else if (o.boca === 'o') { circ(128, 238, 18, 22, '#5a1a1a'); }
+  if (o.extra === 'bigode') { g.fillStyle = hx(o.cab); for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(128 + sx * 24, 220, 28, 11, sx * 0.25, 0, Math.PI * 2); g.fill(); } }
+  // nariz e respingo de tinta
+  g.fillStyle = 'rgba(0,0,0,.12)'; circ(128, 192, 10, 7);
+  g.fillStyle = o.tinta; circ(200, 255, 15); circ(222, 240, 7); circ(214, 272, 5); circ(186, 274, 4);
+  return c.toDataURL('image/png');
+}
+const AMIGOS = ROSTOS.map(o => ({ nome: o.nome, foto: rostoDesenhado(o), camisa: o.camisa, cabelo: o.cab, calca: o.calca, velocidade: o.velocidade, pele: o.pele }));
+// amigos secretos (só depois do código) e os personagens da galeria pública
+let SECRETOS = [], GALERIA = [];
+// administrador (conta do dono do jogo): ban = fotos da galeria, jogadores do ranking e salas removidos
+const adm = { on: false, ban: { gal: [], rank: [], sala: [], ts: 0 }, aviso: null };
+const SECRETO_BASE = 100; // no online: char 100+i = amigo secreto i
 const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou arte moderna!', 'levou um splash!', 'tá todo manchado!'];
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const load = (k, padrao) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? padrao; } catch { return padrao; } };
 // salvar no aparelho; o que é progresso também vai para a conta na nuvem (sync = veio da própria nuvem)
-const SYNC_EARLY = new Set(['pb-stats', 'pb-look', 'pb-custom', 'pb-nick', 'pb-char', 'pb-unl', 'pb-recorde-ondas', 'pb-recorde-onda', 'pb-recorde-zumbi']);
+const SYNC_EARLY = new Set(['pb-stats', 'pb-look', 'pb-custom', 'pb-segredo', 'pb-nick', 'pb-char', 'pb-unl', 'pb-recorde-ondas', 'pb-recorde-onda', 'pb-recorde-zumbi']);
 const save = (k, v, sync) => {
   try {
     localStorage.setItem(k, JSON.stringify(v));
@@ -852,13 +954,18 @@ const save = (k, v, sync) => {
 
 // Personagens criados pelo jogador (foto enviada do aparelho): { id, nome, foto (dataURL jpeg), camisa }
 let CUSTOM = (load('pb-custom', []) || []).filter(c => c && typeof c.foto === 'string' && c.foto.startsWith('data:image/'));
-// lista para escolher: os amigos fixos (chave '0', '1'…) + os criados (chave 'c:<id>')
+// lista para escolher: bonecos (chave '0', '1'…), amigos secretos ('s:<i>'), os criados ('c:<id>') e a galeria ('g:<id>')
 function charList() {
+  const meus = new Set(CUSTOM.map(c => c.id));
   return [
+    ...SECRETOS.map((a, i) => ({ ...a, key: 's:' + i, secreto: true })),
     ...AMIGOS.map((a, i) => ({ ...a, key: String(i) })),
     ...CUSTOM.map(c => ({ nome: c.nome, foto: c.foto, camisa: c.camisa, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, key: 'c:' + c.id, custom: true })),
+    ...GALERIA.filter(c => !meus.has(c.id)).map(c => ({ nome: c.nome, foto: c.foto, camisa: c.cor, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, key: 'g:' + c.id, custom: true, galeria: true })),
   ];
 }
+// boneco/amigo pelo número do online (secreto sem o código = null)
+const amigoDe = c => c >= SECRETO_BASE ? SECRETOS[c - SECRETO_BASE] || null : AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
 const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: isTouch ? 'media' : 'alta', aim: true, inv: false, fps: false, btn: 1 };
@@ -1843,7 +1950,7 @@ function reqValue(k) {
   if (k === 'rodada') return +load('pb-recorde-zumbi', 0) || 0;
   return +(stats?.[k] || 0);
 }
-const unlocked = item => !item.req || reqValue(item.req[0]) >= item.req[1];
+const unlocked = item => adm.on || !item.req || reqValue(item.req[0]) >= item.req[1];
 const TODOS_ITENS = () => [...HATS, ...ACCS, ...BACKS, ...FXS];
 const unlockedIds = () => TODOS_ITENS().filter(unlocked).map(i => i.id).join(',');
 // cor da tinta dos meus tiros
@@ -2319,7 +2426,7 @@ function project(x, y, z) {
 }
 // kind: 'n' normal (branco), 'head' (amarelo), 'kill' (vermelho)
 function dmgNumber(target, dmg, kind) {
-  if (!target?.pos || !(dmg > 0)) return;
+  if (!target?.pos || !(dmg > 0) || regra('raiz')) return;
   const el = document.createElement('div'); el.className = 'dnum ' + kind;
   el.textContent = Math.round(dmg) + (kind === 'head' ? '!' : '');
   $('floats').appendChild(el);
@@ -2328,7 +2435,7 @@ function dmgNumber(target, dmg, kind) {
 }
 // barra de vida aparece por alguns segundos em cima de quem eu acertei
 function showBar(target) {
-  if (!target) return;
+  if (!target || regra('raiz')) return;
   let b = bars.get(target);
   if (!b) { const el = document.createElement('div'); el.className = 'hpb'; el.innerHTML = '<i></i>'; $('floats').appendChild(el); b = { el, t: 0 }; bars.set(target, b); }
   b.t = 3.5;
@@ -2553,7 +2660,7 @@ function chatLine(nome, txt, cor = '#ffd23d') {
 }
 
 // ===== Telas e pausa =====
-const SCREENS = ['startScreen', 'roomScreen', 'soloScreen', 'charScreen', 'lockerScreen', 'contaScreen', 'controlsScreen', 'pauseScreen', 'overScreen'];
+const SCREENS = ['startScreen', 'roomScreen', 'soloScreen', 'charScreen', 'lockerScreen', 'contaScreen', 'admScreen', 'controlsScreen', 'pauseScreen', 'overScreen'];
 function showScreen(id) { for (const s of SCREENS) $(s).style.display = s === id ? 'flex' : 'none'; if (id) $(id).scrollTop = 0; }
 function hideScreens() { showScreen(null); }
 function togglePause() { if (state === 'play') pauseGame(); else if (state === 'paused') resumeGame(); }
@@ -2853,8 +2960,16 @@ const MODOS = {
 };
 // opções que o dono da sala pode escolher (0 = indeterminado / sem limite; rInt 0 = aleatório)
 const OPT = { tempo: [0, 3, 5, 10, 15, 20], kills: [0, 5, 10, 15, 20, 30, 50], vida: [0.5, 1, 2], respawn: [2, 3, 5, 8], dif: [0.7, 1, 1.4], rInt: [0, 10, 20, 30, 45, 60],
-  caps: [0, 1, 3, 5, 7], hill: [0, 30, 60, 100, 150], rounds: [3, 5, 7], bots: [0, 2, 4, 6, 8] };
-const CFG_PADRAO = { modo: 'dm', mapa: 'arena', clima: 'auto', tempo: 10, kills: 20, caps: 3, hill: 60, rounds: 3, bots: 0, armas: [...WEAPON_ORDER], vida: 1, respawn: 3, dif: 1, rInt: 30, rIgual: true, power: true, regen: true, hs: true, ff: false, itens: true };
+  caps: [0, 1, 3, 5, 7], hill: [0, 30, 60, 100, 150], rounds: [3, 5, 7], bots: [0, 2, 4, 6, 8],
+  grav: [1, 0.45, 1.6], velo: [0.8, 1, 1.3, 1.6], vamp: [0, 25, 50, 100], prot: [0, 2, 4] };
+const ALVOS = ['normal', 'cabeca', 'umtiro'];
+// regras extras: gravidade, velocidade, vida por abate, proteção ao voltar, onde vale o tiro,
+// munição infinita, cabeção, bolinha que quica, modo raiz (sem mira e sem números) e caçada ao líder
+const REGRAS_LIGA = ['muni', 'cabecao', 'quica', 'raiz', 'caca'];
+const CFG_PADRAO = { modo: 'dm', mapa: 'arena', clima: 'auto', tempo: 10, kills: 20, caps: 3, hill: 60, rounds: 3, bots: 0, armas: [...WEAPON_ORDER], vida: 1, respawn: 3, dif: 1, rInt: 30, rIgual: true, power: true, regen: true, hs: true, ff: false, itens: true,
+  grav: 1, velo: 1, vamp: 0, prot: 2, alvo: 'normal', muni: false, cabecao: false, quica: false, raiz: false, caca: false };
+// regra que vale agora (fora do online fica o padrão)
+const regra = k => (mode === 'online' || net.joined) ? net.cfg[k] ?? CFG_PADRAO[k] : CFG_PADRAO[k];
 // times do modo Times
 const TEAMS = [{ nome: 'Vermelho', cor: 0xe74c3c, css: '#ff6b5e', emoji: '🔴' }, { nome: 'Azul', cor: 0x2e86de, css: '#5aaeff', emoji: '🔵' }];
 const net = { local: false, ppos: new Map(), lastDmg: new Map(), cfg: { ...CFG_PADRAO }, inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false,
@@ -2887,8 +3002,10 @@ function cleanCfg(c) {
     modo: MODOS[c.modo] ? c.modo : 'dm', mapa: MAPS[c.mapa] ? c.mapa : 'arena', clima: CLIMAS[c.clima] ? c.clima : 'auto',
     tempo: pick('tempo'), kills: pick('kills'), caps: pick('caps'), hill: pick('hill'), rounds: pick('rounds'), bots: pick('bots'),
     vida: pick('vida'), respawn: pick('respawn'), dif: pick('dif'), rInt: pick('rInt'),
+    grav: pick('grav'), velo: pick('velo'), vamp: pick('vamp'), prot: pick('prot'), alvo: ALVOS.includes(c.alvo) ? c.alvo : 'normal',
     armas: armas.length ? armas : [...WEAPON_ORDER],
     rIgual: c.rIgual !== false, power: c.power !== false, regen: c.regen !== false, hs: c.hs !== false, ff: c.ff === true, itens: c.itens !== false,
+    ...Object.fromEntries(REGRAS_LIGA.map(k => [k, c[k] === true])),
   };
 }
 // arma que vale para o dano, decidida pelo dono da sala
@@ -2902,7 +3019,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 16;
+const VERSAO = 17;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -2921,7 +3038,7 @@ function addPlayer(id, name, char, cor, lk) {
   net.lastSeen.set(id, performance.now());
   const n = String(name || 'Jogador').slice(0, 14);
   const cnt = [0, 0]; for (const q of Object.values(net.players)) cnt[q.team ?? 0]++;
-  const c = Number.isInteger(char) && char >= 0 && char < AMIGOS.length ? char : -1;
+  const c = Number.isInteger(char) && ((char >= 0 && char < AMIGOS.length) || (char >= SECRETO_BASE && char < SECRETO_BASE + 32)) ? char : -1;
   // em modos sem renascer, quem chega no meio da rodada espera a próxima
   const espera = net.isHost && semVolta() && rodadaRolando();
   net.players[id] = { name: n, char: c, cor: Number.isInteger(cor) ? cor & 0xffffff : 0x3db8ff, lk: cleanLook(lk), hp: hpMax(), kills: 0, deaths: 0, pts: 0, dead: espera, team: cnt[0] <= cnt[1] ? 0 : 1 };
@@ -3090,10 +3207,13 @@ function hostHandle(from, m) {
       if ((net.inv.get(m.target) || 0) > performance.now()) return; // invencível
       const wid = m.w === 'granada' && net.cfg.itens !== false ? 'granada' : hostWeaponOf(from, m.w), W = WEAPONS[wid];
       const f = W.splash ? Math.min(1, Math.max(0.3, +m.f || 1)) : 1;
-      const head = !W.splash && m.h === 1 && net.cfg.hs;
+      const naCabeca = !W.splash && m.h === 1;
+      if (net.cfg.alvo === 'cabeca' && !naCabeca) return; // regra "só vale na cabeça"
+      const head = naCabeca && (net.cfg.hs || net.cfg.alvo === 'cabeca');
       // bots batem mais fraco em gente (Fácil 45%, Normal 60%, Difícil 80%)
       const botMul = sh.bot && !tg.bot ? ({ 0.7: 0.45, 1: 0.6, 1.4: 0.8 })[net.cfg.dif] || 0.6 : 1;
-      const dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * botMul));
+      let dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * botMul));
+      if (net.cfg.alvo === 'umtiro') dmg = Math.max(dmg, Math.ceil(tg.hp)); // um tiro pinta
       tg.hp -= dmg;
       net.lastDmg.set(m.target, performance.now());
       const ms = msOf(from); ms.hi++; ms.dmg += dmg; if (head) ms.hs++;
@@ -3101,6 +3221,8 @@ function hostHandle(from, m) {
       if (tg.hp <= 0) {
         tg.dead = true; tg.deaths++;
         if (amigo) sh.kills = Math.max(0, sh.kills - 1); else { sh.kills++; ms.st++; ms.best = Math.max(ms.best, ms.st); } // pintar o próprio time tira ponto
+        // vida por abate (vampiro)
+        if (!amigo && net.cfg.vamp && !sh.dead && sh.hp < hpMax()) { sh.hp = Math.min(hpMax(), sh.hp + net.cfg.vamp); broadcast({ t: 'hp', id: from, hp: sh.hp }); }
         msOf(m.target).st = 0;
         broadcast({ t: 'kill', killer: from, victim: m.target, w: wid, h: head ? 1 : 0, tk: amigo ? 1 : 0 });
         onKillMode(m.target);
@@ -3108,6 +3230,7 @@ function hostHandle(from, m) {
         if (!semVolta()) setTimeout(() => {
           if (net.players[m.target] !== tg || !tg.dead) return;
           Object.assign(tg, { hp: hpMax(), dead: false });
+          if (net.cfg.prot) net.inv.set(m.target, performance.now() + net.cfg.prot * 1000); // proteção ao voltar
           broadcast({ t: 'respawn', id: m.target }); sendRoster();
         }, net.cfg.respawn * 1000);
         const goal = goalKills();
@@ -3219,7 +3342,7 @@ function onNet(m) {
       } else if (m.killer === net.myId) {
         hitMarker('kill'); sfx.ko();
         if (m.tk) feed(`Você pintou ${vn}, do seu time! −1`);
-        else { bumpStat('kills'); killStreak(); }
+        else { bumpStat('kills'); killStreak(); if (net.cfg.vamp && !isZumbi()) feed(`🧛 +${net.cfg.vamp} de vida`); }
       }
       const r = remotes.get(m.victim); if (r) setRemoteDead(r, true);
       fxBurst(m.victim === net.myId ? player.pos : r?.pos, (m.killer === net.myId ? myLook : net.players[m.killer]?.lk)?.f);
@@ -3230,6 +3353,7 @@ function onNet(m) {
         meDead = false; meDown = false; resetMoves(); player.hp = myMaxHp(); player.vy = 0; player.ammoBy = {}; player.reloading = 0; player.gren = Math.max(player.gren | 0, 2); updateWeaponBtns();
         player.pk = Math.floor(Math.random() * PROPS.length);
         player.pos.copy(onlineSpawn()); updateHud();
+        if (net.cfg.prot && !isZumbi()) { player.invT = net.cfg.prot; updateFx(); } // proteção ao voltar (o dono também ignora o dano)
       } else {
         const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, false); }
         if (net.isHost && net.bots.has(m.id)) botSpawn(m.id);
@@ -3281,11 +3405,13 @@ function nameTag(text, color = '#fff') {
 }
 // como desenhar o boneco de um jogador: amigo fixo ou personagem criado (com a foto que chegou pela rede)
 function defOf(id, p) {
-  if (p.char >= 0 && AMIGOS[p.char]) return AMIGOS[p.char];
+  if (p.char >= 0 && amigoDe(p.char)) return amigoDe(p.char);
+  // amigo secreto e eu não tenho o código: aparece com rosto genérico
+  if (p.char >= SECRETO_BASE) return { nome: p.name, camisa: p.cor ?? 0x3db8ff, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, tex: placeholderTex(p.name, p.cor) };
   const foto = net.faces.get(id);
   return { nome: p.name, foto, camisa: p.cor ?? 0x3db8ff, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, tex: foto ? texFor(foto) : placeholderTex(p.name, p.cor) };
 }
-const faceKeyOf = (id, p) => (p.char >= 0 ? 'b' + p.char : net.faces.has(id) ? 'f' + net.faces.get(id).length : 'x' + p.cor) + JSON.stringify(p.lk || {});
+const faceKeyOf = (id, p) => (p.char >= 0 ? 'b' + p.char + (p.char >= SECRETO_BASE && SECRETOS.length ? 's' : '') : net.faces.has(id) ? 'f' + net.faces.get(id).length : 'x' + p.cor) + JSON.stringify(p.lk || {});
 
 function syncRemotes() {
   for (const [id, p] of Object.entries(net.players)) {
@@ -3320,6 +3446,11 @@ function updateRemotes(dt, t) {
   for (const r of remotes.values()) {
     r.root.visible = r.seen;
     if (!r.seen) continue;
+    r.head.scale.setScalar(regra('cabecao') ? 1.6 : 1);
+    // caçada ao líder: coroa que aparece através das paredes
+    const lider = r.id === net.leader && !r.dead;
+    if (lider && !r.crown) { r.crown = iconSprite('👑', 0xffd23d); r.crown.material.depthTest = false; r.crown.renderOrder = 20; r.crown.position.y = 4.3; r.root.add(r.crown); }
+    if (r.crown) { r.crown.visible = lider; r.crown.position.y = 4.3 + Math.sin(t * 4) * 0.12; }
     const prev = tmpV.copy(r.pos);
     if (r.pos.distanceTo(r.target) > 6) r.pos.copy(r.target); else r.pos.lerp(r.target, Math.min(1, dt * 12));
     r.vel.copy(r.pos).sub(prev).divideScalar(Math.max(dt, 1e-3)); r.vel.y = 0;
@@ -3512,7 +3643,11 @@ function readSetup() {
   save('pb-nick', $('nick').value.trim()); save('pb-char', myChar);
 }
 // para a rede: amigo fixo = número; criado = -1 + foto mandada à parte
-function myNetChar() { const d = myCharDef(); return d.custom ? { char: -1, cor: d.camisa | 0, face: d.foto, lk: myLook } : { char: +d.key, cor: d.camisa | 0, lk: myLook }; }
+function myNetChar() {
+  const d = myCharDef();
+  if (d.custom) return { char: -1, cor: d.camisa | 0, face: d.foto, lk: myLook };
+  return { char: d.secreto ? SECRETO_BASE + +d.key.slice(2) : +d.key, cor: d.camisa | 0, lk: myLook };
+}
 function sendMyFace() { const c = myNetChar(); if (c.face && !net.local) sendNet({ t: 'face', img: c.face }); }
 
 function dropPlayer(id) {
@@ -3677,12 +3812,17 @@ function openLobby() {
   for (const url of BROKERS) {
     let c;
     try { c = mqtt.connect(url, { clientId: 'pbl_' + newId(), keepalive: 30, reconnectPeriod: 3000, connectTimeout: 8000, clean: true }); } catch { continue; }
-    c.on('connect', () => { c.subscribe(`pbamigos/v${VERSAO}/lobby/+`); c.subscribe(RANK_TOPIC + '/+'); publishRank(c); renderLobby(); });
+    c.on('connect', () => {
+      c.subscribe(`pbamigos/v${VERSAO}/lobby/+`); c.subscribe(RANK_TOPIC + '/+'); c.subscribe(GAL_TOPIC + '/+'); c.subscribe(ADM_TOPIC + '/+');
+      setTimeout(() => publishRank(c), 1500); publicarGaleria(c); renderLobby();
+    });
     c.on('message', (tp, buf) => {
       if (!lobby.clients.includes(c)) return;
       if (tp.startsWith(RANK_TOPIC + '/')) return onRank(tp.slice(RANK_TOPIC.length + 1), buf);
+      if (tp.startsWith(GAL_TOPIC + '/')) return onGaleria(tp.slice(GAL_TOPIC.length + 1), buf);
+      if (tp.startsWith(ADM_TOPIC + '/')) return onAdm(tp.slice(ADM_TOPIC.length + 1), buf);
       const code = tp.split('/').pop();
-      if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch))) return;
+      if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch)) || adm.ban.sala.includes(code)) return;
       if (!buf.length) { lobby.rooms.delete(code); renderLobby(); return; }
       let m; try { m = JSON.parse(buf.toString()); } catch { return; }
       if (!m || typeof m.ts !== 'number') return;
@@ -3764,13 +3904,14 @@ function weekStats() {
 }
 function bumpWeek(k, n) { if (!WK[k]) return; weekStats(); stats[WK[k]] = (stats[WK[k]] | 0) + n; save('pb-stats', stats); }
 function publishRank(only) {
-  if (!stats.partidas) return;
+  if (!stats.partidas || adm.ban.rank.includes(pid)) return;
   weekStats();
   const txt = JSON.stringify({ n: rankName(), k: stats.kills, d: stats.deaths, w: stats.wins, p: stats.partidas, h: stats.hs, wk: stats.wk, wkk: stats.wk_k | 0, wkw: stats.wk_w | 0, wkh: stats.wk_h | 0, wkd: stats.wk_d | 0, wkp: stats.wk_p | 0, ts: Date.now() });
   for (const c of only ? [only] : lobby.clients) if (c.connected) c.publish(`${RANK_TOPIC}/${pid}`, txt, { retain: true });
 }
 function onRank(id, buf) {
-  if (!/^[a-z0-9]{6,12}$/.test(id) || !buf.length) return;
+  if (!/^[a-z0-9]{6,12}$/.test(id)) return;
+  if (!buf.length || adm.ban.rank.includes(id)) { if (lobby.rank.delete(id)) { clearTimeout(onRank.t); onRank.t = setTimeout(() => { renderRanking(); renderWeekStar(); }, 300); } return; }
   let m; try { m = JSON.parse(buf.toString()); } catch { return; }
   const num = v => Math.max(0, Math.min(1e6, Math.floor(+v) || 0));
   if (!m || typeof m.n !== 'string') return;
@@ -3893,6 +4034,11 @@ function renderCfgForm() {
     ['hs', '🎯 Dano extra na cabeça', 'headshot vale mais (cada arma tem o seu bônus)', true],
     ['itens', '💣 Granada e escudo', 'G joga granada de tinta · F levanta um escudo de madeira', !es],
     ['ff', '🤝 Fogo amigo', 'nos times dá para pintar o colega (e perde ponto)', c.modo === 'tdm' || c.modo === 'ctf'],
+    ['muni', '♾️ Munição infinita', 'nunca precisa recarregar', true],
+    ['cabecao', '🎈 Cabeção', 'todo mundo com a cabeça gigante (mais fácil de acertar)', true],
+    ['quica', '🏀 Bolinha que quica', 'o tiro rebate uma vez na parede e no chão', true],
+    ['raiz', '🥷 Modo raiz', 'sem mira na tela, sem números de dano e sem barra de vida dos outros', true],
+    ['caca', '👑 Caçada ao líder', 'quem está ganhando fica com uma coroa visível através das paredes', !zb && !es],
   ];
   const regras = rules.filter(r => r[3]).map(([k, t, d]) => {
     const row = document.createElement('div'); row.className = 'rule';
@@ -3910,7 +4056,16 @@ function renderCfgForm() {
   };
   regras.unshift(chipRule('💪 Vida dos jogadores', 'quanto aguenta antes de ser pintado', 'vida', [{ v: 0.5, t: '50%' }, { v: 1, t: '100%' }, { v: 2, t: '200%' }]));
   if (!zb) regras.splice(1, 0, chipRule('⏳ Tempo para voltar', 'depois de ser pintado', 'respawn', OPT.respawn.map(v => ({ v, t: `${v} s` }))));
-  $('cfgRegras').replaceChildren(...regras);
+  const extras = [
+    chipRule('🌙 Gravidade', 'pulo mais alto na Lua, mais baixo na pesada', 'grav', [{ v: 1, t: '🌍 Normal' }, { v: 0.45, t: '🌙 Lua' }, { v: 1.6, t: '🪨 Pesada' }]),
+    chipRule('🏃 Velocidade de todo mundo', 'correr mais devagar ou mais rápido', 'velo', [{ v: 0.8, t: '🐢 Lenta' }, { v: 1, t: 'Normal' }, { v: 1.3, t: '🐇 Rápida' }, { v: 1.6, t: '⚡ Turbo' }]),
+  ];
+  if (!zb && !es) extras.push(
+    chipRule('🎯 Onde o tiro vale', 'só na cabeça: tiro no corpo não faz nada · um tiro: qualquer acerto pinta', 'alvo', [{ v: 'normal', t: 'Normal' }, { v: 'cabeca', t: '🧠 Só cabeça' }, { v: 'umtiro', t: '💥 Um tiro' }]),
+    chipRule('🧛 Vida por abate', 'quem pinta alguém recupera vida na hora', 'vamp', OPT.vamp.map(v => ({ v, t: v ? `+${v}` : 'Nada' }))),
+    chipRule('🛡 Proteção ao voltar', 'segundos invencível depois de renascer', 'prot', OPT.prot.map(v => ({ v, t: v ? `${v} s` : 'Nenhuma' }))),
+  );
+  $('cfgRegras').replaceChildren(...regras, ...extras);
 }
 function cfgChanged(k) {
   save('pb-cfg', draftCfg);
@@ -3975,18 +4130,23 @@ function openHome() {
 // escolha de personagem (fica embaixo de todas as abas)
 function renderChars() {
   const list = charList();
-  if (!list.some(c => c.key === myChar)) myChar = '0';
+  // o escolhido pode ainda não ter chegado (galeria / amigos secretos carregando): não perde a escolha
+  const atual = myCharDef().key;
   $('pickList').replaceChildren(...list.map(c => {
-    const b = document.createElement('button'); b.className = 'ch' + (c.key === myChar ? ' sel' : '');
+    const b = document.createElement('button'); b.className = 'ch' + (c.key === atual ? ' sel' : '');
     const img = document.createElement('img'); img.src = c.foto; img.alt = '';
     const n = document.createElement('span'); n.textContent = c.nome;
     b.append(img, n);
+    const badge = c.secreto ? '⭐' : c.galeria ? '🌎' : c.custom && CUSTOM.find(x => 'c:' + x.id === c.key)?.pub ? '🌎' : '';
+    if (badge) { const t = document.createElement('i'); t.className = 'badge'; t.textContent = badge; t.title = c.secreto ? 'Personagem secreto' : 'Da galeria'; b.append(t); }
     b.onclick = () => { myChar = c.key; save('pb-char', myChar); renderChars(); };
-    if (c.custom) {
+    if (c.custom && !c.galeria) {
       const del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.title = 'Apagar personagem';
       del.onclick = e => {
         e.stopPropagation();
         if (!confirm(`Apagar o personagem "${c.nome}"?`)) return;
+        const meu = CUSTOM.find(x => 'c:' + x.id === c.key);
+        if (meu?.pub) tirarDaGaleria(meu.id); // some da galeria também
         CUSTOM = CUSTOM.filter(x => 'c:' + x.id !== c.key); save('pb-custom', CUSTOM);
         if (myChar === c.key) myChar = '0';
         renderChars();
@@ -3999,7 +4159,12 @@ function renderChars() {
     const p = document.createElement('div'); p.className = 'plus'; p.textContent = '+';
     const n = document.createElement('span'); n.textContent = 'Criar personagem';
     b.append(p, n); b.onclick = () => openCreator(); return b;
-  })());
+  })(), ...(SECRETOS.length || !window.PB_SEGREDO ? [] : [(() => {
+    const b = document.createElement('button'); b.className = 'ch new lock';
+    const p = document.createElement('div'); p.className = 'plus'; p.textContent = '🔒';
+    const n = document.createElement('span'); n.textContent = 'Código secreto';
+    b.append(p, n); b.onclick = () => pedirCodigo(); return b;
+  })()]));
 }
 
 // ===== Criar personagem (foto do aparelho) =====
@@ -4007,7 +4172,7 @@ const CR_CORES = [0xe74c3c, 0xff7a1a, 0xffd23d, 0x27ae60, 0x3db8ff, 0x2e4f8c, 0x
 const cr = { img: null, zoom: 1, ox: 0, oy: 0, cor: CR_CORES[4], drag: null };
 function openCreator() {
   Object.assign(cr, { img: null, zoom: 1, ox: 0, oy: 0, cor: CR_CORES[4] });
-  $('crZoom').value = 1; $('crName').value = ''; $('crMsg').textContent = 'A foto fica só neste aparelho e vai para os amigos quando você entra numa sala.';
+  $('crZoom').value = 1; $('crName').value = ''; $('crPub').checked = true; crPubMsg();
   renderSwatches(); drawCreator();
   showScreen('charScreen');
 }
@@ -4048,6 +4213,12 @@ $('crCanvas').addEventListener('pointermove', e => {
 });
 $('crCanvas').addEventListener('pointerup', () => { cr.drag = null; });
 $('crCanvas').addEventListener('pointercancel', () => { cr.drag = null; });
+function crPubMsg() {
+  $('crMsg').textContent = $('crPub').checked
+    ? '🌎 Com a galeria marcada, todo mundo que joga vê esta foto: pode escolher como personagem e ela vira zumbi nas hordas. Use só foto sua ou de quem deixou.'
+    : 'A foto fica só neste aparelho e vai para os amigos quando você entra numa sala.';
+}
+$('crPub').onchange = crPubMsg;
 $('crSave').onclick = () => {
   if (!cr.img) { $('crMsg').textContent = 'Primeiro envie uma foto do rosto. 📷'; return; }
   const nome = $('crName').value.trim().slice(0, 14) || 'Novo amigo';
@@ -4055,12 +4226,13 @@ $('crSave').onclick = () => {
   const c = document.createElement('canvas'); c.width = 160; c.height = 200;
   drawCreator(c.getContext('2d'), 160, 200, false);
   const foto = c.toDataURL('image/jpeg', 0.78);
-  const novo = { id: newId(), nome, foto, camisa: cr.cor };
+  const novo = { id: newId(), nome, foto, camisa: cr.cor, pub: $('crPub').checked };
   const lista = [...CUSTOM, novo].slice(-8);
   if (!save('pb-custom', lista)) { $('crMsg').textContent = 'Sem espaço no aparelho: apague um personagem antigo.'; return; }
   CUSTOM = lista; myChar = 'c:' + novo.id; save('pb-char', myChar);
   if (!$('nick').value.trim()) { $('nick').value = nome; save('pb-nick', nome); }
   sfx.power(); openHome();
+  if (novo.pub) for (const c of lobby.clients) publicarGaleria(c);
 };
 
 // ===== Conta (nome + senha): progresso salvo na nuvem =====
@@ -4114,7 +4286,7 @@ const contaFechar = cs => setTimeout(() => { for (const c of cs) try { c.end(tru
 function juntarSave() {
   return {
     v: 1, ts: +load('pb-save-ts', 0) || 0, pid, stats: { ...stats }, look: myLook, custom: CUSTOM, nick: $('nick').value.trim(), char: myChar,
-    unl: String(load('pb-unl', '') || ''), rec: { ondas: +load('pb-recorde-ondas', 0) || 0, onda: +load('pb-recorde-onda', 0) || 0, zumbi: +load('pb-recorde-zumbi', 0) || 0 },
+    unl: String(load('pb-unl', '') || ''), seg: load('pb-segredo', null), rec: { ondas: +load('pb-recorde-ondas', 0) || 0, onda: +load('pb-recorde-onda', 0) || 0, zumbi: +load('pb-recorde-zumbi', 0) || 0 },
   };
 }
 // junta o que veio da nuvem com o que está no aparelho sem perder nada (números: o maior; visual: o mais novo)
@@ -4141,6 +4313,8 @@ function mesclarSave(r) {
   save('pb-unl', [...new Set([...String(local.unl).split(','), ...String(r.unl || '').split(',')])].filter(Boolean).join(','), true);
   if (typeof r.pid === 'string' && /^[a-z0-9]{6,12}$/.test(r.pid)) { pid = r.pid; save('pb-pid', pid, true); } // ranking continua com o mesmo id
   save('pb-save-ts', Math.max(local.ts || 0, +r.ts || 0), true);
+  // amigos secretos liberados em outro aparelho
+  if (typeof r.seg === 'string' && r.seg && !SECRETOS.length) abrirSegredo(unb64(r.seg)).then(ok => { if (ok) { save('pb-segredo', r.seg, true); renderChars(); } });
   renderChars(); if (tab === 'ranking') renderRanking(); renderWeekStar();
   return true;
 }
@@ -4210,7 +4384,8 @@ async function entrarConta(criar) {
       msg(''); ui.confirm(); feed(`☁️ Bem-vindo de volta, ${nome}! Progresso carregado.`);
     }
     $('contaSenha').value = '';
-    renderConta(); renderContaBtn();
+    renderConta(); renderContaBtn(); await checarAdmin();
+    if (adm.on) feed('🛡️ Você é o administrador do jogo! Veja o botão 🛡️ Admin no menu.');
   } catch (e) { msg('Deu algum problema. Tente de novo.'); }
   finally { $('contaGo').disabled = false; }
 }
@@ -4218,7 +4393,7 @@ function sairConta() {
   if (!confirm('Sair da conta neste aparelho? O progresso continua salvo na nuvem e aqui.')) return;
   Object.assign(conta, { user: null, topic: null, key: null, status: '' });
   try { localStorage.removeItem('pb-conta'); } catch {}
-  renderConta(); renderContaBtn();
+  renderConta(); renderContaBtn(); checarAdmin();
 }
 // ao abrir o jogo: se já tem conta, puxa o que mudou em outro aparelho
 async function contaAuto() {
@@ -4227,7 +4402,7 @@ async function contaAuto() {
   try {
     const key = await crypto.subtle.importKey('raw', unb64(c.k), 'AES-GCM', false, ['encrypt', 'decrypt']);
     Object.assign(conta, { user: c.user, topic: c.topic, key });
-    renderContaBtn();
+    renderContaBtn(); checarAdmin();
     const r = await lerNuvem(c.topic, key);
     if (r) mesclarSave(r);
     agendarNuvem();
@@ -4267,6 +4442,157 @@ function renderConta() {
   }
 }
 function renderContaBtn() { $('contaBtn').textContent = conta.key ? `☁️ ${conta.user}` : '👤 Entrar'; $('contaBtn').classList.toggle('alt', !!conta.key); }
+
+// ===== Amigos secretos, galeria pública e administrador =====
+// Amigos secretos: amigos.secreto.js traz as fotos criptografadas (AES-GCM); a chave sai do código
+// secreto com PBKDF2. Sem o código não dá para ver as fotos nem os nomes. A chave (não o código)
+// fica no aparelho em pb-segredo e vai junto no save da conta.
+async function abrirSegredo(raw) {
+  const d = window.PB_SEGREDO;
+  if (!d || !crypto?.subtle) return false;
+  try {
+    const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(d.iv) }, key, unb64(d.ct));
+    const lista = JSON.parse(dec.decode(pt));
+    SECRETOS = (Array.isArray(lista) ? lista : []).filter(a => a && typeof a.nome === 'string' && typeof a.foto === 'string' && a.foto.startsWith('data:image/'))
+      .map(a => ({ nome: a.nome.slice(0, 14), foto: a.foto, camisa: a.camisa | 0, cabelo: a.cabelo | 0, calca: a.calca | 0, velocidade: +a.velocidade || 1, pele: a.pele, tex: texFor(a.foto) }));
+    return SECRETOS.length > 0;
+  } catch { return false; }
+}
+async function tentarCodigo(codigo) {
+  const d = window.PB_SEGREDO;
+  if (!d || !crypto?.subtle || !codigo) return false;
+  const base = await crypto.subtle.importKey('raw', enc.encode(String(codigo).trim()), 'PBKDF2', false, ['deriveBits']);
+  const raw = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: unb64(d.salt), iterations: d.n, hash: 'SHA-256' }, base, 256);
+  if (!await abrirSegredo(raw)) return false;
+  save('pb-segredo', b64(raw));
+  return true;
+}
+async function pedirCodigo() {
+  const c = prompt('🔒 Digite o código secreto para ver os personagens secretos:');
+  if (c === null || !c.trim()) return;
+  if (!window.PB_SEGREDO) { alert('Os personagens secretos não vieram com esta versão do jogo.'); return; }
+  if (await tentarCodigo(c)) { ui.confirm?.(); feed(`⭐ Código certo! ${SECRETOS.length} personagens secretos liberados.`); renderChars(); }
+  else { ui.erro?.(); alert('Código errado. 🤫'); }
+}
+async function segredoAuto() {
+  const k = load('pb-segredo', null);
+  if (typeof k === 'string' && k && await abrirSegredo(unb64(k))) renderChars();
+}
+function esconderSegredo() {
+  SECRETOS = []; try { localStorage.removeItem('pb-segredo'); } catch {}
+  if (myChar.startsWith('s:')) { myChar = '0'; save('pb-char', myChar); }
+  renderChars();
+}
+
+// Galeria: personagem criado com "Colocar na galeria" vai como mensagem retida em pbamigos/galeria/f/<id>.
+// Todo mundo recebe: dá para jogar com ele e o rosto vira zumbi nas hordas. O admin pode apagar.
+const GAL_TOPIC = 'pbamigos/galeria/f', ADM_TOPIC = 'pbamigos/adm', GAL_MAX = 80;
+// quem é o admin: hash do nome da conta (o e-mail do dono), para não deixar o e-mail escrito no código
+const ADM_HASH = '35fb4a69df3721e37254682707ac0f752ef7702c5624a00cf365e76725aea966';
+const galId = id => typeof id === 'string' && /^[a-z0-9]{4,16}$/.test(id);
+let galRender = 0;
+function galMudou() { clearTimeout(galRender); galRender = setTimeout(() => { if (state === 'menu' && $('startScreen').style.display !== 'none') renderChars(); if ($('admScreen').style.display !== 'none') renderAdm(); }, 400); }
+function onGaleria(id, buf) {
+  if (!galId(id)) return;
+  const i = GALERIA.findIndex(c => c.id === id);
+  if (!buf.length) { if (i >= 0) { GALERIA.splice(i, 1); galMudou(); } return; }
+  if (adm.ban.gal.includes(id)) return;
+  let m; try { m = JSON.parse(buf.toString()); } catch { return; }
+  if (!m || !validFace(m.foto) || typeof m.nome !== 'string') return;
+  const c = { id, nome: m.nome.trim().slice(0, 14) || 'Amigo', foto: m.foto, cor: (m.cor | 0) & 0xffffff, ts: +m.ts || 0 };
+  if (i >= 0) GALERIA[i] = c; else GALERIA.push(c);
+  GALERIA.sort((a, b) => b.ts - a.ts); GALERIA.length = Math.min(GALERIA.length, GAL_MAX);
+  galMudou();
+}
+function onAdm(k, buf) {
+  let m = null; try { m = buf.length ? JSON.parse(buf.toString()) : null; } catch { return; }
+  if (k === 'ban') {
+    const lista = v => Array.isArray(v) ? v.filter(x => typeof x === 'string').slice(0, 500) : [];
+    adm.ban = { gal: lista(m?.gal), rank: lista(m?.rank), sala: lista(m?.sala), ts: +m?.ts || 0 };
+    GALERIA = GALERIA.filter(c => !adm.ban.gal.includes(c.id));
+    for (const id of adm.ban.rank) lobby.rank.delete(id);
+    for (const code of adm.ban.sala) lobby.rooms.delete(code);
+    galMudou(); renderLobby(); renderRanking(); renderWeekStar();
+  } else if (k === 'aviso') {
+    adm.aviso = m && typeof m.txt === 'string' && m.txt.trim() ? { txt: m.txt.trim().slice(0, 200), ts: +m.ts || 0 } : null;
+    renderAviso();
+  }
+}
+function renderAviso() {
+  $('avisoBox').hidden = !adm.aviso;
+  $('avisoTxt').textContent = adm.aviso?.txt || '';
+}
+// manda os meus personagens marcados para a galeria (se ainda não estiverem lá)
+function publicarGaleria(c) {
+  setTimeout(() => {
+    for (const p of CUSTOM) {
+      if (!p.pub || adm.ban.gal.includes(p.id) || GALERIA.some(g => g.id === p.id) || !validFace(p.foto)) continue;
+      if (c.connected) c.publish(`${GAL_TOPIC}/${p.id}`, JSON.stringify({ nome: p.nome, foto: p.foto, cor: p.camisa | 0, ts: Date.now() }), { retain: true, qos: 1 });
+    }
+  }, 4000);
+}
+function tirarDaGaleria(id) {
+  GALERIA = GALERIA.filter(c => c.id !== id);
+  for (const c of lobby.clients) if (c.connected) c.publish(`${GAL_TOPIC}/${id}`, '', { retain: true, qos: 1 });
+}
+
+// ----- administrador -----
+async function checarAdmin() {
+  let on = false;
+  try { on = !!conta.key && crypto?.subtle && hex(await crypto.subtle.digest('SHA-256', enc.encode('pbadm:' + normUser(conta.user)))) === ADM_HASH; } catch {}
+  adm.on = on;
+  $('admBtn').hidden = !on;
+}
+function admPublicarBan() {
+  adm.ban.ts = Date.now();
+  const txt = JSON.stringify(adm.ban);
+  let ok = 0; for (const c of lobby.clients) if (c.connected) { c.publish(`${ADM_TOPIC}/ban`, txt, { retain: true, qos: 1 }); ok++; }
+  $('admMsg').textContent = ok ? '✅ Feito! Já vale para todo mundo.' : '⚠️ Sem conexão com os servidores agora.';
+}
+function admBan(lista, id) { if (!adm.ban[lista].includes(id)) adm.ban[lista].push(id); admPublicarBan(); }
+function openAdm() { if (!adm.on) return; openLobby(); $('admAviso').value = adm.aviso?.txt || ''; renderAdm(); showScreen('admScreen'); }
+function renderAdm() {
+  if (!adm.on) return;
+  const x = (fn, txt = '✕') => { const b = document.createElement('button'); b.className = 'admX'; b.textContent = txt; b.onclick = fn; return b; };
+  $('admGalN').textContent = `· ${GALERIA.length}`;
+  $('admGal').replaceChildren(...(GALERIA.length ? GALERIA.map(c => {
+    const d = document.createElement('div'); d.className = 'admItem';
+    const img = document.createElement('img'); img.src = c.foto; img.alt = '';
+    const n = document.createElement('div'); n.textContent = c.nome;
+    d.append(img, n, x(() => { if (!confirm(`Apagar "${c.nome}" da galeria para todo mundo?`)) return; tirarDaGaleria(c.id); admBan('gal', c.id); renderAdm(); renderChars(); }));
+    return d;
+  }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Nenhuma foto na galeria ainda.' })]));
+  const salas = [...lobby.rooms.values()].filter(r => Date.now() - r.ts < 30000);
+  $('admSalas').replaceChildren(...(salas.length ? salas.map(r => {
+    const d = document.createElement('div'); d.className = 'admRow';
+    const t = document.createElement('span'); t.textContent = `${MODOS[r.modo].icone} Sala de ${r.name} · ${r.code} · 👥 ${r.n}`;
+    d.append(t, x(() => {
+      if (!confirm(`Tirar a sala de ${r.name} da lista?`)) return;
+      for (const c of lobby.clients) if (c.connected) c.publish(lobbyTopic(r.code), '', { retain: true, qos: 1 });
+      lobby.rooms.delete(r.code); admBan('sala', r.code); renderAdm(); renderLobby();
+    }, '✕ Tirar'));
+    return d;
+  }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Nenhuma sala aberta agora.' })]));
+  const rank = [...lobby.rank.values()].sort((a, b) => b.w - a.w || b.k - a.k).slice(0, 60);
+  $('admRank').replaceChildren(...(rank.length ? rank.map(r => {
+    const d = document.createElement('div'); d.className = 'admRow';
+    const t = document.createElement('span'); t.textContent = r.n;
+    const sm = document.createElement('small'); sm.textContent = `${r.w} vit · ${r.k} abates`;
+    d.append(t, sm, x(() => {
+      if (!confirm(`Tirar "${r.n}" do ranking?`)) return;
+      for (const c of lobby.clients) if (c.connected) c.publish(`${RANK_TOPIC}/${r.id}`, '', { retain: true, qos: 1 });
+      lobby.rank.delete(r.id); admBan('rank', r.id); renderAdm(); renderRanking(); renderWeekStar();
+    }));
+    return d;
+  }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Ninguém no ranking ainda.' })]));
+}
+function admAviso(txt) {
+  const msg = txt ? JSON.stringify({ txt: txt.slice(0, 200), ts: Date.now() }) : '';
+  let ok = 0; for (const c of lobby.clients) if (c.connected) { c.publish(`${ADM_TOPIC}/aviso`, msg, { retain: true, qos: 1 }); ok++; }
+  adm.aviso = txt ? { txt, ts: Date.now() } : null; renderAviso();
+  $('admMsg').textContent = ok ? (txt ? '📢 Aviso publicado!' : 'Aviso apagado.') : '⚠️ Sem conexão com os servidores agora.';
+}
 
 // ===== Visual do jogador (prévia 3D) =====
 const lk = { renderer: null, scene: null, cam: null, fig: null, rot: 0, base: 0, drag: null, open: false };
@@ -4384,6 +4710,12 @@ $('crBackBtn').onclick = openHome;
 $('shopClose').onclick = () => toggleShop(false);
 $('lookBtn').onclick = () => { initAudio(); openLocker(); };
 $('contaBtn').onclick = () => { initAudio(); openConta(); };
+$('admBtn').onclick = () => { initAudio(); openAdm(); };
+$('admBackBtn').onclick = () => openHome();
+$('admAvisoGo').onclick = () => { const t = $('admAviso').value.trim(); if (t) admAviso(t); };
+$('admAvisoDel').onclick = () => { $('admAviso').value = ''; admAviso(''); };
+$('admEsconder').onclick = () => { if (confirm('Esconder os amigos secretos neste aparelho? Para ver de novo, digite o código.')) { esconderSegredo(); $('admMsg').textContent = '🔒 Escondidos neste aparelho.'; } };
+$('admDesban').onclick = () => { if (!confirm('Desfazer todas as remoções? Fotos e jogadores voltam quando o dono abrir o jogo de novo.')) return; adm.ban = { gal: [], rank: [], sala: [], ts: 0 }; admPublicarBan(); };
 $('contaBackBtn').onclick = openHome;
 $('contaGo').onclick = () => entrarConta(contaCriar);
 $('contaSenha').addEventListener('keydown', e => { if (e.key === 'Enter') entrarConta(contaCriar); });
@@ -4467,8 +4799,10 @@ function zombieTex(a) {
   return tex;
 }
 // cada tipo de monstro ganha um visual próprio em cima do boneco do amigo
+// rostos que viram zumbi: as fotos da galeria, os amigos secretos (se tiver o código) e os bonecos
+const zRostos = () => [...GALERIA, ...SECRETOS, ...AMIGOS];
 function makeZombie(id, kind, x, y, z, boss, type = 0) {
-  const a = AMIGOS[kind % AMIGOS.length], T = ZTYPES[type] || ZTYPES[0];
+  const rostos = zRostos(), a = rostos[kind % rostos.length], T = ZTYPES[type] || ZTYPES[0];
   const camisa = boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
   const parts = buildFriend({ ...a, tex: zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
   parts.gun.visible = false;
@@ -4689,7 +5023,7 @@ function zAdd(type, x, y, z, extra = {}) {
   const hp = Math.round((70 + r * 28) * T.hp * difHp() * (1 + (nJog() - 1) * 0.3) * (elite ? 2.2 : 1));
   const cap = T.id === 'corredor' ? 9.5 : 6.2;
   const zz = {
-    id, type, x, y, z, yaw: 0, kind: Math.floor(Math.random() * AMIGOS.length),
+    id, type, x, y, z, yaw: 0, kind: Math.floor(Math.random() * 997),
     hp, max: hp, elite, raiva: Z.evento === 'sangue' ? 999 : 0,
     speed: Math.min(cap, (2.6 + r * 0.28) * T.spd) * (0.85 + Math.random() * 0.3) * (0.85 + 0.15 * dif),
     dmg: Math.round((12 + r * 2) * T.dmg * dif * (elite ? 1.4 : 1)),
@@ -5709,8 +6043,8 @@ let endOpen = false, endMaps = [], endVotes = [0, 0, 0], myVote = -1, endUntil =
 function faceImg(id) {
   const p = net.players[id];
   if (!p) return null;
-  if (p.char >= 0 && AMIGOS[p.char]) return AMIGOS[p.char].foto;
   if (id === net.myId) return myCharDef().foto;
+  if (p.char >= 0) return amigoDe(p.char)?.foto || null;
   return net.faces.get(id) || null;
 }
 function showEnd(m, ganhei) {
@@ -5844,7 +6178,7 @@ function botTick(dt) {
     let mx = dx, mz = dz;
     // perto do alvo: anda de lado para desviar em vez de grudar
     if (tq && goal === tq && dist < 12) { mx = -dz * b.lado + dx * (dist > 7 ? 0.4 : -0.3); mz = dx * b.lado + dz * (dist > 7 ? 0.4 : -0.3); }
-    const sp = 5.4 * (0.85 + 0.15 * dif) * (goal === tq || dist > 2 ? 1 : 0);
+    const sp = 5.4 * (0.85 + 0.15 * dif) * net.cfg.velo * (goal === tq || dist > 2 ? 1 : 0);
     const antes = b.pos.clone();
     moveWithCollision(b.pos, mx * sp * dt, mz * sp * dt, 0.42, 1.8);
     if (b.pos.distanceToSquared(antes) < (sp * dt * 0.25) ** 2 && sp > 0) {
@@ -5852,7 +6186,7 @@ function botTick(dt) {
       if (b.preso > 0.4) { b.preso = 0; if (b.onGround) b.vy = 7.5; b.lado *= -1; b.wp = null; }
     } else b.preso = 0;
     b.pos.x = THREE.MathUtils.clamp(b.pos.x, -ARENA + 1, ARENA - 1); b.pos.z = THREE.MathUtils.clamp(b.pos.z, -ARENA + 1, ARENA - 1);
-    b.vy -= 22 * dt; b.pos.y += b.vy * dt;
+    b.vy -= 22 * net.cfg.grav * dt; b.pos.y += b.vy * dt;
     const gh = groundHeight(b.pos, 0.42);
     if (b.pos.y <= gh) { b.pos.y = gh; b.vy = 0; b.onGround = true; } else b.onGround = false;
     // vira para o alvo (ou para onde anda) e mira
@@ -5886,9 +6220,11 @@ function botTick(dt) {
 // bolinha de bot acertou alguém (só no dono): vira um "hit" como se o bot tivesse avisado
 function botBallHit(b, hit) {
   if (!net.isHost || !net.bots.has(b.shooter)) return false;
-  const hs = hit.head && net.cfg.dif >= 1.4 ? 1 : 0;
+  // na regra "só cabeça" os bots às vezes acertam a cabeça (senão nunca pintariam ninguém)
+  const sorte = net.cfg.alvo === 'cabeca' && Math.random() < 0.3;
+  const hs = (hit.head && net.cfg.dif >= 1.4) || sorte ? 1 : 0;
   if (hit.e) hostHandle(b.shooter, { t: 'hit', target: hit.e.id, w: b.w, h: hs });
-  else if (hit.player) hostHandle(b.shooter, { t: 'hit', target: net.myId, w: b.w });
+  else if (hit.player) hostHandle(b.shooter, { t: 'hit', target: net.myId, w: b.w, h: sorte ? 1 : 0 });
   return true;
 }
 function botSplash(p, b) {
@@ -5911,7 +6247,8 @@ function playerShoot() {
   const id = player.weapon, W = effW(id);
   if (player.fireCd > 0 || player.reloading > 0) return;
   if (ammoOf(id) <= 0) { reload(); return; }
-  player.ammoBy[id]--; player.shots++; player.fireCd = W.cd;
+  if (!regra('muni')) player.ammoBy[id]--; // munição infinita: nunca acaba
+  player.shots++; player.fireCd = W.cd;
   recoil = id === 'sniper' || id === 'balde' || id === 'escopeta' ? 2.2 : id === 'metralha' ? 0.7 : 1;
   if (W.dmg * (W.pellets || 1) > 70) shake = Math.max(shake, 0.08);
   sfx.shoot(id);
@@ -6116,7 +6453,7 @@ function updatePlayer(dt) {
   player.slowT = Math.max(0, (player.slowT || 0) - dt);
   const boost = (player.speedT > 0 ? 1.6 : 1) * (player.slowT > 0 ? 0.55 : 1);
   player.sprinting = (keys.ShiftLeft || keys.ShiftRight || stickFull) && mz > 0.3 && !player.crouch && !meDown;
-  const speed = meDown ? 1.2 : (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost;
+  const speed = meDown ? 1.2 : (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost * regra('velo');
   player.moveDir = player.moveDir || new THREE.Vector3();
   player.moveDir.set(fwd.x * mz + right.x * mx, 0, fwd.z * mz + right.z * mx);
 
@@ -6135,7 +6472,7 @@ function updatePlayer(dt) {
 
   if (touchJump && player.onGround) jumpPressed();
   if (keys.Space && player.onGround) jumpPressed();
-  player.vy -= 22 * dt;
+  player.vy -= 22 * regra('grav') * dt;
   player.pos.y += player.vy * dt;
   const gh = groundHeight(player.pos, PLAYER_R);
   const caindo = player.vy;
@@ -6333,8 +6670,9 @@ function updateBalls(dt) {
         if (e.dead || (b.shooter && e.id === b.shooter)) continue;
         const sc = e.scale || 1;
         const partes = e.prop ? [[0.7, 0.85]] : e.crawl ? [[0.45, 0.6], [0.55, 0.5]] : e.crouch ? [[0.6, 0.6], [1.6, 0.6]] : [[1.35, 0.6], [2.4, 0.6], [0.6, 0.45]];
+        const cab = regra('cabecao') && !e.prop && !e.crawl ? 1.6 : 1; // regra cabeção: cabeça maior, mais fácil de acertar
         partes.forEach(([y, r0], k) => {
-          const r = r0 * sc;
+          const r = r0 * sc * (k === 1 ? cab : 1);
           const c = new THREE.Vector3(e.pos.x, e.pos.y + y * sc, e.pos.z);
           const p = ballRay.intersectSphere(new THREE.Sphere(c, r), new THREE.Vector3());
           // a cabeça é a 2ª esfera; acerto na parte de cima dela conta como headshot
@@ -6378,7 +6716,13 @@ function updateBalls(dt) {
         }
         addSplat(hitInfo.p, n, b.color, null, b.owner === 'enemy' ? 0.9 : 0.6);
         burst(hitInfo.p, b.color, 6, 2);
-        if (b.owner === 'player') { sfx.splat(); huntMiss(); }
+        if (regra('quica') && !b.bounced && b.owner !== 'enemy' && b.vel.lengthSq() > 25) {
+          // regra bolinha que quica: rebate uma vez na parede ou no chão
+          b.bounced = true; done = false;
+          b.vel.reflect(n).multiplyScalar(0.7);
+          b.mesh.position.copy(hitInfo.p).addScaledVector(n, 0.06);
+          if (b.owner === 'player') beep(700, 0.04, 'triangle', 0.03);
+        } else if (b.owner === 'player') { sfx.splat(); huntMiss(); }
       }
     } else b.mesh.position.copy(end);
 
@@ -6408,6 +6752,19 @@ function menuScene(t) {
 function matchHud(dt) {
   const el = $('timer');
   let txt = '';
+  document.body.classList.toggle('raiz', !!net.cfg.raiz);
+  // caçada ao líder: quem está na frente fica marcado
+  let lid = null;
+  if (net.cfg.caca && !isZumbi()) {
+    let best = 0, n = 0;
+    for (const [id, p] of Object.entries(net.players)) { const s = scoreOf(p); if (s > best) { best = s; lid = id; n = 1; } else if (s === best && s > 0) n++; }
+    if (n !== 1) lid = null;
+  }
+  if (lid !== net.leader) {
+    net.leader = lid;
+    if (lid === net.myId) banner('👑 Você é o líder: todo mundo te vê através das paredes!', 2.2);
+    else if (lid) feed(`👑 ${nameOf(lid)} é o líder agora: cace!`);
+  }
   if (!isZumbi()) {
     if (net.endLocal) {
       const rest = Math.max(0, Math.ceil((net.endLocal - performance.now()) / 1000));
@@ -6518,12 +6875,13 @@ function frame() {
   if (state !== 'menu') updateWalls(dt);
   updateDoors(dt); updateClima(dt);
   if (mode === 'online' && state !== 'menu') { matchHud(dt); endTick(); }
+  else if (document.body.classList.contains('raiz')) document.body.classList.remove('raiz');
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
-renderContaBtn(); contaAuto();
+renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
 frame();
 
