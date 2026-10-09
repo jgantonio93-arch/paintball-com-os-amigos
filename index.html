@@ -2148,7 +2148,7 @@ const EYE = 1.7, PLAYER_R = 0.4;
 function collides(p, r, h) {
   for (const o of obstacles) {
     const b = o.box;
-    if (p.y + h < b.min.y || p.y > b.max.y) continue;
+    if (p.y + h < b.min.y || p.y > b.max.y - 0.03) continue; // em pé em cima: anda livre
     const cx = Math.max(b.min.x, Math.min(p.x, b.max.x));
     const cz = Math.max(b.min.z, Math.min(p.z, b.max.z));
     if ((p.x - cx) ** 2 + (p.z - cz) ** 2 < r * r) return o;
@@ -2159,6 +2159,19 @@ function collides(p, r, h) {
 function moveWithCollision(pos, dx, dz, r, h) {
   pos.x += dx; if (collides(pos, r, h)) pos.x -= dx;
   pos.z += dz; if (collides(pos, r, h)) pos.z -= dz;
+}
+// Subir em objetos: degrau baixo sobe andando; mais alto (até CLIMB_MAX acima do pé) escala pulando contra ele
+const STEP_MAX = 0.65, CLIMB_MAX = 2.1;
+const _cp = new THREE.Vector3();
+function acharSubida(pos, dirX, dirZ, r, h, alcance) {
+  _cp.set(pos.x + dirX * (r + 0.12), pos.y, pos.z + dirZ * (r + 0.12));
+  const o = collides(_cp, r * 0.6, h); if (!o) return null;
+  const top = o.box.max.y; if (top - pos.y > alcance || top <= pos.y) return null;
+  // em cima tem que caber (sem teto) e não pode ser fora do mapa
+  const alvo = new THREE.Vector3(pos.x + dirX * (r + 0.35), top + 0.01, pos.z + dirZ * (r + 0.35));
+  if (Math.abs(alvo.x) > ARENA - 0.5 || Math.abs(alvo.z) > ARENA - 0.5) return null;
+  if (collides(alvo, r * 0.8, 1.6) || groundHeight(alvo, r * 0.5) < top - 0.05) return null;
+  return alvo;
 }
 // Altura do chão (topo das caixas permite subir nelas pulando)
 function groundHeight(p, r) {
@@ -5485,6 +5498,13 @@ function zMove(z, alvos, dt) {
     }
     return;
   }
+  // escalando um objeto: sobe devagar e passa para cima (antes ele aparecia lá de repente)
+  if (z.sobe) {
+    const c = z.sobe;
+    if (z.y < c.y) z.y = Math.min(c.y, z.y + 3.2 * dt);
+    else { z.x = c.x; z.z = c.z; z.sobe = null; }
+    return;
+  }
   let spd = z.speed * (z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4);
   let ir = 1; // 1 = vem, -1 = foge, 0 = fica rodeando
   const ve = alvo && best < 24 && hasLineOfSight(zq.set(z.x, z.y + 1.6, z.z), new THREE.Vector3(alvo.x, alvo.y + 1.4, alvo.z));
@@ -5551,7 +5571,8 @@ function zMove(z, alvos, dt) {
       // travou: tenta subir no obstáculo da frente (até 2,8 m) ou contorna de lado
       const ahead = new THREE.Vector3(z.x + dx * 0.7, z.y, z.z + dz * 0.7);
       const o = collides(ahead, 0.45, 1.8);
-      if (o && o.box.max.y - z.y <= 2.8 && o.box.max.y < 6) { zp.set(z.x + dx * 0.5, o.box.max.y, z.z + dz * 0.5); }
+      const topo = o && o.box.max.y - z.y <= 3.3 && o.box.max.y < 6 && acharSubida(zq.set(z.x, z.y, z.z), dx, dz, 0.45, 1.8, 3.3);
+      if (topo) z.sobe = { x: topo.x, y: topo.y, z: topo.z };
       else { z.sideT = 0.8; z.side = Math.random() < 0.5 ? 1 : -1; }
       z.stuck = 0;
     }
@@ -6859,7 +6880,7 @@ function speechBubble(r, txt) {
 // ===== Agachar, deslizar (slide) e slide cancel =====
 const EYE_CROUCH = 1.05, EYE_SLIDE = 0.85, SLIDE_TIME = 0.75;
 function resetMoves() {
-  Object.assign(player, { crouch: false, slideT: 0, slideCd: 0, sprinting: false, eye: EYE, speedT: 0, invT: 0 });
+  Object.assign(player, { climb: null, crouch: false, slideT: 0, slideCd: 0, sprinting: false, eye: EYE, speedT: 0, invT: 0 });
   player.mom.set(0, 0, 0);
   $('crouchBtn').classList.remove('on');
   updateFx();
@@ -6917,7 +6938,22 @@ function updatePlayer(dt) {
   player.slideCd -= dt;
   const ctrl = sliding ? 0.15 : 1;
   const dx = (player.moveDir.x * speed * ctrl + player.mom.x) * dt, dz = (player.moveDir.z * speed * ctrl + player.mom.z) * dt;
+  // escalando: sobe até o topo e passa para cima do objeto
+  if (player.climb) {
+    const c = player.climb; player.vy = 0; player.mom.set(0, 0, 0);
+    if (player.pos.y < c.y) player.pos.y = Math.min(c.y, player.pos.y + 8 * dt);
+    else { player.pos.x += (c.x - player.pos.x) * Math.min(1, dt * 14); player.pos.z += (c.z - player.pos.z) * Math.min(1, dt * 14); if (Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < 0.05 || (c.t += dt) > 0.4) { player.pos.x = c.x; player.pos.z = c.z; player.climb = null; } }
+    player.onGround = false;
+    return updatePlayerFim(dt, sliding);
+  }
   moveWithCollision(player.pos, dx, dz, PLAYER_R, player.eye);
+  // empurrando contra um objeto: degrau baixo sobe direto; no ar (pulou) escala os mais altos
+  if (len > 0.1 && !meDown && !amProp()) {
+    const ml = Math.hypot(player.moveDir.x, player.moveDir.z) || 1, ux = player.moveDir.x / ml, uz = player.moveDir.z / ml;
+    const a = acharSubida(player.pos, ux, uz, PLAYER_R, player.eye, player.onGround ? STEP_MAX : CLIMB_MAX);
+    if (a && player.onGround) { player.pos.y = a.y; player.pos.x += ux * 0.15; player.pos.z += uz * 0.15; if (collides(player.pos, PLAYER_R, player.eye)) { player.pos.x -= ux * 0.15; player.pos.z -= uz * 0.15; } }
+    else if (a && player.vy < 4) { player.climb = { x: a.x, y: a.y, z: a.z, t: 0 }; if (player.crouch) setCrouch(false); sfx.land?.(); }
+  }
   // atrito do embalo: devagar deslizando ou no ar, rápido no chão
   player.cancelT = Math.max(0, (player.cancelT || 0) - dt);
   const fr = sliding ? 1.4 : !player.onGround ? 0.4 : player.cancelT > 0 ? 1.2 : 5;
@@ -6934,6 +6970,10 @@ function updatePlayer(dt) {
     if (!player.onGround && caindo < -6) { landDip = Math.min(0.22, -caindo * 0.018); sfx.land(); }
     player.pos.y = gh; player.vy = 0; player.onGround = true;
   } else player.onGround = false;
+  updatePlayerFim(dt, sliding);
+}
+// câmera, tiro, recarga e o resto (roda também escalando)
+function updatePlayerFim(dt, sliding) {
   landDip = Math.max(0, landDip - dt * 1.2);
   shake = Math.max(0, shake - dt);
 
@@ -7344,7 +7384,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
