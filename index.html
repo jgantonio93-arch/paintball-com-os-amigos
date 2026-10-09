@@ -3086,7 +3086,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 19;
+const VERSAO = 20;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -3130,7 +3130,7 @@ function broadcast(m, exceptId) {
 }
 const timeLeft = () => net.endAt ? Math.max(0, Math.round((net.endAt - performance.now()) / 1000)) : -1;
 const rollLeft = () => net.cfg.modo === 'roleta' && net.cfg.rInt && net.rollAt ? Math.max(0, Math.round((net.rollAt - performance.now()) / 1000)) : -1;
-const sendRoster = () => { broadcast({ t: 'roster', players: net.players, cfg: net.cfg, roll: net.roll, tl: timeLeft(), rn: rollLeft(), tp: net.tpts, fl: net.flags, hs: net.hs, dr: doors.map((d, i) => d.open ? i : -1).filter(i => i >= 0) }); announceRoom(); };
+const sendRoster = () => { broadcast({ t: 'roster', h: net.myId, players: net.players, cfg: net.cfg, roll: net.roll, tl: timeLeft(), rn: rollLeft(), tp: net.tpts, fl: net.flags, hs: net.hs, dr: doors.map((d, i) => d.open ? i : -1).filter(i => i >= 0) }); announceRoom(); };
 
 // --- partida: começo, fim por tempo/abates, roleta (só o dono da sala) ---
 function startMatch() {
@@ -3323,6 +3323,16 @@ function onNet(m) {
   if (modeOnNet(m)) return;
   switch (m.t) {
     case 'bye': if (!net.isHost) leaveOnline('A sala fechou (o dono saiu).'); return;
+    case 'hb': return;
+    case 'migra': // o dono saiu e passou a sala
+      if (m.id === net.myId) virarDono();
+      else { net.hostId = m.id; net.lastHostMsg = performance.now(); }
+      return;
+    case 'dono':
+      net.avisoQueda = false;
+      if (m.id === net.myId) { feed('👑 Você agora é o dono da sala! As regras ficam na pausa (⚙️).'); banner('👑 Você é o dono da sala agora', 2); }
+      else { net.hostId = m.id; feed(`👑 ${nameOf(m.id)} agora é o dono da sala`); }
+      return;
     case 'roster': {
       const before = net.players[net.myId]?.kills;
       if (m.cfg) {
@@ -3331,6 +3341,7 @@ function onNet(m) {
         if (antes.clima !== net.cfg.clima) applyClima();
       }
       net.players = m.players; readRoll(m.roll);
+      if (typeof m.h === 'string') net.hostId = m.h;
       if (Array.isArray(m.tp)) net.tpts = m.tp;
       if ('fl' in m) net.flags = m.fl;
       if ('hs' in m && !net.isHost) net.hs = m.hs;
@@ -3678,7 +3689,14 @@ function clearTimers() { for (const t of net.timers) { clearTimeout(t); clearInt
 
 function leaveOnline(msg) {
   clearTimers(); closeChat();
-  if (net.joined || net.isHost) { if (net.isHost) { publish('a', { t: 'bye' }); announceRoom(true); } else sendNet({ t: 'bye' }); }
+  if (net.joined || net.isHost) {
+    if (net.isHost) {
+      // tem mais gente: passa a sala para o próximo em vez de fechar
+      const prox = Object.entries(net.players).filter(([id, p]) => !p.bot && id !== net.myId).map(([id]) => id)[0];
+      if (prox && !net.local) publish('a', { t: 'migra', id: prox });
+      else { publish('a', { t: 'bye' }); announceRoom(true); }
+    } else sendNet({ t: 'bye' });
+  }
   const cs = net.clients;
   setTimeout(() => { for (const c of cs) try { c.end(true); } catch {} }, 300);
   resetNet();
@@ -3689,7 +3707,7 @@ function leaveOnline(msg) {
 function resetNet() {
   net.seen.clear(); net.ppos.clear(); zReset();
   net.cfg = { ...CFG_PADRAO };
-  Object.assign(net, { clients: [], isHost: false, joined: false, myId: null, code: null, players: {}, winning: false, local: false, roll: {}, endAt: 0, endLocal: 0, rollNext: 0, showBoardT: 0 });
+  Object.assign(net, { clients: [], isHost: false, joined: false, myId: null, code: null, hostId: null, avisoQueda: false, subs: [], players: {}, winning: false, local: false, roll: {}, endAt: 0, endLocal: 0, rollNext: 0, showBoardT: 0 });
   net.lastSeen.clear(); net.lastDmg.clear(); net.faces.clear(); net.chatT.clear();
   for (const r of remotes.values()) scene.remove(r.root);
   remotes.clear();
@@ -3744,6 +3762,8 @@ setInterval(() => {
       broadcast({ t: 'hp', id, hp: p.hp });
     }
   }
+  net.hbT = (net.hbT || 0) + 1;
+  if (net.hbT % 4 === 0 && !net.local) broadcast({ t: 'hb', id: net.myId, n: humanosNaSala() }); // "estou vivo" (a cada 2 s)
   if (isZumbi() || net.cfg.modo === 'zumbi') return;
   modeHostTick(0.5);
   if (!net.winning && net.endAt && now >= net.endAt) endByTime();
@@ -3757,11 +3777,21 @@ setInterval(() => {
   if (!net.code || net.local) return;
   const now = performance.now();
   if (net.isHost) { for (const id of Object.keys(net.players)) if (id !== net.myId && !net.players[id]?.bot && now - (net.lastSeen.get(id) || 0) > 12000) dropPlayer(id); }
-  else if (net.joined && now - net.lastHostMsg > 20000) leaveOnline('Perdi a conexão com a sala.');
+  else if (net.joined) {
+    // dono sumiu: depois de 6 s o primeiro da fila vira dono; se ele também sumiu, 5 s depois o seguinte
+    const sil = now - net.lastHostMsg;
+    if (sil > 6000) {
+      const fila = sucessores(), k = Math.floor((sil - 6000) / 5000);
+      if (fila[k] === net.myId) virarDono();
+      else if (k >= fila.length || sil > 45000) leaveOnline('Perdi a conexão com a sala.');
+      else if (!net.avisoQueda) { net.avisoQueda = true; feed('⚠️ O dono da sala caiu… passando a sala para outro jogador'); }
+    }
+  }
 }, 1000);
 
 // conecta a todos os servidores MQTT ao mesmo tempo; segue assim que o primeiro responder
-function connectAll(sub, onMsg, onReady, onFail) {
+function connectAll(subs, onMsg, onReady, onFail) {
+  net.subs = [...subs];
   if (!window.mqtt) return onFail('Não consegui carregar o modo online. Confira a internet e recarregue a página.');
   const clients = [];
   let ready = false;
@@ -3771,7 +3801,7 @@ function connectAll(sub, onMsg, onReady, onFail) {
     catch { continue; }
     clients.push(c);
     c.on('connect', () => {
-      c.subscribe(topic(sub));
+      for (const s of net.subs) c.subscribe(topic(s));
       if (!ready) { ready = true; onReady(clients); }
     });
     c.on('message', (tp, buf) => {
@@ -3780,7 +3810,7 @@ function connectAll(sub, onMsg, onReady, onFail) {
       if (!m || typeof m !== 'object' || typeof m.q !== 'string' || net.seen.has(m.q)) return;
       net.seen.add(m.q);
       if (net.seen.size > 3000) net.seen = new Set([...net.seen].slice(-1500));
-      onMsg(m);
+      onMsg(m, tp);
     });
   }
   net.clients = clients;
@@ -3794,6 +3824,63 @@ function connectAll(sub, onMsg, onReady, onFail) {
 const setBusy = busy => { for (const id of ['createBtn', 'quickBtn', 'joinBtn', 'createRoomBtn']) $(id).disabled = busy; };
 const serversTxt = () => `${net.clients.filter(c => c.connected).length} de ${BROKERS.length} servidores`;
 
+// mensagens da sala: /h = para o dono (só vale se eu for o dono), /a = do dono para todos
+function rotaSala(m, tp) {
+  if (tp.endsWith('/h')) { if (net.isHost && m.f !== net.myId) hostHandle(m.f, m); return; }
+  if (m.x === net.myId || m.q.startsWith(net.myId + '.')) return; // o que eu mesmo mandei
+  if (net.isHost) { donoRival(m); return; }
+  net.lastHostMsg = performance.now();
+  onNet(m);
+}
+
+// ===== Troca de dono: se o dono sai ou cai, outro jogador vira o dono e a sala continua =====
+// Quem assume: o primeiro jogador de verdade (sem bots) na ordem de entrada. Se ele também sumiu, o seguinte.
+const sucessores = () => Object.entries(net.players).filter(([id, p]) => !p.bot && id !== net.hostId).map(([id]) => id);
+const humanosNaSala = () => Object.values(net.players).filter(p => !p.bot).length;
+function virarDono() {
+  if (net.isHost || !net.joined || net.local) return;
+  const velho = net.hostId, now = performance.now();
+  net.isHost = true; net.hostId = net.myId; net.avisoQueda = false;
+  if (!net.subs.includes('h')) { net.subs.push('h'); for (const c of net.clients) if (c.connected) c.subscribe(topic('h')); }
+  if (velho && velho !== net.myId) { delete net.players[velho]; net.faces.delete(velho); delete net.roll[velho]; net.flags?.forEach(f => { if (f.by === velho) Object.assign(f, { s: 'base', by: null }); }); }
+  // bots são simulados pelo dono: os do antigo somem e eu crio os meus
+  for (const [id, p] of Object.entries(net.players)) if (p.bot) { delete net.players[id]; delete net.roll[id]; }
+  net.bots.clear();
+  for (const id of Object.keys(net.players)) net.lastSeen.set(id, now);
+  const c = myNetChar(); if (c.face) net.faces.set(net.myId, c.face);
+  draftCfg = cleanCfg(net.cfg);
+  // relógios do antigo dono continuam de onde estavam
+  net.endAt = net.endLocal || 0;
+  if (net.cfg.modo === 'roleta') net.rollAt = net.rollNext || now + (net.cfg.rInt || 20) * 1000;
+  for (const p of Object.values(net.players)) if (p.down) p.downUntil = now + BLEED_S * 1000;
+  // zumbis: a simulação estava no antigo dono, a rodada atual recomeça
+  if (net.cfg.modo === 'zumbi') {
+    Z.sim.clear(); Z.spits.length = 0;
+    Object.assign(Z, { started: true, over: false, round: Math.max(0, (Z.roundView || 1) - 1), toSpawn: 0, breakT: 4 });
+    broadcast({ t: 'zclear' });
+  }
+  syncBots();
+  net.timers.push(setInterval(() => announceRoom(), 5000)); announceRoom();
+  if (net.winning) setTimeout(() => { if (net.isHost && net.winning) { net.winning = false; startMatch(); broadcast({ t: 'reset', mapa: net.cfg.mapa }); } }, 4000);
+  sendRoster();
+  broadcast({ t: 'pus', list: [...pickups.values()].map(pu => [pu.id, pu.k, r3(pu.x), r3(pu.z)]) });
+  broadcast({ t: 'dono', id: net.myId });
+}
+// dois donos ao mesmo tempo (a internet de um voltou): fica o que tem mais gente; empate, o menor id
+function donoRival(m) {
+  if (m.t !== 'hb' || typeof m.id !== 'string' || m.id === net.myId) return;
+  const meus = humanosNaSala(), dele = m.n | 0;
+  if (dele > meus || (dele === meus && m.id < net.myId)) deixarDeSerDono(m.id);
+}
+function deixarDeSerDono(novo) {
+  clearTimers();
+  net.isHost = false; net.hostId = novo; net.lastHostMsg = performance.now();
+  for (const [id, p] of Object.entries(net.players)) if (p.bot) delete net.players[id];
+  net.bots.clear(); Z.sim.clear(); Z.started = false;
+  feed('🔄 Juntando com o outro dono da sala…');
+  sendNet(net.hello);
+}
+
 // cria a sala com as regras escolhidas; autoEnter = já entra jogando (partida rápida)
 function hostRoom(cfg, autoEnter) {
   readSetup();
@@ -3801,11 +3888,12 @@ function hostRoom(cfg, autoEnter) {
   let code = '';
   for (let k = 0; k < 4; k++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   Object.assign(net, { isHost: true, joined: false, local: false, myId: newId(), code, players: {}, roll: {} });
-  connectAll('h', m => { if (m.f !== net.myId) hostHandle(m.f, m); }, () => {
+  connectAll(['h', 'a'], rotaSala, () => {
     clearTimers();
-    net.joined = true;
+    net.joined = true; net.hostId = net.myId;
     net.cfg = cleanCfg(cfg);
     const c = myNetChar();
+    net.hello = { t: 'hello', name: myName, char: c.char, cor: c.cor, lk: c.lk };
     addPlayer(net.myId, myName, c.char, c.cor, c.lk);
     if (c.face) net.faces.set(net.myId, c.face);
     loadMap(net.cfg.mapa);
@@ -3827,11 +3915,7 @@ function joinRoom(code) {
   Object.assign(net, { isHost: false, joined: false, local: false, myId: newId(), code, players: {}, lastHostMsg: performance.now() });
   const c = myNetChar();
   net.hello = { t: 'hello', name: myName, char: c.char, cor: c.cor, lk: c.lk };
-  connectAll('a', m => {
-    if (m.x === net.myId) return;
-    net.lastHostMsg = performance.now();
-    onNet(m);
-  }, () => {
+  connectAll(['a'], rotaSala, () => {
     clearTimers();
     netStatus(`Conectado (${serversTxt()}). Entrando na sala ${code}…`);
     sendNet(net.hello);
@@ -6997,7 +7081,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
