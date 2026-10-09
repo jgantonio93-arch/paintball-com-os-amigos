@@ -123,6 +123,10 @@
   @keyframes pulse { from { filter:brightness(.8); } to { filter:brightness(1.3); } }
   body.assistindo #hpwrap, body.assistindo #ammo, body.assistindo #cross { display:none !important; }
   body.assistindo #killcam { bottom:calc(10% + var(--sb)); }
+  body.zgelo #hud::after, body.zmorte #hud::after { content:''; position:absolute; inset:0; pointer-events:none; }
+  body.zgelo #hud::after { box-shadow:inset 0 0 90px rgba(140,220,255,.55); }
+  body.zmorte #hud::after { box-shadow:inset 0 0 90px rgba(255,40,40,.45); }
+  body.zgelo.zmorte #hud::after { box-shadow:inset 0 0 90px rgba(200,120,255,.5); }
   #downBox { position:absolute; left:50%; top:60%; transform:translateX(-50%); text-align:center; display:none; width:min(420px,90vw); }
   #downBox b { display:block; font-family:var(--disp); font-weight:400; font-size:clamp(22px,4vw,34px); text-shadow:0 3px 0 #000a; }
   #downBox span { font-weight:800; text-shadow:0 2px 0 #000a; }
@@ -278,6 +282,16 @@
   .slot.alvo { border:2px solid var(--yel); background:rgba(255,210,61,.14); box-shadow:0 0 14px rgba(255,210,61,.35); }
   .slot.alvo small { color:var(--yel); }
   .shopCards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .shopTabs { display:flex; gap:6px; margin:0 0 10px; }
+  .shopTabs button { flex:1; font:inherit; font-weight:900; font-size:14px; color:#fff; background:rgba(255,255,255,.05); border:2px solid var(--line); border-radius:12px; padding:8px 6px; cursor:pointer; }
+  .shopTabs button.on { border-color:var(--yel); background:rgba(255,210,61,.16); }
+  .shopCard.vant { background:linear-gradient(160deg,rgba(255,61,127,.16),rgba(192,91,255,.1)); border-color:rgba(255,61,127,.55); }
+  .shopCard.tem { border-color:var(--grn); background:rgba(61,255,176,.1); opacity:1; }
+  .shopCard.caixa { background:linear-gradient(160deg,rgba(192,91,255,.22),rgba(61,184,255,.1)); border-color:rgba(192,91,255,.7); }
+  .shopCard.saiu { border-color:var(--yel); box-shadow:0 0 22px rgba(255,210,61,.45); }
+  .shopCard.saiu i { animation:giraCx .25s linear infinite; display:inline-block; }
+  .shopCard.saiu.pronto i { animation:none; }
+  @keyframes giraCx { 50% { transform:scale(1.25) rotate(8deg); } }
   .shopCard.up { border-color:var(--grn); background:linear-gradient(160deg,rgba(61,255,176,.16),rgba(61,184,255,.08)); }
   .shopCard { font:inherit; color:#fff; text-align:left; background:linear-gradient(160deg,rgba(255,210,61,.14),rgba(255,61,127,.08)); border:2px solid rgba(255,210,61,.5); border-radius:16px; padding:12px; cursor:pointer; position:relative; display:flex; flex-direction:column; gap:4px; transition:transform .1s; }
   .shopCard:hover { transform:translateY(-2px); }
@@ -641,9 +655,10 @@
 <div id="armaMenu"><h4>🔫 Escolha a arma <span class="pcDica">· número, ou rodinha + clique · Q fecha</span></h4><div id="armaGrid"></div></div>
 <div id="shopBox"><div class="shopIn">
   <div class="shopHead"><div><span class="tag">Modo Zumbi</span><h2>💰 Lojinha</h2></div><b id="shopCash"></b></div>
+  <div class="shopTabs" id="shopTabs"></div>
   <div class="shopSlots" id="shopSlots"></div>
   <div class="shopCards" id="shopCards"></div>
-  <p class="hint center">Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. <span class="kbdHint">1–2 compra · 3/U melhora · Q escolhe a arma · E/Esc fecha</span></p>
+  <p class="hint center" id="shopDica">Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. <span class="kbdHint">1–2 compra · 3/U melhora · Q escolhe a arma · ←/→ troca de aba · E/Esc fecha</span></p>
   <div class="row"><button class="btn ghost" id="shopClose">Fechar</button></div>
 </div></div>
 <div id="blind"><b>🔦 Olhos fechados!</b><span>Os escondidos estão virando objetos…</span><i></i></div>
@@ -2217,6 +2232,11 @@ const WEAPONS = {
 const WEAPON_ORDER = Object.keys(WEAPONS);
 // granada de tinta: arma especial (tecla G), fora da lista de armas da sala
 WEAPONS.granada = { nome: 'Granada de tinta', ic: '💣', dmg: 90, cd: 1, mag: 1, reload: 1, speed: 17, spread: 0, auto: false, cor: 0x3dffb0, len: 0.4, hs: 1, splash: 4.6, grav: 15, size: 2.6, life: 2.4, fuse: true };
+// armas especiais: só saem da 🎁 caixa misteriosa do modo Zumbi (fora de WEAPON_ORDER, das salas e do Gun Game)
+WEAPONS.bazuca  = { nome: 'Bazuca de tinta', ic: '🚀', dmg: 240, cd: 1.15, mag: 3, reload: 2.4, speed: 42, spread: 0, auto: false, cor: 0x3dffb0, len: 1.4, hs: 1, splash: 5.5, grav: 3, size: 3.6, especial: true, desc: 'explosão enorme: limpa a horda inteira' };
+WEAPONS.raio    = { nome: 'Arma de raio', ic: '⚡', dmg: 55, cd: 0.1, mag: 36, reload: 1.6, speed: 240, spread: 0.002, auto: true, cor: 0x7ad7ff, len: 1.1, hs: 1.6, size: 0.8, especial: true, desc: 'raio azul rapidíssimo e certeiro' };
+WEAPONS.confete = { nome: 'Canhão de confete', ic: '🎉', dmg: 24, cd: 0.55, mag: 8, reload: 1.8, speed: 55, spread: 0.1, auto: false, cor: 0xff3dd2, len: 1.1, hs: 1.2, pellets: 14, life: 0.5, arcoiris: true, especial: true, desc: 'chuva de confete colorido na frente toda' };
+const ESPECIAIS = ['bazuca', 'raio', 'confete'];
 // Gun Game: cada abate passa para a próxima; abate com a última vence
 const GG_ORDER = ['balde', 'mangueira', 'metralha', 'smg', 'escopeta', 'rajada', 'marcador', 'besta', 'sniper', 'revolver', 'pistola', 'rolo'];
 
@@ -2270,6 +2290,17 @@ function buildViewmodel(id) {
     add(new THREE.CylinderGeometry(0.08, 0.08, 0.26, 14), 0xff3d7f, 0, -0.06, 0.14); tube(0.04, 0.6, 0x2ecc71, 0, 0.03, -0.3);
     [0xe74c3c, 0xff7a1a, 0xffd23d, 0x27ae60, 0x3db8ff, 0xb83dff].forEach((c, i) => tube(0.052, 0.045, c, 0, 0.03, -0.08 - i * 0.075));
     box(0.08, 0.18, 0.09, 0x15171d, 0, -0.12, -0.05, 0.2); tip = -0.62;
+  } else if (id === 'bazuca') {
+    tube(0.1, 1.0, 0x2f5a3a, 0, 0.04, -0.2); tube(0.12, 0.12, 0x3dffb0, 0, 0.04, -0.72);
+    box(0.08, 0.2, 0.1, 0x222222, 0, -0.14, 0.05, 0.2); box(0.06, 0.1, 0.22, 0x111111, 0.1, 0.14, -0.1); tip = -0.8;
+  } else if (id === 'raio') {
+    box(0.12, 0.15, 0.5, 0xd8e6ff, 0, 0, 0); tube(0.05, 0.3, 0x7ad7ff, 0, 0.03, -0.38);
+    for (const z of [-0.42, -0.5, -0.58]) { const a = add(new THREE.TorusGeometry(0.06, 0.012, 6, 16), 0x7ad7ff, 0, 0.03, z); a.rotation.x = 0; }
+    box(0.08, 0.2, 0.1, 0x3a4a6a, 0, -0.14, 0.1, 0.25); tip = -0.62;
+  } else if (id === 'confete') {
+    add(new THREE.CylinderGeometry(0.16, 0.09, 0.6, 14), 0xff3dd2, 0, 0.03, -0.25, Math.PI / 2);
+    for (const [c, x] of [[0xffd23d, -0.06], [0x3dffb0, 0.06], [0x3db8ff, 0]]) add(new THREE.SphereGeometry(0.035, 8, 6), c, x, 0.06, -0.55);
+    box(0.08, 0.2, 0.1, 0x222222, 0, -0.15, 0.05, 0.2); tip = -0.58;
   } else if (id === 'rolo') {
     tube(0.025, 0.45, 0x8a5a2b, 0, -0.04, -0.05); box(0.025, 0.24, 0.025, 0x9aa3b5, 0, 0.06, -0.3);
     const rolo = add(new THREE.CylinderGeometry(0.09, 0.09, 0.44, 16), 0xffd23d, 0, 0.18, -0.34); rolo.rotation.z = Math.PI / 2;
@@ -2365,6 +2396,9 @@ const sfx = {
     else if (id === 'besta') { beep(720, 0.13, 'triangle', 0.06, -520); beep(110, 0.08, 'sine', 0.05); }
     else if (id === 'mangueira') beep(850 + Math.random() * 400, 0.035, 'sine', 0.025, -300);
     else if (id === 'rolo') beep(150, 0.14, 'triangle', 0.07, 90);
+    else if (id === 'bazuca') { beep(80, 0.4, 'sawtooth', 0.11, 40); beep(240, 0.2, 'triangle', 0.06, -120); }
+    else if (id === 'raio') { beep(1800, 0.05, 'sawtooth', 0.035, -900); beep(2600, 0.03, 'square', 0.02); }
+    else if (id === 'confete') { beep(500, 0.12, 'triangle', 0.06, 500); beep(990, 0.1, 'square', 0.03, 300); }
     else beep(320, 0.08, 'square', 0.05, -200);
   },
   boom: () => { beep(70, 0.45, 'sawtooth', 0.12, -40); beep(160, 0.3, 'triangle', 0.08, -100); },
@@ -2542,12 +2576,12 @@ function updateHud() {
   if (player.hp >= max || player.hp < (updateHud.lastHp ?? 0)) $('hpwrap').classList.remove('regen');
   updateHud.lastHp = player.hp;
   const W = curW();
-  $('ammoName').textContent = `${W.ic} ${W.nome}${isZumbi() ? ' ' + '★'.repeat(W.lvl || 1) : ''}`;
+  $('ammoName').textContent = `${W.ic} ${W.nome}${isZumbi() ? ' ' + estrelas(W.lvl || 1).replace(/^nv \d+ /, '') : ''}`;
   const a = ammoOf(player.weapon);
   $('ammoNum').textContent = player.reloading > 0 ? 'recarregando…' : W.semMuni ? '∞' : `${a} / ${W.mag}`;
   $('ammoNum').classList.toggle('low', player.reloading <= 0 && !W.semMuni && a <= Math.ceil(W.mag / 4));
   const itens = itensOn() && !amProp();
-  const grana = isZumbi() ? `💰 ${net.players[net.myId]?.cash | 0}` : '';
+  const grana = isZumbi() ? `💰 ${net.players[net.myId]?.cash | 0}${(net.players[net.myId]?.vant || []).map(k => VANTAGENS[k]?.ic || '').join('')}` : '';
   $('itemLine').textContent = [grana, itens ? `💣 ${player.gren | 0}  ·  🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ');
   $('grenBtn').style.display = $('shieldBtn').style.display = itens ? 'flex' : 'none';
 }
@@ -2670,12 +2704,14 @@ addEventListener('keydown', e => {
   if ((e.code === 'KeyC' || e.code === 'ControlLeft') && !e.repeat) crouchPressed();
   if (/^Digit[1-9]$/.test(e.code)) {
     const n = +e.code.slice(5) - 1;
-    if (shopOpen) { if (n < 3) comprar(n); } else if (quickOpen) sayQuick(n); else if (endOpen) voteMap(n); else if (armaOpen) pegarArma(n);
+    if (shopOpen) comprar(n); else if (quickOpen) sayQuick(n); else if (endOpen) voteMap(n); else if (armaOpen) pegarArma(n);
     else if (muitasArmas() && n > 0) toggleArmaMenu(true); // 1 = primeira arma; as outras pelo menu
     else if (allowedWeapons()[n]) equip(allowedWeapons()[n]);
   }
   if (armaOpen && (e.code === 'Digit0' || e.code === 'Minus' || e.code === 'Equal')) pegarArma({ Digit0: 9, Minus: 10, Equal: 11 }[e.code]);
   if (shopOpen && e.code === 'KeyU' && !e.repeat) melhorarArma();
+  if (shopOpen && (e.code === 'ArrowRight' || e.code === 'KeyD') && !e.repeat) trocaAba(1);
+  if (shopOpen && (e.code === 'ArrowLeft' || e.code === 'KeyA') && !e.repeat) trocaAba(-1);
   if (e.code === 'KeyQ' && !e.repeat) { if (shopOpen) { const inv = zInv(); if (inv.length > 1) { shopSlot = 1 - shopSlot; renderShop(); } } else if (armaOpen) toggleArmaMenu(false); else if (amProp()) cycleProp(); else cycleWeapon(1); }
   if (e.code === 'KeyT' && !e.repeat) { e.preventDefault(); openChat(); }
   if (e.code === 'KeyG' && !e.repeat) throwGrenade();
@@ -3038,6 +3074,17 @@ const POWERS = {
 // a bolsa de sangue só cai dos zumbis; o resto nasce sozinho pelo mapa
 POWERS.gren = { cor: 0x3dffb0, icone: '💣', nome: 'Granada', dur: 0 };
 const POWER_KINDS = ['speed', 'inv', 'heal', 'gren'];
+// prêmios das hordas: caem às vezes quando um zumbi morre e valem para o TIME TODO (zPremio no dono)
+const ZPREMIOS = {
+  zmorte: { cor: 0xff3d3d, icone: '☠️', nome: 'Morte instantânea', dur: 20, desc: 'qualquer tiro derruba (menos o chefão)' },
+  zmuni:  { cor: 0x3db8ff, icone: '📦', nome: 'Munição cheia', dur: 0, desc: 'todas as armas cheias e +2 granadas' },
+  zgrana: { cor: 0xffd23d, icone: '💰', nome: 'Dinheiro em dobro', dur: 20, desc: 'tudo paga o dobro' },
+  zbomba: { cor: 0xff7a1a, icone: '💣', nome: 'Bomba de tinta', dur: 0, desc: 'pinta todos os zumbis (menos o chefão)' },
+  zgelo:  { cor: 0x9fe8ff, icone: '🧊', nome: 'Congelar', dur: 12, desc: 'zumbis quase parados e sem atacar' },
+};
+Object.assign(POWERS, ZPREMIOS);
+const zBuff = {}; // prêmio → até quando vale (performance.now), no dono e em todos
+const buffOn = k => (zBuff[k] || 0) > performance.now();
 const pickups = new Map(); // id -> { id, k, mesh, x, z }
 let puTimer = 4, puSeq = 0;
 
@@ -3126,13 +3173,15 @@ function tickPowerEffects(dt) {
   const had = player.speedT > 0 || player.invT > 0;
   player.speedT = Math.max(0, player.speedT - dt);
   player.invT = Math.max(0, player.invT - dt);
-  if (had) updateFx();
+  if (had || fxTxt) updateFx();
 }
 let fxTxt = '';
 function updateFx() {
   const parts = [];
   if (player.speedT > 0) parts.push(`⚡ Velocidade ${Math.ceil(player.speedT)}s`);
   if (player.invT > 0) parts.push(`★ Invencível ${Math.ceil(player.invT)}s`);
+  for (const k in ZPREMIOS) if (buffOn(k)) parts.push(`${ZPREMIOS[k].icone} ${ZPREMIOS[k].nome} ${Math.ceil((zBuff[k] - performance.now()) / 1000)}s`);
+  document.body.classList.toggle('zgelo', buffOn('zgelo')); document.body.classList.toggle('zmorte', buffOn('zmorte'));
   const txt = parts.join('|');
   if (txt === fxTxt) return;
   fxTxt = txt;
@@ -3217,12 +3266,12 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 26;
+const VERSAO = 27;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
 // com id: a vida máxima daquele jogador (o admin pode ter aumentado: p.vmax)
-const hpMax = id => { const v = id ? net.players[id]?.vmax : 0; return v > 0 ? v : Math.round(100 * (mode === 'online' || net.joined ? net.cfg.vida : 1)); };
+const hpMax = id => { const v = id ? net.players[id]?.vmax : 0; return (v > 0 ? v : Math.round(100 * (mode === 'online' || net.joined ? net.cfg.vida : 1))) + (id && temVant(id, 'vida') ? 50 : 0); };
 const myMaxHp = () => hpMax(net.myId);
 // a regeneração vale no PvP (se a sala deixar) e no treino de ondas; nas hordas não
 const regenOn = () => mode === 'online' ? net.cfg.regen && !isZumbi() : true;
@@ -3343,6 +3392,7 @@ function hostHandle(from, m) {
       const pu = pickups.get(m.id), pl = net.players[from];
       if (!pu || !pl || pl.dead || pl.down) return;
       broadcast({ t: 'got', id: m.id, by: from, k: pu.k });
+      if (ZPREMIOS[pu.k]) { zPremio(pu.k, from); break; }
       if (pu.k === 'inv') net.inv.set(from, performance.now() + POWERS.inv.dur * 1000 + 300);
       if (POWERS[pu.k]?.cura) { pl.hp = Math.min(hpMax(from), pl.hp + POWERS[pu.k].cura); broadcast({ t: 'hp', id: from, hp: pl.hp }); }
       break;
@@ -3599,6 +3649,7 @@ function onNet(m) {
     case 'got': {
       const pu = pickups.get(m.id); if (pu) removePickup(m.id);
       const P = POWERS[m.k]; if (!P) break;
+      if (ZPREMIOS[m.k]) { zPremioVisto(m.k, m.by); break; }
       if (m.by === net.myId) applyPower(m.k, true);
       else feed(`${nameOf(m.by)} pegou ${P.icone} ${P.nome}`);
       break;
@@ -3797,7 +3848,7 @@ function onMapChanged() {
 }
 
 function clearWorld() {
-  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
+  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
   clearPickups(); net.inv.clear(); resetMoves(); clearFloats();
   clearZombies(); meDown = false; reviveT = 0; $('bossBar').style.display = 'none'; $('acid').classList.remove('on'); acidT = 0; player.slowT = 0;
   $('downOverlay').classList.remove('on'); $('downBox').style.display = $('revivePrompt').style.display = $('reviveBtn').style.display = 'none';
@@ -5393,7 +5444,7 @@ function updateSpitView(dt) {
 
 // --- simulação (só o dono da sala) ---
 function zPlayerPos(id) { return id === net.myId ? player.pos.toArray() : net.ppos.get(id); }
-function zReset() { Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null }); }
+function zReset() { for (const k in zBuff) delete zBuff[k]; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null }); }
 function zBegin() {
   zReset(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
   for (const p of Object.values(net.players)) zEcoInit(p, true);
@@ -5424,7 +5475,7 @@ function zj(n = nJog()) {
   return { n, qtd, vida: 1 + 0.15 * (n - 1), chefe: 1 + 0.75 * (n - 1), grana: n / qtd, extra: Math.floor((n - 1) / 2) };
 }
 function zStartRound(r) {
-  Z.round = r;
+  Z.round = r; Z.premios = 0;
   const np = nJog();
   Z.toSpawn = Math.max(3, Math.round(Math.min(6 + r * 4, 22 + r * 1.5) * zj(np).qtd * zd().qtd));
   Z.boss = r % 5 === 0 ? Math.min(3, r / 5) : 0; // rodada do chefão (fica mais forte a cada 5)
@@ -5549,7 +5600,7 @@ function zMove(z, alvos, dt) {
     else { z.x = c.x; z.z = c.z; z.sobe = null; }
     return;
   }
-  let spd = z.speed * (z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4);
+  let spd = z.speed * (z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4) * (buffOn('zgelo') ? 0.15 : 1);
   let ir = 1; // 1 = vem, -1 = foge, 0 = fica rodeando
   const ve = alvo && best < 24 && hasLineOfSight(zq.set(z.x, z.y + 1.6, z.z), new THREE.Vector3(alvo.x, alvo.y + 1.4, alvo.z));
   if (T.id === 'cuspidor' || (z.boss >= 2 && best > 7)) {
@@ -5641,7 +5692,7 @@ function zMove(z, alvos, dt) {
   // ataque corpo a corpo
   z.atkCd -= dt;
   const alcance = z.boss ? 2.6 : T.id === 'tanque' || T.id === 'mae' ? 1.9 : 1.35;
-  if (z.dmg > 0 && alvo && best < alcance && Math.abs(alvo.y - z.y) < (z.boss ? 3 : 1.7) && z.atkCd <= 0) {
+  if (z.dmg > 0 && alvo && best < alcance && !buffOn('zgelo') && Math.abs(alvo.y - z.y) < (z.boss ? 3 : 1.7) && z.atkCd <= 0) {
     z.atkCd = (z.boss ? 1.5 : T.id === 'corredor' ? 0.7 : 0.9) * zd().atk; z.atkFlag = true;
     zDamage(alvo.id, Math.round(z.dmg * (z.raiva > 0 ? 1.25 : 1)));
     if (T.id === 'tanque' || z.boss) zPush(alvo.id, dx, dz, 7);
@@ -5708,6 +5759,7 @@ function zDamage(id, dmg) {
   broadcast({ t: 'hp', id, hp: Math.max(0, p.hp) });
   if (p.hp <= 0) {
     p.hp = 0; p.down = true; p.downUntil = now + BLEED_S * 1000;
+    if (temVant(id, 'volta') && p.voltaR !== Z.round) { p.voltaR = Z.round; p.autoUp = now + 5000; } // 🩹 Segunda Chance
     broadcast({ t: 'down', id, s: BLEED_S });
     sendRoster();
   }
@@ -5730,10 +5782,11 @@ function zHostTick(dt) {
   if (Z.over) { Z.overT -= dt; if (Z.overT <= 0) zRestart(); return; }
   // quem está caído sangra até morrer
   for (const [id, p] of Object.entries(net.players)) {
-    if (p.down && now > p.downUntil) { p.down = false; p.dead = true; p.deaths++; p.hp = 0; broadcast({ t: 'bled', id }); sendRoster(); }
+    if (p.down && p.autoUp && now > p.autoUp) { p.down = false; p.autoUp = 0; p.hp = Math.round(hpMax(id) * 0.5); net.lastDmg.set(id, now); broadcast({ t: 'up', id, by: id, hp: p.hp, auto: 1 }); sendRoster(); continue; }
+    if (p.down && now > p.downUntil) { p.down = false; p.dead = true; p.deaths++; p.hp = 0; p.autoUp = 0; p.vant = []; broadcast({ t: 'bled', id }); sendRoster(); }
   }
   const ps = Object.values(net.players);
-  if (Z.round > 0 && ps.length && ps.every(p => p.down || p.dead)) { zGameOver(); return; }
+  if (Z.round > 0 && ps.length && ps.every(p => (p.down && !p.autoUp) || p.dead)) { zGameOver(); return; }
   // rodadas
   if (Z.breakT > 0) { Z.breakT -= dt; if (Z.breakT <= 0) zStartRound(Z.round + 1); }
   else if (Z.toSpawn === 0 && Z.sim.size === 0) { Z.breakT = INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: INTERVALO_S }); }
@@ -5767,6 +5820,26 @@ function zHostTick(dt) {
   Z.rosterT -= dt;
   if (Z.rosterDirty && Z.rosterT <= 0) { Z.rosterDirty = false; Z.rosterT = 0.5; sendRoster(); }
 }
+// dono: prêmio pego (os de tempo cada um marca ao receber o 'got')
+function zPremio(k, from) {
+  if (k === 'zbomba') {
+    let n = 0;
+    for (const z of [...Z.sim.values()]) { if (z.boss) continue; Z.sim.delete(z.id); n++; broadcast({ t: 'zdie', id: z.id, by: from, h: 0, b: 0, bm: 1 }); }
+    const sh = net.players[from]; if (sh) sh.kills += n;
+    broadcast({ t: 'zdie', id: '-', by: from, bm: 1, c: zPagar(from, 400) }); Z.rosterDirty = true;
+  }
+}
+// todos: alguém pegou um prêmio do time
+function zPremioVisto(k, by) {
+  const P = ZPREMIOS[k];
+  if (P.dur) zBuff[k] = performance.now() + P.dur * 1000;
+  if (k === 'zmuni') { player.ammoBy = {}; player.reloading = 0; player.gren = Math.min(GREN_MAX, (player.gren | 0) + 2); }
+  if (k === 'zbomba') { shake = Math.max(shake, 0.5); noise(1.4, { type: 'lowpass', f: 900, f2: 60, vol: 0.3 }); tone(55, 1.1, { type: 'sine', vol: 0.3, slide: -20 }); }
+  banner(`${P.icone} ${P.nome.toUpperCase()}!`, 2.2);
+  feed(`${P.icone} ${by === net.myId ? 'Você pegou' : nameOf(by) + ' pegou'} ${P.nome}: ${P.desc}`);
+  [523, 784, 1047, 1568].forEach((f, i) => tone(f, 0.14, { type: 'square', vol: 0.04, delay: i * 0.07, lp: 4000 }));
+  updateHud(); updateFx();
+}
 function zDrop(k, x, z, vida = 25000) {
   const id = k[0] + (++puSeq) + Math.random().toString(36).slice(2, 5);
   broadcast({ t: 'pu', id, k, x: r3(x), z: r3(z) });
@@ -5786,7 +5859,8 @@ function zHostHandle(from, m) {
     const armadura = T.id === 'tanque' && !head && !W.splash ? 0.5 : 1;
     // nas hordas a arma vale pelo nível que a pessoa comprou na lojinha
     const nivel = W === WEAPONS.granada ? 1.6 : zMult((sh.inv || []).find(x => x.w === hostWeaponOf(from, m.w))?.l || 1);
-    const dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * armadura * nivel));
+    let dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * armadura * nivel));
+    if (buffOn('zmorte') && !z.boss) dmg = Math.max(dmg, Math.ceil(z.hp)); // prêmio: qualquer tiro derruba
     z.hp -= dmg;
     const c = zPagar(from, 2);
     broadcast({ t: 'zd', id: m.id, by: from, d: dmg, h: head ? 1 : 0, a: armadura < 1 ? 1 : 0, p: Math.max(0, Math.round(z.hp / z.max * 100)), c });
@@ -5799,6 +5873,8 @@ function zHostHandle(from, m) {
       else if (z.elite || T.id === 'mae') zDrop(Math.random() < 0.5 ? 'heal' : 'gren', z.x, z.z);
       // às vezes deixa uma bolsa de sangue (+30); some depois de 25 s
       else if (Math.random() < 0.18) zDrop('blood', z.x, z.z);
+      // prêmio do time (poucos por rodada; some em 30 s)
+      if (!z.boss && (Z.premios | 0) < 2 + nJog() && Math.random() < 0.035) { Z.premios = (Z.premios | 0) + 1; zDrop(randomFrom(Object.keys(ZPREMIOS)), z.x + 0.9, z.z, 30000); }
     }
   } else if (m.t === 'revive') {
     const tg = net.players[m.target], rv = net.players[from];
@@ -5854,13 +5930,14 @@ function zOnNet(m) {
       return true;
     }
     case 'zdie': {
+      if (m.id === '-') { if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); } return true; }
       const o = zombies.get(m.id);
       if (o && !o.dead) { o.dead = true; o.deadT = 0; burst(o.pos.clone().setY(o.pos.y + 1.4), o.T?.id === 'cuspidor' ? 0x7dff3a : 0x86a86e, 24, 6); }
       if (o && m.ex) removeZombie(m.id);
-      if (m.by === net.myId) { sfx.ko(); hitMarker('kill'); bumpStat('zk', 1, true); if (m.b) bumpStat('boss', 1, true); if (typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); } }
+      if (m.by === net.myId) { if (!m.bm) { sfx.ko(); hitMarker('kill'); } bumpStat('zk', 1, true); if (m.b) bumpStat('boss', 1, true); if (typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); } }
       if (o && m.by) fxBurst(o.pos, (m.by === net.myId ? myLook : net.players[m.by]?.lk)?.f);
       if (m.b) { banner(`👹 ${m.by === net.myId ? 'Você derrotou' : nameOf(m.by) + ' derrotou'} o CHEFÃO!`, 3); sfx.win(); if (o) burst(o.pos.clone().setY(o.pos.y + 3), 0xff3b3b, 60, 10); }
-      if (m.by) killFeed(nameOf(m.by), m.b ? '👹 Chefão' : `${o?.T?.ic || '🧟'} ${o?.T?.nome || 'Zumbi'}`, m.ex ? 'balde' : null, m.h, m.by === net.myId, false);
+      if (m.by && !m.bm) killFeed(nameOf(m.by), m.b ? '👹 Chefão' : `${o?.T?.ic || '🧟'} ${o?.T?.nome || 'Zumbi'}`, m.ex ? 'balde' : null, m.h, m.by === net.myId, false);
       return true;
     }
     case 'zclear': clearZombies(); if (Z.eventoView) zEventoLook(null); return true;
@@ -5921,7 +5998,8 @@ function zOnNet(m) {
       if (d < 22) { shake = Math.max(shake, 0.3 * (1 - d / 22)); $('scream').classList.remove('on'); void $('scream').offsetWidth; $('scream').classList.add('on'); }
       return true;
     }
-    case 'bought': { const p = net.players[m.id]; if (p && !net.isHost) { /* o roster traz o estado completo */ } onBought(m); return true; }
+    case 'bought': onBought(m); return true;
+    case 'caixa': onCaixa(m); return true;
     case 'zbota': zsom('bota', new THREE.Vector3(+m.x, 1, +m.z)); burst(new THREE.Vector3(+m.x, 0.8, +m.z), 0xf0e0b0, 14, 3); return true;
     case 'down':
       if (m.id === net.myId) {
@@ -5935,8 +6013,8 @@ function zOnNet(m) {
       }
       return true;
     case 'up':
-      if (m.id === net.myId) { meDown = false; player.hp = m.hp; banner(`${nameOf(m.by)} te levantou! 💪`, 2); updateHud(); }
-      else { const r = remotes.get(m.id); if (r) r.down = false; feed(m.by === net.myId ? `Você levantou ${nameOf(m.id)}!` : `${nameOf(m.by)} levantou ${nameOf(m.id)}`); }
+      if (m.id === net.myId) { meDown = false; player.hp = m.hp; banner(m.auto ? '🩹 Segunda Chance: você levantou!' : `${nameOf(m.by)} te levantou! 💪`, 2); updateHud(); }
+      else { const r = remotes.get(m.id); if (r) r.down = false; feed(m.auto ? `🩹 ${nameOf(m.id)} levantou sozinho (Segunda Chance)` : m.by === net.myId ? `Você levantou ${nameOf(m.id)}!` : `${nameOf(m.by)} levantou ${nameOf(m.id)}`); }
       return true;
     case 'bled':
       if (m.id === net.myId) { meDown = false; meDead = true; banner('Você morreu… volta na próxima rodada', 4); }
@@ -6027,9 +6105,9 @@ function zClientTick(dt) {
     $('reviveText').textContent = segurando ? `Levantando ${alvo.name}…` : (isTouch ? `Segure LEVANTAR para levantar ${alvo.name}` : `Segure E para levantar ${alvo.name}`);
     if (segurando && reviveT >= 0) {
       reviveT += dt;
-      if (reviveT >= REVIVE_S) { sendNet({ t: 'revive', target: alvo.id }); reviveT = -1; setTimeout(() => { if (reviveT < 0) reviveT = 0; }, 1500); }
+      if (reviveT >= REVIVE_S * (temVant(net.myId, 'ajuda') ? 0.5 : 1)) { sendNet({ t: 'revive', target: alvo.id }); reviveT = -1; setTimeout(() => { if (reviveT < 0) reviveT = 0; }, 1500); }
     } else if (!segurando) reviveT = 0;
-    $('reviveFill').style.width = Math.max(0, Math.min(1, reviveT / REVIVE_S)) * 100 + '%';
+    $('reviveFill').style.width = Math.max(0, Math.min(1, reviveT / (REVIVE_S * (temVant(net.myId, 'ajuda') ? 0.5 : 1)))) * 100 + '%';
   }
   // gemidos e berros dos monstros por perto
   if (Math.random() < dt * 1.1) {
@@ -6367,13 +6445,24 @@ placeObjectives();
 // Só vale nas hordas. Começa com uma pistola fraca; pintar monstros dá 💰; na lojinha (um quiosque em
 // todo mapa) dá para comprar uma das 2 armas da vez ou melhorar a arma na mão (até o nível NIVEL_MAX).
 // O dono da sala guarda o dinheiro e as armas de cada um (p.cash e p.inv).
-const WPRECO = { pistola: 250, rolo: 300, revolver: 450, smg: 500, marcador: 550, mangueira: 600, escopeta: 750, rajada: 800, metralha: 850, besta: 900, sniper: 950, balde: 1250 };
+const WPRECO = { bazuca: 1600, raio: 1500, confete: 1300, pistola: 250, rolo: 300, revolver: 450, smg: 500, marcador: 550, mangueira: 600, escopeta: 750, rajada: 800, metralha: 850, besta: 900, sniper: 950, balde: 1250 };
 const NIVEL_MAX = 10;
 const RECOMPENSA = { comum: 50, corredor: 60, rastejante: 40, cuspidor: 80, bomba: 70, saltador: 90, fantasma: 100, tanque: 140, gritador: 110, mae: 250 };
 const INV_INICIAL = () => [{ w: 'pistola', l: zd().nivel }]; // nos níveis fáceis a pistola já começa melhor
 const upPreco = (w, l) => Math.round((WPRECO[w] * 0.4 + 250) * 1.6 ** (l - 1));
 // as armas da lojinha vêm melhores com o passar das rodadas (nível 1 até a 4ª, 2 até a 8ª…)
 const zNivelLoja = () => Math.min(NIVEL_MAX, 1 + Math.floor((Math.max(1, (net.isHost ? Z.round : Z.roundView) | 0) - 1) / 4));
+// 🥤 vantagens: valem até você MORRER (cair e ser levantado não tira); o dono guarda em p.vant
+const VANTAGENS = {
+  vida:  { ic: '❤️', nome: 'Coração de Ferro', desc: '+50 de vida máxima', preco: 2500 },
+  rec:   { ic: '⚡', nome: 'Mão Ligeira', desc: 'recarrega na metade do tempo', preco: 2000 },
+  corre: { ic: '🏃', nome: 'Pé de Pano', desc: 'anda e corre 20% mais rápido', preco: 1500 },
+  ajuda: { ic: '🤝', nome: 'Socorrista', desc: 'levanta amigos na metade do tempo', preco: 1500 },
+  volta: { ic: '🩹', nome: 'Segunda Chance', desc: 'quando cair, levanta sozinho em 5 s (1× por rodada)', preco: 3500 },
+};
+const temVant = (id, k) => isZumbi() && (net.players[id]?.vant || []).includes(k);
+// 🎁 caixa misteriosa: arma sorteada (às vezes uma especial) no nível da rodada, com sorte +1/+2
+const caixaPreco = () => 950 + 50 * Math.max(1, (net.isHost ? Z.round : Z.roundView) | 0);
 // arma que já chega melhorada (troca) custa o preço dela + todas as melhorias até aquele nível
 const precoArma = (w, l = 1) => { let v = WPRECO[w]; for (let k = 1; k < l; k++) v += upPreco(w, k); return v; };
 // força da arma por nível nas hordas (nível 1 = 60% do normal, cada nível +22%: nível 10 ≈ 3,6×)
@@ -6388,10 +6477,10 @@ function lojaOfertas(p) {
 }
 // dono: prepara dinheiro e armas de todo mundo (começo das hordas e quem entra)
 function zEcoInit(p, zerar) {
-  if (zerar || !Array.isArray(p.inv)) { p.inv = INV_INICIAL(); p.cash = 0; }
+  if (zerar || !Array.isArray(p.inv)) { p.inv = INV_INICIAL(); p.cash = 0; p.vant = []; p.caixa = null; }
   p.loja = lojaOfertas(p);
 }
-function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.cash = (p.cash | 0) + Math.round(v * zd().grana); return p.cash; }
+function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.cash = (p.cash | 0) + Math.round(v * zd().grana * (buffOn('zgrana') ? 2 : 1)); return p.cash; }
 // compra (dono): op 0/1 = uma das 2 ofertas no espaço slot, op 2 = melhorar a arma escolhida (cur).
 // Com os dois espaços ocupados é uma TROCA: a nova entra no lugar da escolhida com o mesmo nível dela
 // (mas paga as melhorias que ela já traz: precoArma; não tem dinheiro de volta)
@@ -6400,14 +6489,34 @@ function zComprar(from, m) {
   const q = hostPos(from), naLoja = q && Math.hypot(q.x - obj.loja.x, q.z - obj.loja.z) <= 4.5;
   if (!naLoja && !(Z.breakT > 0)) return; // fora do intervalo só no quiosque
   if (!Array.isArray(p.inv)) zEcoInit(p, true);
-  if ((m.op | 0) === 2) {
+  const op = m.op | 0;
+  if (op === 5) { // vantagem
+    const k = m.v, V = VANTAGENS[k]; if (!V || (p.vant ||= []).includes(k) || (p.cash | 0) < V.preco) return;
+    p.cash -= V.preco; p.vant.push(k);
+    if (k === 'vida') { p.hp += 50; broadcast({ t: 'hp', id: from, hp: p.hp }); }
+    broadcast({ t: 'bought', id: from, vant: k });
+  } else if (op === 3) { // gira a caixa
+    const preco = caixaPreco(); if ((p.cash | 0) < preco) return;
+    const tem = new Set(p.inv.map(x => x.w)), esp = ESPECIAIS.filter(w => !tem.has(w)), nor = WEAPON_ORDER.filter(w => WPRECO[w] && !tem.has(w));
+    const w = esp.length && Math.random() < 0.25 ? randomFrom(esp) : randomFrom(nor);
+    const l = Math.min(NIVEL_MAX, zNivelLoja() + (Math.random() < 0.25 ? 1 : 0) + (Math.random() < 0.08 ? 1 : 0));
+    p.cash -= preco; p.caixa = { w, l };
+    broadcast({ t: 'caixa', id: from, w, l });
+  } else if (op === 4 || op === 6) { // pega ou deixa o que saiu da caixa
+    const c = p.caixa; if (!c) return; p.caixa = null;
+    if (op === 4 && !p.inv.some(x => x.w === c.w)) {
+      const slot = p.inv.length < 2 ? p.inv.length : (m.slot === 1 ? 1 : 0), velho = p.inv[slot];
+      p.inv[slot] = { w: c.w, l: c.l };
+      broadcast({ t: 'bought', id: from, w: c.w, l: c.l, tr: velho?.w || null, cx: 1 });
+    }
+  } else if (op === 2) {
     const s = p.inv.find(x => x.w === m.cur) || p.inv[0];
     if (!s || s.l >= NIVEL_MAX) return;
     const preco = upPreco(s.w, s.l); if ((p.cash | 0) < preco) return;
     p.cash -= preco; s.l++;
     broadcast({ t: 'bought', id: from, w: s.w, l: s.l, up: 1 });
   } else {
-    const op = m.op | 0, w = p.loja?.[op];
+    const w = p.loja?.[op];
     if (!w || !WPRECO[w] || p.inv.some(x => x.w === w)) return;
     const slot = p.inv.length < 2 ? p.inv.length : (m.slot === 1 ? 1 : 0);
     const velho = p.inv[slot], l = Math.max(velho ? velho.l : 1, zNivelLoja()), preco = precoArma(w, l);
@@ -6429,8 +6538,8 @@ const effCache = new Map();
 function effW(id) {
   const W = WEAPONS[id];
   if (!W || !isZumbi() || id === 'granada') return W;
-  const l = zLevel(id), k = id + l;
-  if (!effCache.has(k)) effCache.set(k, { ...W, dmg: W.dmg * zMult(l), mag: Math.round(W.mag * (1 + 0.1 * (l - 1))), reload: W.reload * (1 - 0.04 * (l - 1)), cd: W.cd * (1 - 0.03 * (l - 1)), lvl: l });
+  const l = zLevel(id), rap = temVant(net.myId, 'rec'), k = id + l + (rap ? 'r' : '');
+  if (!effCache.has(k)) effCache.set(k, { ...W, dmg: W.dmg * zMult(l), mag: Math.round(W.mag * (1 + 0.1 * (l - 1))), reload: W.reload * (1 - 0.04 * (l - 1)) * (rap ? 0.5 : 1), cd: W.cd * (1 - 0.03 * (l - 1)), lvl: l });
   return effCache.get(k);
 }
 const estrelas = l => `nv ${l} ${'★'.repeat(Math.min(5, l))}${l > 5 ? '+' + (l - 5) : ''}`;
@@ -6456,9 +6565,14 @@ function toggleShop(on = !shopOpen) {
 }
 // qual das 2 armas é a escolhida (ela é a que melhora e a que sai na troca)
 let shopSlot = -1;
+let shopTab = 'armas', caixaView = null; // caixaView = { w, l, ate } (o que saiu da caixa para mim)
+const SHOP_TABS = [['armas', '🔫 Armas'], ['vant', '🥤 Vantagens'], ['caixa', '🎁 Caixa']];
+function trocaAba(d) { const i = SHOP_TABS.findIndex(t => t[0] === shopTab); shopTab = SHOP_TABS[(i + d + SHOP_TABS.length) % SHOP_TABS.length][0]; ui.tab?.(); renderShop(); }
 function renderShop() {
   const me = net.players[net.myId]; if (!me) return;
   const cash = me.cash | 0, inv = zInv(), mao = player.weapon, cheio = inv.length >= 2;
+  $('shopTabs').replaceChildren(...SHOP_TABS.map(([k, t]) => { const b = document.createElement('button'); b.textContent = t; b.className = k === shopTab ? 'on' : ''; b.onclick = () => { shopTab = k; renderShop(); }; return b; }));
+  $('shopSlots').style.display = shopTab === 'vant' ? 'none' : '';
   if (!inv[shopSlot]) shopSlot = Math.max(0, inv.findIndex(x => x.w === mao));
   const sel = inv[shopSlot];
   $('shopCash').textContent = `💰 ${cash}`;
@@ -6495,7 +6609,55 @@ function renderShop() {
     const W = WEAPONS[sel.w], preco = upPreco(sel.w, sel.l);
     cards.push(card(3, '⬆️', `Melhorar ${W.nome}`, `nível ${sel.l} → ${sel.l + 1}: +${Math.round((zMult(sel.l + 1) / zMult(sel.l) - 1) * 100)}% dano, pente maior, recarga e tiro mais rápidos`, `💰 ${preco}`, cash >= preco, melhorarArma, 'up'));
   } else if (sel) cards.push(card(3, '🏆', `${WEAPONS[sel.w].nome} no máximo`, `Nível ${NIVEL_MAX}: não dá para melhorar mais`, estrelas(NIVEL_MAX), false, () => {}, 'up'));
+  $('shopDica').firstChild.textContent = shopTab === 'vant' ? 'Vantagens valem até você morrer (cair e ser levantado não tira). Cada uma só uma vez. '
+    : shopTab === 'caixa' ? 'A caixa sorteia uma arma no nível da rodada (às vezes melhor) e, com sorte, uma ARMA ESPECIAL que só existe aqui. Se não gostar, deixe. Com 2 armas, ela entra no lugar da escolhida. '
+    : 'Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. ';
+  $('shopDica').querySelector('.kbdHint').textContent = (shopTab === 'vant' ? '1–5 compra' : shopTab === 'caixa' ? '1 gira · 2 pega · 3 deixa · Q escolhe a arma' : '1–2 compra · 3/U melhora · Q escolhe a arma') + ' · ←/→ troca de aba · E/Esc fecha';
+  if (shopTab === 'vant') {
+    const mine = me.vant || [];
+    $('shopCards').replaceChildren(...Object.entries(VANTAGENS).map(([k, V], i) => mine.includes(k)
+      ? card(i + 1, V.ic, V.nome, V.desc, '✅ você tem', false, () => {}, 'vant tem')
+      : card(i + 1, V.ic, V.nome, V.desc, `💰 ${V.preco}`, cash >= V.preco, () => comprarVant(k), 'vant')));
+    return;
+  }
+  if (shopTab === 'caixa') {
+    const preco = caixaPreco(), girando = caixaView && performance.now() < caixaView.ate;
+    const lista = [card(1, '🎁', 'Caixa misteriosa', `arma sorteada no nível ${zNivelLoja()} (com sorte, mais) · 25% de chance de arma ESPECIAL: ${ESPECIAIS.map(w => WEAPONS[w].ic + ' ' + WEAPONS[w].nome).join(', ')}`, `💰 ${preco}`, cash >= preco && !caixaView, girarCaixa, 'caixa')];
+    if (caixaView) {
+      const W = WEAPONS[girando ? randomFrom([...WEAPON_ORDER, ...ESPECIAIS]) : caixaView.w];
+      const destino = cheio ? `entra no lugar da ${WEAPONS[sel.w].nome} ${estrelas(sel.l)}` : 'vai para o espaço vazio';
+      lista.push(card(2, W.ic, girando ? 'Sorteando…' : `${W.especial ? '✨ ESPECIAL! ' : ''}${W.nome} ${estrelas(caixaView.l)}`, girando ? '…' : `${W.desc} · ${destino}`, girando ? '🎲' : '✋ PEGAR', !girando, pegarCaixa, 'caixa saiu' + (girando ? '' : ' pronto')));
+      if (!girando) lista.push(card(3, '🗑️', 'Deixar', 'não quero essa: devolve para a caixa (sem dinheiro de volta)', 'deixar', true, deixarCaixa, 'up'));
+    }
+    $('shopCards').replaceChildren(...lista);
+    return;
+  }
   $('shopCards').replaceChildren(...cards);
+}
+function comprarVant(k) {
+  const me = net.players[net.myId], V = VANTAGENS[k]; if (!shopOpen || !me || !V || (me.vant || []).includes(k)) return;
+  if ((me.cash | 0) < V.preco) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
+  sendNet({ t: 'buy', op: 5, v: k });
+}
+function girarCaixa() {
+  const me = net.players[net.myId]; if (!shopOpen || !me || caixaView) return;
+  if ((me.cash | 0) < caixaPreco()) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
+  sendNet({ t: 'buy', op: 3 });
+}
+function pegarCaixa() { if (!caixaView || performance.now() < caixaView.ate) return; sendNet({ t: 'buy', op: 4, slot: shopSlot }); caixaView = null; renderShop(); }
+function deixarCaixa() { if (!caixaView || performance.now() < caixaView.ate) return; sendNet({ t: 'buy', op: 6 }); caixaView = null; feed('🎁 Você deixou a arma na caixa'); renderShop(); }
+// saiu algo da caixa (para mim: anima; para os outros: avisa se foi especial)
+function onCaixa(m) {
+  const W = WEAPONS[m.w]; if (!W) return;
+  if (m.id !== net.myId) { if (W.especial) feed(`🎁 ${nameOf(m.id)} tirou ✨ ${W.ic} ${W.nome} na caixa!`); return; }
+  caixaView = { w: m.w, l: +m.l || 1, ate: performance.now() + 1800 };
+  shopTab = 'caixa';
+  const giro = setInterval(() => { if (shopOpen) renderShop(); tone(900 + Math.random() * 600, 0.04, { type: 'square', vol: 0.025 }); }, 110);
+  setTimeout(() => {
+    clearInterval(giro); if (shopOpen) renderShop();
+    if (W.especial) { banner(`✨ ${W.ic} ${W.nome}!`, 2); [784, 1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.16, { type: 'triangle', vol: 0.05, delay: i * 0.08 })); }
+    else tone(660, 0.15, { type: 'triangle', vol: 0.05 });
+  }, 1800);
 }
 function comprarArma(op) {
   if (!shopOpen) return;
@@ -6512,11 +6674,21 @@ function melhorarArma() {
   sendNet({ t: 'buy', op: 2, cur: s.w });
 }
 // teclas: 1 e 2 compram as ofertas, 3 (ou U) melhora, Q troca qual arma está escolhida
-function comprar(n) { if (n < 2) comprarArma(n); else if (n === 2) melhorarArma(); }
+function comprar(n) {
+  if (shopTab === 'vant') { const k = Object.keys(VANTAGENS)[n]; if (k) comprarVant(k); }
+  else if (shopTab === 'caixa') { if (n === 0) girarCaixa(); else if (n === 1) pegarCaixa(); else if (n === 2) deixarCaixa(); }
+  else if (n < 2) comprarArma(n); else if (n === 2) melhorarArma();
+}
 
 function onBought(m) {
-  if (m.id !== net.myId) { if (!m.up) feed(`${nameOf(m.id)} comprou ${WEAPONS[m.w]?.ic} ${WEAPONS[m.w]?.nome}`); return; }
-  if (m.tr && WEAPONS[m.tr]) feed(`🔁 Trocou ${WEAPONS[m.tr].nome} por ${WEAPONS[m.w].nome} (nível ${m.l} mantido)`);
+  const V = VANTAGENS[m.vant];
+  if (m.id !== net.myId) { if (V) feed(`🥤 ${nameOf(m.id)} pegou ${V.ic} ${V.nome}`); else if (!m.up && !m.cx) feed(`${nameOf(m.id)} comprou ${WEAPONS[m.w]?.ic} ${WEAPONS[m.w]?.nome}`); return; }
+  if (V) {
+    banner(`${V.ic} ${V.nome}! ${V.desc}`, 2.2); [523, 659, 784].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.05, delay: i * 0.06 }));
+    setTimeout(() => { effCache.clear(); updateHud(); if (shopOpen) renderShop(); }, 120);
+    return;
+  }
+  if (m.tr && WEAPONS[m.tr]) feed(m.cx ? `🎁 Trocou ${WEAPONS[m.tr].nome} por ${WEAPONS[m.w].nome} da caixa` : `🔁 Trocou ${WEAPONS[m.tr].nome} por ${WEAPONS[m.w].nome} (nível ${m.l} mantido)`);
   // caixa registradora
   [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.045, delay: i * 0.05 }));
   noise(0.15, { type: 'highpass', f: 5000, vol: 0.03, delay: 0.2 });
@@ -6562,6 +6734,12 @@ function buildLoja() {
   vend.root.position.set(0, 0, -0.9); vend.gun.visible = false; vend.armL.rotation.x = vend.armR.rotation.x = -0.6; g.add(vend.root);
   const feixe = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 16, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.16, depthWrite: false })); feixe.position.y = 8; g.add(feixe);
   const ic = iconSprite('💰', 0xffd23d); ic.position.y = 4.6; ic.scale.set(1.1, 1.1, 1); g.add(ic);
+  // 🎁 caixa misteriosa e latinhas das vantagens em cima do balcão
+  const bau = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x7a3dff, emissive: 0x3d1a8a, emissiveIntensity: 0.5 })); bau.position.set(1.05, 1.45, 0.1);
+  const tampaB = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.12, 0.56), L(0xffd23d)); tampaB.position.set(1.05, 1.74, 0.1);
+  const interro = signText('?', 0.4, 0.4, '#ffd23d', '#7a3dff', 'bold 200px system-ui'); interro.position.set(1.05, 1.46, 0.36);
+  g.add(bau, tampaB, interro);
+  [0xff3d7f, 0x3dff8b, 0x3db8ff, 0xffd23d].forEach((c, i) => { const lata = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.26, 10), L(c)); lata.position.set(-1.3 + i * 0.22, 1.33, 0.25); g.add(lata); });
   obj.group.add(g);
   obj.lojaMesh = { g, ic, vend };
   // balcão sólido
@@ -6994,7 +7172,7 @@ function updatePlayer(dt) {
   player.slowT = Math.max(0, (player.slowT || 0) - dt);
   const boost = (player.speedT > 0 ? 1.6 : 1) * (player.slowT > 0 ? 0.55 : 1);
   player.sprinting = (keys.ShiftLeft || keys.ShiftRight || stickFull) && mz > 0.3 && !player.crouch && !meDown;
-  const speed = meDown ? 1.2 : (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost * regra('velo');
+  const speed = meDown ? 1.2 : (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost * regra('velo') * (temVant(net.myId, 'corre') ? 1.2 : 1);
   player.moveDir = player.moveDir || new THREE.Vector3();
   player.moveDir.set(fwd.x * mz + right.x * mx, 0, fwd.z * mz + right.z * mx);
 
@@ -7484,7 +7662,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
