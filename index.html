@@ -1953,7 +1953,6 @@ function buildFazenda() {
   barrel(24, 44, 0x8a3a1a); barrel(25.2, 44.6, 0x3a5a8a);
   const silo = deco(meshAt(new THREE.CylinderGeometry(3, 3, 12, 18), mat('silo', () => lam(0x9aa0a6)), 22, 6, 28)); collider(22, 28, 5.4, 5.4, 0, 12, silo);
   deco(meshAt(new THREE.SphereGeometry(3, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat('silo', () => lam(0x9aa0a6)), 22, 12, 28), false);
-  const lg = new THREE.PointLight(0x9fd0ff, 3.5, 16, 1.4); lg.position.set(33, 4.4, 39); mapGroup.add(lg);
 
   // ===== 🐄 Pasto (z -50..-22): campo aberto, cata-vento, rolos de feno e o heliponto
   floorPatch(grama, 0, -36, 100, 28, 0.012);
@@ -2043,6 +2042,22 @@ function buildFazenda() {
     inicio: [[-5, 26], [-3, 30], [3.5, 25.5], [5, 31]],
     loja: [-3.5, 31.3],
   };
+  // ⚡ geradores quebrados (quintal, celeiro, galpão): cada um acende a sua área; os 3 = energia
+  const geraMat = mat('gerador', () => lam(0xd8a520)), motorMat = mat('motorG', () => lam(0x45484d)), bulbOff = mat('bulbOff', () => lam(0x3a3a30));
+  FAZ.gens = [[6, -17, 'quintal', [[-16, 18], [12, 18], [-4, -18], [8, -2]]], [-41, 4, 'celeiroD', [[-35, -8, 5.6], [-35, 3, 5.6], [-30, 15], [-46, -18]]], [25, 36, 'galpaoD', [[28, 39, 4.6], [38, 39, 4.6], [36, 26], [46, 20]]]].map(([x, z, zona, lamps], g) => {
+    const base = deco(meshAt(new THREE.BoxGeometry(1.7, 1.1, 1.1), geraMat, x, 0.55, z)); collider(x, z, 1.8, 1.2, 0, 1.1, base);
+    const motor = deco(meshAt(new THREE.CylinderGeometry(0.36, 0.36, 0.9, 12), motorMat, x, 1.32, z)); motor.rotation.z = Math.PI / 2;
+    const led = deco(meshAt(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b }), x + 0.7, 1.25, z + 0.45), false);
+    const placa = signText(`⚡ GERADOR ${g + 1}`, 1.4, 0.32, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); placa.position.set(x, 1.95, z + 0.56); mapGroup.add(placa);
+    const bulbs = lamps.map(([lx, lz, ly = 3.6]) => {
+      if (ly > 4) return deco(meshAt(new THREE.BoxGeometry(1.4, 0.14, 0.4), bulbOff, lx, ly, lz), false); // luminária no teto
+      addBox(lx, lz, 0.25, ly, 0.25, madeiraEsc);
+      return deco(meshAt(new THREE.BoxGeometry(0.5, 0.3, 0.5), bulbOff, lx, ly + 0.15, lz), false);
+    });
+    const luz = new THREE.PointLight(0xfff0c0, 0, 30, 1.2); luz.position.set(lamps[0][0], (lamps[0][2] || 3.6) - 0.4, lamps[0][1]); mapGroup.add(luz);
+    return { x, z, zona, prog: 0, ok: false, motor, led, bulbs, luz };
+  });
+  FAZ.energia = false;
   // 🪵 barricadas: 5 tábuas em cada janela (FAZ.tab = quantas ainda estão pregadas)
   FAZ.janelas = FAZ.passagens.filter(P => P.tipo === 'janela');
   FAZ.janelas.forEach((P, j) => { P.j = j; });
@@ -2063,6 +2078,7 @@ function buildFazenda() {
     fogo.scale.set(1 + Math.sin(k / 90) * 0.12, 1 + Math.sin(k / 70) * 0.2, 1); fl.intensity = 6 + Math.sin(k / 60) * 1.4;
     varanda.intensity = Math.random() < 0.015 ? 0.4 : 6; // a luz da varanda falha de vez em quando
     helice.rotation.z += dt * 0.6;
+    for (const G of FAZ.gens) if (G.ok) { G.motor.position.y = 1.32 + Math.sin(k / 25) * 0.015; } else if (G.prog > 0 && Math.random() < 0.08) burst(new THREE.Vector3(G.x, 1.6, G.z), 0xffd23d, 2, 2.5);
     for (const P of FAZ.portas) { const alvo = P.aberta ? P.abre : 0; P.ang += (alvo - P.ang) * Math.min(1, dt * 4); P.pivot.rotation.y = P.ang; }
   };
 }
@@ -2855,7 +2871,7 @@ function updateHud() {
       $('score').textContent = Z.roundView ? `🧟 Rodada ${Z.roundView} · restam ${Z.left}${tipos ? ' · ' + tipos : ''}` : '🧟 Prepare-se…';
       const O = Z.objView, D = Z.dzView, linhas = [];
       if (O) linhas.push(O.k === 'gen' ? (O.f ? '💥 Gerador quebrado' : `⚡ Proteja o gerador: ${O.max ? Math.round(O.hp / O.max * 100) : 0}%`) : O.ok ? '📍 Área segura!' : `📍 Segure a área: ${Math.floor(O.t)}/${O.meta} s`);
-      if (FAZ && isMissao()) { const zn = zonaInfo(fazZonaVista), prox = FAZ.portas.find(P => !P.aberta); linhas.unshift(`${zn ? zn.nome : '🌾 Fazenda'}${prox ? ` · 🔒 próxima: ${prox.nome} (💰 ${prox.preco})` : ''}`); }
+      if (FAZ && isMissao()) { const zn = zonaInfo(fazZonaVista), ng = FAZ.gens.filter(G => G.ok).length; linhas.unshift(`${zn ? zn.nome : '🌾 Fazenda'} · ${!FAZ.portas[0].aberta ? '🎯 Abra a porta da frente (💰 750)' : !FAZ.energia ? `🎯 Liguem os geradores ⚡ ${ng}/3` : '⚡ Energia ligada'}`); }
       if (D) linhas.push(D.ok ? '🏅 Desafio cumprido!' : `${DESAFIOS[D.k].ic} ${DESAFIOS[D.k].txt(D.n)} (${Math.min(D.p, D.n)}/${D.n})`);
       obj = linhas.join(' · ');
     } else if (isTdm()) {
@@ -3042,7 +3058,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG' && !e.repeat) throwGrenade();
   if (e.code === 'KeyF' && !e.repeat) placeShield();
   if (e.code === 'KeyV' && !e.repeat) toggleQuick();
-  if (e.code === 'KeyE' && !e.repeat) { if (shopOpen) toggleShop(); else if (janelaPerto() >= 0) { /* segurar E prega (missaoTick) */ } else if (pertoLoja()) toggleShop(); else useDoor(); }
+  if (e.code === 'KeyE' && !e.repeat) { if (shopOpen) toggleShop(); else if (janelaPerto() >= 0 || geradorPerto() >= 0) { /* segurar E prega/conserta (missaoTick) */ } else if (pertoLoja()) toggleShop(); else useDoor(); }
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) jumpPressed(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') renderBoard(); });
@@ -3597,7 +3613,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 29;
+const VERSAO = 30;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -3747,6 +3763,7 @@ function hostHandle(from, m) {
       break;
     case 'pporta': if (isMissao()) fazComprarPorta(from, m.i | 0); break;
     case 'prega': if (isMissao()) fazPregar(from, m.j | 0); break;
+    case 'conserta': if (isMissao()) fazConsertar(from, m.g | 0); break;
     case 'door': {
       const i = m.i | 0; if (!doors[i]) return;
       broadcast({ t: 'door', i, o: m.o ? 1 : 0 });
@@ -5919,7 +5936,7 @@ function zStartRound(r) {
     p.loja = lojaOfertas(p);
   }
   sendRoster();
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
@@ -6608,6 +6625,7 @@ function zOnNet(m) {
       Z.roundView = m.r; zIntervaloAte = 0; updateHud();
       if (Array.isArray(m.rt)) onRetrato({ rt: m.rt });
       if (Array.isArray(m.pp)) for (const i of m.pp) fazAbrirPorta(i, null, true);
+      if (Array.isArray(m.gn) && FAZ) { m.gn.forEach((v, g) => { const G = FAZ.gens[g]; if (!G) return; G.prog = +v || 0; if (v >= 1 && !G.vis) fazGeradorLigado(g, null, true); }); if (m.gn.every(v => v >= 1)) fazEnergia(true); }
       if (Array.isArray(m.tb) && FAZ) m.tb.forEach((n, j) => { if (FAZ.tabMesh[j]) { FAZ.tab[j] = n | 0; fazTabuasView(j); } });
       Z.dzView = Array.isArray(m.dz) && DESAFIOS[m.dz[0]] ? { k: m.dz[0], n: +m.dz[1] || 1, p: 0, ok: false } : null;
       if (Z.dzView) feed(`${DESAFIOS[Z.dzView.k].ic} Desafio da rodada: ${DESAFIOS[Z.dzView.k].txt(Z.dzView.n)} (+${300 + 25 * m.r} 💰)`);
@@ -6679,11 +6697,19 @@ function zOnNet(m) {
     }
     case 'retrato': onRetrato(m); return true;
     case 'pporta': fazAbrirPorta(m.i | 0, m.by); updateHud(); return true;
+    case 'gerador': {
+      const G = FAZ?.gens[m.g | 0]; if (!G) return true;
+      if (m.barulho) { feed(`⚠️ O barulho do gerador ${(m.g | 0) + 1} está atraindo zumbis!`); tone(80, 0.8, { type: 'sawtooth', vol: 0.07, lp: 400 }); }
+      G.prog = +m.p || 0;
+      if (m.ok && !G.vis) fazGeradorLigado(m.g | 0, m.by);
+      updateHud(); return true;
+    }
+    case 'energia': fazEnergia(); return true;
     case 'tabua': {
       const j = m.j | 0, n = Math.max(0, Math.min(TABUAS, m.n | 0)); if (!FAZ?.tabMesh[j]) return true;
-      const antes = FAZ.tab[j]; FAZ.tab[j] = n; fazTabuasView(j);
+      FAZ.tab[j] = n; fazTabuasView(j);
       const P = FAZ.janelas[j], pos = new THREE.Vector3((P.pa[0] + P.pb[0]) / 2, 1.5, (P.pa[1] + P.pb[1]) / 2), v = longe(pos);
-      if (n < antes) { noise(0.25, { type: 'bandpass', f: 900, q: 1.2, vol: 0.12 * v }); tone(140, 0.12, { type: 'square', vol: 0.05 * v, slide: -60, lp: 900 }); burst(pos, 0x8a6236, 8, 3); if (n === 0 && v > 0.4) feed('🪵 Arrebentaram uma janela!'); }
+      if (m.q) { noise(0.25, { type: 'bandpass', f: 900, q: 1.2, vol: 0.12 * v }); tone(140, 0.12, { type: 'square', vol: 0.05 * v, slide: -60, lp: 900 }); burst(pos, 0x8a6236, 8, 3); if (n === 0 && v > 0.4) feed('🪵 Arrebentaram uma janela!'); }
       else { tone(880, 0.05, { type: 'square', vol: 0.05 * v, lp: 3000 }); tone(660, 0.06, { type: 'square', vol: 0.04 * v, lp: 2500, delay: 0.09 }); }
       if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); }
       return true;
@@ -7248,6 +7274,21 @@ function comprarPorta(i) {
   if ((me.cash | 0) < P.preco) { ui.erro(); feed(`💰 Precisa de ${P.preco} para abrir: ${P.nome}`); return; }
   sendNet({ t: 'pporta', i });
 }
+// ⚡ dono: consertando um gerador (segurar E; 12 s de trabalho no total, dá para ajudar)
+const GEN_S = 12;
+function fazConsertar(from, g) {
+  const G = FAZ?.gens[g], p = net.players[from], now = performance.now(); if (!G || G.ok || !p || p.dead || p.down) return;
+  const q = hostPos(from); if (!q || Math.hypot(q.x - G.x, q.z - G.z) > 2.9) return;
+  const dt = Math.min(0.35, (now - (p.conT || 0)) / 1000); p.conT = now; if (dt < 0.15) return;
+  if (G.prog === 0) { Z.toSpawn += 4 + nJog() * 2; broadcast({ t: 'gerador', g, p: 0, barulho: 1 }); } // o barulho atrai zumbis
+  G.prog = Math.min(1, G.prog + dt / GEN_S);
+  if (G.prog >= 1) {
+    G.ok = true; for (const id of Object.keys(net.players)) zPagar(id, 300);
+    broadcast({ t: 'gerador', g, p: 1, ok: 1, by: from });
+    if (FAZ.gens.every(x => x.ok)) broadcast({ t: 'energia' });
+    Z.rosterDirty = true;
+  } else if (now - (G.envT || 0) > 400) { G.envT = now; broadcast({ t: 'gerador', g, p: r2(G.prog) }); }
+}
 // dono: alguém pregou uma tábua (perto da janela, do lado de dentro; 0,7 s entre uma e outra)
 const PREGA_GRANA = 10, PREGA_MAX = 30; // dinheiro por tábua e quantas pagam por rodada
 function fazPregar(from, j) {
@@ -7276,9 +7317,32 @@ function fazAbrirPorta(i, by, quieto) {
   feed(`🔓 ${by === net.myId ? 'Você abriu' : nameOf(by) + ' abriu'} ${P.nome} (💰 ${P.preco})`);
   noise(0.6, { type: 'lowpass', f: 600, f2: 200, vol: 0.08 }); tone(196, 0.5, { type: 'sawtooth', vol: 0.05, slide: 60, lp: 900 });
 }
+function fazGeradorLigado(g, by, quieto) {
+  const G = FAZ.gens[g]; G.ok = true; G.vis = true; G.prog = 1;
+  G.led.material.color.setHex(0x3dff8b); G.luz.intensity = 18;
+  const on = mat('bulbOn', () => lam(0xfff0c0, { emissive: 0xfff0c0, emissiveIntensity: 1 }));
+  for (const b of G.bulbs) b.material = on;
+  if (quieto) return;
+  const n = FAZ.gens.filter(x => x.ok).length;
+  banner(`⚡ Gerador ${g + 1} ligado! (${n}/3)`, 2.4);
+  feed(`⚡ ${by === net.myId ? 'Você ligou' : nameOf(by) + ' ligou'} o gerador ${g + 1}: ${zonaInfo(G.zona)?.nome || ''} com luz · +300 💰 para todos`);
+  tone(60, 1.4, { type: 'sawtooth', vol: 0.08, slide: 40, lp: 600 }); noise(1, { type: 'lowpass', f: 300, vol: 0.05 });
+}
+function fazEnergia(quieto) {
+  if (!FAZ || FAZ.energia) return;
+  FAZ.energia = true;
+  // a fazenda inteira clareia um pouco
+  baseLook = { ...baseLook, hemiI: baseLook.hemiI * 1.6, fogFar: baseLook.fogFar + 18 }; applyClima();
+  if (quieto) return;
+  banner('⚡ ENERGIA RESTAURADA! Vantagens e Turbinar ligados', 3.5);
+  feed('🥤 As máquinas de vantagem e a ⚙️ Turbinar da lojinha agora funcionam.');
+  sfx.win();
+}
 function fazTabuasView(j) { FAZ.tabMesh[j].forEach((t, k) => { t.visible = k < FAZ.tab[j]; }); }
 function fazFecharTudo() {
   if (!FAZ) return;
+  if (FAZ.energia) { FAZ.energia = false; baseLook = { ...baseLook, hemiI: baseLook.hemiI / 1.6, fogFar: baseLook.fogFar - 18 }; applyClima(); }
+  for (const G of FAZ.gens) { G.ok = G.vis = false; G.prog = 0; G.luz.intensity = 0; G.led.material.color.setHex(0xff3b3b); for (const b of G.bulbs) b.material = mat('bulbOff', () => lam(0x3a3a30)); }
   FAZ.tab = FAZ.janelas.map(() => TABUAS); FAZ.janelas.forEach((P, j) => fazTabuasView(j));
   for (const P of FAZ.portas) { P.aberta = false; P.ang = 0; P.pivot.rotation.y = 0; for (const pl of P.placas) pl.visible = true; if (!obstacles.includes(P.o)) obstacles.push(P.o); }
   FAZ.ver = (FAZ.ver | 0) + 1; fazZonaVista = null;
@@ -7291,6 +7355,10 @@ function janelaPerto() {
   FAZ.janelas.forEach((P, j) => { if (FAZ.tab[j] >= TABUAS) return; const d0 = P.a === 'casa' ? P.pa : P.pb, d = Math.hypot(d0[0] - player.pos.x, d0[1] - player.pos.z); if (d < best) { best = d; idx = j; } });
   return idx;
 }
+function geradorPerto() {
+  if (!FAZ || !isMissao() || meDead || meDown) return -1;
+  return FAZ.gens.findIndex(G => !G.ok && Math.hypot(G.x - player.pos.x, G.z - player.pos.z) < 2.6);
+}
 let touchPrega = false, pregaCd = 0;
 // do meu lado: aviso de porta perto e o nome da zona quando entro nela
 let fazZonaVista = null;
@@ -7298,18 +7366,22 @@ function missaoTick(dt = 1 / 60) {
   if (!FAZ || !isMissao()) { $('portaPrompt').style.display = $('pregarBtn').style.display = 'none'; return; }
   const i = state === 'play' && !meDead && !meDown && !shopOpen ? portaPagaPerto() : -1;
   const jn = state === 'play' && !shopOpen ? janelaPerto() : -1;
-  const chave = i >= 0 ? 'p' + i : jn >= 0 ? `j${jn}:${FAZ.tab[jn]}` : '';
+  const gn = state === 'play' && !shopOpen && jn < 0 ? geradorPerto() : -1;
+  const chave = i >= 0 ? 'p' + i : jn >= 0 ? `j${jn}:${FAZ.tab[jn]}` : gn >= 0 ? `g${gn}:${Math.floor(FAZ.gens[gn].prog * 20)}` : '';
   if (chave !== missaoTick.i) {
     missaoTick.i = chave;
     const P = FAZ.portas[i];
     $('portaPrompt').innerHTML = P ? `🔒 ${isTouch ? 'Toque em <b>PORTA</b>' : 'Aperte <kbd>E</kbd>'} para abrir <b>${P.nome}</b> · 💰 ${P.preco}`
-      : jn >= 0 ? `🔨 ${isTouch ? 'Segure <b>PREGAR</b>' : 'Segure <kbd>E</kbd>'} para pregar tábuas na janela (${FAZ.tab[jn]}/${TABUAS})` : '';
+      : jn >= 0 ? `🔨 ${isTouch ? 'Segure <b>PREGAR</b>' : 'Segure <kbd>E</kbd>'} para pregar tábuas na janela (${FAZ.tab[jn]}/${TABUAS})`
+      : gn >= 0 ? `🔧 ${isTouch ? 'Segure <b>CONSERTAR</b>' : 'Segure <kbd>E</kbd>'} para consertar o gerador ${gn + 1} (${Math.round(FAZ.gens[gn].prog * 100)}%)` : '';
     $('portaPrompt').style.display = chave ? 'block' : 'none';
-    $('pregarBtn').style.display = jn >= 0 && isTouch ? 'flex' : 'none';
+    $('pregarBtn').style.display = (jn >= 0 || gn >= 0) && isTouch ? 'flex' : 'none';
+    $('pregarBtn').textContent = gn >= 0 ? '🔧 CONSERTAR' : '🔨 PREGAR';
   }
   // segurando E (ou PREGAR): uma tábua a cada 0,7 s
   pregaCd -= dt;
   if (jn >= 0 && (keys.KeyE || touchPrega) && pregaCd <= 0 && !reviveId) { pregaCd = 0.7; sendNet({ t: 'prega', j: jn }); gunGroup.rotation.x -= 0.4; }
+  if (gn >= 0 && (keys.KeyE || touchPrega) && pregaCd <= 0 && !reviveId) { pregaCd = 0.25; sendNet({ t: 'conserta', g: gn }); if (Math.random() < 0.5) { burst(new THREE.Vector3(FAZ.gens[gn].x, 1.5, FAZ.gens[gn].z), 0xffd23d, 3, 3); tone(1800 + Math.random() * 800, 0.03, { type: 'square', vol: 0.02 }); } }
   const zn = meDead ? null : zonaDe(player.pos.x, player.pos.z);
   if (zn && zn !== fazZonaVista) { const primeira = !fazZonaVista; fazZonaVista = zn; if (!primeira) feed(`📍 ${zonaInfo(zn)?.nome}`); updateHud(); }
 }
@@ -7375,6 +7447,7 @@ function zComprar(from, m) {
   if (!naLoja && !(Z.breakT > 0)) return; // fora do intervalo só no quiosque
   if (!Array.isArray(p.inv)) zEcoInit(p, true);
   const op = m.op | 0;
+  if (isMissao() && FAZ && !FAZ.energia && (op === 5 || op === 7 || op === 8)) return; // sem energia
   if (op === 5) { // vantagem
     const k = m.v, V = VANTAGENS[k]; if (!V || (p.vant ||= []).includes(k) || (p.cash | 0) < V.preco) return;
     p.cash -= V.preco; p.vant.push(k);
@@ -7504,6 +7577,8 @@ function renderShop() {
   if (sel && sel.l < NIVEL_MAX) {
     const W = WEAPONS[sel.w], preco = upPreco(sel.w, sel.l);
     cards.push(card(3, '⬆️', `Melhorar ${W.nome}`, `nível ${sel.l} → ${sel.l + 1}: +${Math.round((zMult(sel.l + 1) / zMult(sel.l) - 1) * 100)}% dano, pente maior, recarga e tiro mais rápidos`, `💰 ${preco}`, cash >= preco, melhorarArma, 'up'));
+  } else if (sel && !sel.t && isMissao() && FAZ && !FAZ.energia) {
+    cards.push(card(3, '🔌', 'Turbinar (sem energia)', 'A Máquina de Turbinar precisa dos 3 geradores ligados.', '⚡ desligado', false, () => {}, 'up turbo'));
   } else if (sel && !sel.t) {
     const E = TURBO[elemento(sel.w)], preco = turboPreco(sel.w);
     cards.push(card(3, '⚙️', `Turbinar ${WEAPONS[sel.w].nome}`, `vira ${WEAPONS[sel.w].nome} ${E.nome} ${E.ic}: dourada, +60% de dano, pente maior e ${E.desc}`, `💰 ${preco}`, cash >= preco, turbinarArma, 'up turbo'));
@@ -7512,6 +7587,10 @@ function renderShop() {
     : shopTab === 'caixa' ? 'A caixa sorteia uma arma no nível da rodada (às vezes melhor) e, com sorte, uma ARMA ESPECIAL que só existe aqui. Se não gostar, deixe. Com 2 armas, ela entra no lugar da escolhida. '
     : 'Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. ';
   $('shopDica').querySelector('.kbdHint').textContent = (shopTab === 'vant' ? '1–6 compra' : shopTab === 'caixa' ? '1 gira · 2 pega · 3 deixa · Q escolhe a arma' : '1–2 compra · 3/U melhora · Q escolhe a arma') + ' · ←/→ troca de aba · E/Esc fecha';
+  if (shopTab === 'vant' && isMissao() && FAZ && !FAZ.energia) {
+    $('shopCards').replaceChildren(card(1, '🔌', 'Sem energia', `As máquinas de vantagem estão desligadas. Liguem os 3 geradores da fazenda (${FAZ.gens.filter(G => G.ok).length}/3).`, '⚡ desligado', false, () => {}, 'vant'));
+    return;
+  }
   if (shopTab === 'vant') {
     const mine = me.vant || [];
     $('shopCards').replaceChildren(...Object.entries(VANTAGENS).map(([k, V], i) => mine.includes(k)
