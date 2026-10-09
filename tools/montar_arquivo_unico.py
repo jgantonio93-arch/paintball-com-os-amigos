@@ -21,6 +21,11 @@ tag = '<script src="amigos.secreto.js"></script>'
 assert tag in html
 html = html.replace(tag, '<script>' + (JOGO / 'amigos.secreto.js').read_text(encoding='utf-8') + '</script>')
 
+# ícone embutido; o manifesto (instalar o app) só funciona pelo site
+import base64
+html = html.replace('<link rel="manifest" href="manifest.webmanifest">\n', '')
+html = html.replace('href="icone-180.png"', 'href="data:image/png;base64,' + base64.b64encode((JOGO / 'icone-180.png').read_bytes()).decode() + '"')
+
 with tempfile.TemporaryDirectory() as tmp:
     for pacote, (caminho, tag) in LIBS.items():
         assert tag in html, f'tag do {pacote} não encontrada no index.html'

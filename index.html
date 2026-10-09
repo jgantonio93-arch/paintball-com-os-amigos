@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0d0f1f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Paintball">
 <title>Paintball com os Amigos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -188,6 +194,12 @@
   .avRow input { width:74px; padding:6px 8px; font-size:15px; }
   .avRow button { padding:6px 10px; border-radius:10px; border:0; font:inherit; font-weight:900; cursor:pointer; background:rgba(255,255,255,.14); color:#fff; }
   .avRow button.ok { background:var(--yel); color:#1a0b2e; }
+  .fsBtn { position:absolute; right:0; top:4px; z-index:2; border:1px solid rgba(255,255,255,.25); background:rgba(13,15,31,.6); color:#fff; font:inherit; font-size:12px; font-weight:900; padding:7px 10px; border-radius:12px; cursor:pointer; }
+  #fsAjuda { position:fixed; inset:0; z-index:42; display:none; align-items:center; justify-content:center; padding:16px; background:rgba(8,10,24,.88); overflow:auto; }
+  #fsAjuda.on { display:flex; }
+  #fsTxt { line-height:1.5; }
+  #fsAjuda .cvIn { background:linear-gradient(160deg,#3a1650,#13234a); }
+  @media (max-width:560px) { .fsBtn:not([hidden]) { position:static; display:block; margin:0 auto 6px; } }
   #criarBox { position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; padding:16px; background:radial-gradient(ellipse at center, rgba(40,10,60,.82), rgba(8,10,24,.94)); overflow:auto; }
   #criarBox.on { display:flex; animation:fadein .3s ease-out; }
   .cvIn { max-width:420px; width:100%; text-align:center; display:flex; flex-direction:column; gap:12px; align-items:stretch; padding:24px 20px; border-radius:24px; background:linear-gradient(160deg,rgba(255,61,127,.22),rgba(61,184,255,.18)); border:2px solid rgba(255,210,61,.55); box-shadow:0 0 50px rgba(255,61,127,.35); animation:pop .35s ease-out; }
@@ -621,6 +633,13 @@
   <div id="avList"></div>
   <button class="btn big" id="avFechar">FECHAR</button>
 </div></div>
+<div id="fsAjuda"><div class="cvIn">
+  <div class="cvFace">📲</div>
+  <h2>Jogar em tela cheia</h2>
+  <p id="fsTxt"></p>
+  <button class="btn big" id="fsInstalar" hidden>📲 INSTALAR O JOGO</button>
+  <button class="btn ghost" id="fsFechar">Entendi</button>
+</div></div>
 <div id="criarBox"><div class="cvIn">
   <div class="cvFace">📸</div>
   <h2>Crie seu personagem!</h2>
@@ -647,6 +666,7 @@
 <div class="screen" id="startScreen">
   <div class="menuWrap home">
     <header class="brand">
+      <button class="fsBtn" id="fsBtn" hidden>⛶ Tela cheia</button>
       <div class="logo"><span class="l1">PAINTBALL</span><span class="l2">com os Amigos</span></div>
       <div id="rotate">📱↻ Gire o celular para jogar deitado (fica melhor!)</div>
     </header>
@@ -905,6 +925,7 @@
       <button class="btn ghost" id="pauseRoomBtn">⚙️ Regras da sala</button>
       <button class="btn" id="pauseAdmBtn" hidden>🛡️ Vida dos jogadores</button>
       <button class="btn ghost" id="pauseSettingsBtn">🎮 Controles e ajustes</button>
+      <button class="btn ghost" id="pauseFsBtn" hidden>⛶ Tela cheia</button>
       <button class="btn danger" id="quitBtn">Sair para o menu</button>
     </div>
   </div>
@@ -3693,8 +3714,41 @@ function clearWorld() {
   $('killfeed').replaceChildren(); $('chatLog').replaceChildren();
 }
 
-function goFullscreen() {
-  if (!isTouch) return;
+// ----- tela cheia -----
+const fsApi = () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+const emTelaCheia = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+// aberto pelo ícone da tela de início (já é tela cheia)
+const instalado = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+let instalarEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); instalarEvt = e; });
+const ehIphone = () => /iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 && !fsApi());
+function atualizaFsBtn() {
+  const mostra = isTouch && !instalado();
+  const txt = emTelaCheia() ? '✕ Sair da tela cheia' : '⛶ Tela cheia';
+  for (const id of ['fsBtn', 'pauseFsBtn']) { $(id).hidden = !mostra; $(id).textContent = txt; }
+}
+function alternarTelaCheia() {
+  if (emTelaCheia()) { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); return; }
+  if (fsApi() && !ehIphone()) { goFullscreen(true); setTimeout(() => { if (!emTelaCheia()) ajudaTelaCheia(); }, 700); return; }
+  ajudaTelaCheia();
+}
+// iPhone não deixa site ficar em tela cheia: o jeito é pôr o jogo na tela de início
+function ajudaTelaCheia() {
+  $('fsTxt').innerHTML = ehIphone()
+    ? 'No iPhone o navegador não deixa sites ocuparem a tela toda. Mas dá para <b>instalar o jogo</b>: toque em <b>Compartilhar</b> (o quadrado com a setinha ⬆️ embaixo no Safari), depois em <b>Adicionar à Tela de Início</b>. Abrindo pelo ícone do jogo que aparece, o jogo fica em tela cheia, sem as barras do navegador.'
+    : 'Seu navegador não deixou ativar a tela cheia agora. Dá para <b>instalar o jogo</b>: no menu do navegador (⋮), toque em <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>. Abrindo pelo ícone, ele fica em tela cheia.';
+  $('fsInstalar').hidden = !instalarEvt;
+  $('fsAjuda').classList.add('on');
+}
+$('fsBtn').onclick = alternarTelaCheia;
+$('pauseFsBtn').onclick = alternarTelaCheia;
+$('fsFechar').onclick = () => $('fsAjuda').classList.remove('on');
+$('fsInstalar').onclick = async () => { if (!instalarEvt) return; instalarEvt.prompt(); try { await instalarEvt.userChoice; } catch {} instalarEvt = null; $('fsAjuda').classList.remove('on'); };
+document.addEventListener('fullscreenchange', atualizaFsBtn);
+document.addEventListener('webkitfullscreenchange', atualizaFsBtn);
+atualizaFsBtn();
+function goFullscreen(forcar) {
+  if (!isTouch && !forcar) return;
   // tela cheia + paisagem quando o navegador deixa (Android); no iPhone é ignorado sem problemas
   const el = document.documentElement;
   const fs = el.requestFullscreen || el.webkitRequestFullscreen;
