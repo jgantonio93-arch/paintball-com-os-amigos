@@ -2157,8 +2157,17 @@ function collides(p, r, h) {
 }
 // Move com colisão separada por eixo (desliza nas paredes)
 function moveWithCollision(pos, dx, dz, r, h) {
-  pos.x += dx; if (collides(pos, r, h)) pos.x -= dx;
-  pos.z += dz; if (collides(pos, r, h)) pos.z -= dz;
+  // já está enfiado num objeto (caiu da beirada, foi empurrado): deixa andar só para fora dele
+  const dentro = collides(pos, r, h);
+  const ok = antes => { const o = collides(pos, r, h); return !o || (o === dentro && enfiado(pos, o.box) < antes); };
+  let p0 = dentro ? enfiado(pos, dentro.box) : 0;
+  pos.x += dx; if (!ok(p0)) pos.x -= dx; else if (dentro) p0 = enfiado(pos, dentro.box);
+  pos.z += dz; if (!ok(p0)) pos.z -= dz;
+}
+// quanto o centro está para dentro da caixa (negativo = fora)
+function enfiado(p, b) {
+  const fx = Math.max(b.min.x - p.x, p.x - b.max.x), fz = Math.max(b.min.z - p.z, p.z - b.max.z);
+  return fx > 0 || fz > 0 ? -Math.hypot(Math.max(fx, 0), Math.max(fz, 0)) : Math.min(-fx, -fz);
 }
 // Subir em objetos: degrau baixo sobe andando; mais alto (até CLIMB_MAX acima do pé) escala pulando contra ele
 const STEP_MAX = 0.65, CLIMB_MAX = 2.1;
@@ -5476,7 +5485,24 @@ function zSpawn() {
   }
   zAdd(zPickType(r), best.x, 0, best.z);
 }
-const zp = new THREE.Vector3(), zq = new THREE.Vector3();
+const zp = new THREE.Vector3(), zq = new THREE.Vector3(), zr = new THREE.Vector3();
+const zRaio = z => z.boss ? 0.9 : ZTYPES[z.type].id === 'tanque' || ZTYPES[z.type].id === 'mae' ? 0.65 : 0.45;
+const DESVIOS = [0.5, 1, 1.5, 2, 2.5];
+// direção livre mais perto da desejada (decide a cada 0,15 s). Enquanto contorna fica no mesmo lado (z.side)
+// até a frente abrir; sem avançar até o alvo por 4 s, troca de lado (zMove)
+function zDesvio(z, mx, mz, raio, dt) {
+  z.desvT = (z.desvT || 0) - dt;
+  if (z.desvT > 0 && z.desv !== undefined) { const c = Math.cos(z.desv), s = Math.sin(z.desv); return [mx * c - mz * s, mx * s + mz * c]; }
+  z.desvT = 0.15;
+  const L = raio + 0.55;
+  const livre = a => { const c = Math.cos(a), s = Math.sin(a); zr.set(z.x + (mx * c - mz * s) * L, z.y + 0.05, z.z + (mx * s + mz * c) * L); return !collides(zr, raio, 1.7); };
+  z.desv = 0;
+  if (!livre(0)) {
+    const a = DESVIOS.find(a => livre(a * z.side)) ?? DESVIOS.find(a => livre(-a * z.side));
+    if (a !== undefined) { if (!livre(a * z.side)) z.side = -z.side; z.desv = a * z.side; }
+  }
+  return zDesvio(z, mx, mz, raio, 0);
+}
 function zMove(z, alvos, dt) {
   const T = ZTYPES[z.type];
   let alvo = null, best = 1e9;
@@ -5485,12 +5511,12 @@ function zMove(z, alvos, dt) {
   const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
   z.yaw = Math.atan2(dx, dz);
   z.raiva = Math.max(0, z.raiva - dt); z.abil -= dt; z.grito = Math.max(0, z.grito - dt);
-  const gh0 = groundHeight(zq.set(z.x, z.y, z.z), 0.45);
+  const gh0 = groundHeight(zq.set(z.x, z.y, z.z), zRaio(z));
   // no ar (saltador / pulo do chefão): segue a parábola e cai em cima
   if (z.air) {
     z.x += z.vx * dt; z.z += z.vz * dt; z.vy -= 18 * dt; z.y += z.vy * dt;
     z.x = THREE.MathUtils.clamp(z.x, -ARENA + 0.8, ARENA - 0.8); z.z = THREE.MathUtils.clamp(z.z, -ARENA + 0.8, ARENA - 0.8);
-    const gh = groundHeight(zq.set(z.x, z.y, z.z), 0.45);
+    const gh = groundHeight(zq.set(z.x, z.y, z.z), zRaio(z));
     if (z.y <= gh && z.vy < 0) {
       z.y = gh; z.air = false;
       for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < 2.4 && Math.abs(a.y - z.y) < 2) { zDamage(a.id, Math.round(z.dmg * 1.2)); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), 9); } }
@@ -5553,33 +5579,46 @@ function zMove(z, alvos, dt) {
     if (z.charge <= 0) z.atingiu = null;
     return;
   }
-  if (z.sideT > 0) { z.sideT -= dt; const sx = -dz * z.side, sz = dx * z.side; dx = dx * 0.35 + sx; dz = dz * 0.35 + sz; }
   // rodeia quando está "parado" (cuspidor / gritador)
   let mx = dx * ir, mz = dz * ir;
   if (ir === 0) { mx = -dz * z.side * 0.6; mz = dx * z.side * 0.6; if (Math.random() < dt * 0.4) z.side *= -1; }
   // corredor dá um bote no final
   if (T.id === 'corredor' && best < 6) spd *= 1.25;
   const step = spd * dt;
-  const raio = z.boss ? 0.9 : T.id === 'tanque' || T.id === 'mae' ? 0.65 : 0.45, perto = z.boss ? 2.1 : T.id === 'tanque' ? 1.5 : 1.1;
+  const raio = zRaio(z), perto = z.boss ? 2.1 : T.id === 'tanque' ? 1.5 : 1.1;
   zp.set(z.x, z.y, z.z);
+  const anda = !alvo || best > perto || ir < 0;
   if (T.id === 'fantasma') { zp.x += mx * step; zp.z += mz * step; } // atravessa paredes
-  else if (!alvo || best > perto || ir < 0) moveWithCollision(zp, mx * step, mz * step, raio, 1.8);
+  else if (anda && (mx || mz)) {
+    // degrau baixo: sobe andando
+    const ml = Math.hypot(mx, mz), degrau = acharSubida(zp, mx / ml, mz / ml, raio, 1.8, STEP_MAX);
+    if (degrau) zp.y = degrau.y;
+    // alvo em cima de um objeto logo à frente: escala atrás dele
+    const acima = alvo && alvo.y > z.y + 0.8 && best < 5 && acharSubida(zq.set(z.x, z.y, z.z), dx, dz, raio, 1.8, 3.3);
+    if (acima) { z.sobe = { x: acima.x, y: acima.y, z: acima.z }; return; }
+    // contorna: se a frente está fechada, procura o desvio mais perto do caminho, sempre do mesmo lado
+    [mx, mz] = zDesvio(z, mx, mz, raio, dt);
+    moveWithCollision(zp, mx * step, mz * step, raio, 1.8);
+  }
   const moved = Math.hypot(zp.x - z.x, zp.z - z.z);
-  if (T.id !== 'fantasma' && alvo && best > perto && ir > 0 && moved < step * 0.3) {
+  if (T.id !== 'fantasma' && anda && alvo && ir > 0 && moved < step * 0.3) {
     z.stuck += dt;
-    if (z.stuck > 0.35) {
-      // travou: tenta subir no obstáculo da frente (até 2,8 m) ou contorna de lado
-      const ahead = new THREE.Vector3(z.x + dx * 0.7, z.y, z.z + dz * 0.7);
-      const o = collides(ahead, 0.45, 1.8);
-      const topo = o && o.box.max.y - z.y <= 3.3 && o.box.max.y < 6 && acharSubida(zq.set(z.x, z.y, z.z), dx, dz, 0.45, 1.8, 3.3);
+    if (z.stuck > 0.6) {
+      // travou mesmo (canto, beco): escala se der, senão passa a contornar pelo outro lado
+      const topo = acharSubida(zq.set(z.x, z.y, z.z), dx, dz, raio, 1.8, 3.3);
       if (topo) z.sobe = { x: topo.x, y: topo.y, z: topo.z };
-      else { z.sideT = 0.8; z.side = Math.random() < 0.5 ? 1 : -1; }
+      else { z.side *= -1; z.desvT = 0; }
       z.stuck = 0;
     }
-  } else z.stuck = 0;
+  } else z.stuck = Math.max(0, z.stuck - dt);
+  // contornando sem chegar mais perto do alvo: tenta pelo outro lado
+  if (alvo && ir > 0 && T.id !== 'fantasma') {
+    if (best < (z.melhor ?? 1e9) - 0.7) { z.melhor = best; z.semAvanco = 0; }
+    else if ((z.semAvanco = (z.semAvanco || 0) + dt) > 4) { z.side *= -1; z.desvT = 0; z.semAvanco = 0; z.melhor = best; }
+  }
   z.x = THREE.MathUtils.clamp(zp.x, -ARENA + 0.8, ARENA - 0.8); z.z = THREE.MathUtils.clamp(zp.z, -ARENA + 0.8, ARENA - 0.8); z.y = zp.y;
   // gravidade: cai de cima das caixas (o fantasma flutua no chão)
-  const gh = T.id === 'fantasma' ? 0 : groundHeight(zq.set(z.x, z.y, z.z), 0.45);
+  const gh = T.id === 'fantasma' ? 0 : groundHeight(zq.set(z.x, z.y, z.z), zRaio(z));
   z.y = z.y > gh ? Math.max(gh, z.y - 9 * dt) : gh;
   // ataque corpo a corpo
   z.atkCd -= dt;
