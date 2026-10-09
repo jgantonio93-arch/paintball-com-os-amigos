@@ -937,7 +937,6 @@ const AMIGOS = ROSTOS.map(o => ({ nome: o.nome, foto: rostoDesenhado(o), camisa:
 let SECRETOS = [], GALERIA = [];
 // administrador (conta do dono do jogo): ban = fotos da galeria, jogadores do ranking e salas removidos
 const adm = { on: false, ban: { gal: [], rank: [], sala: [], ts: 0 }, aviso: null };
-const SECRETO_BASE = 100; // no online: char 100+i = amigo secreto i
 const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou arte moderna!', 'levou um splash!', 'tá todo manchado!'];
 
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -964,8 +963,8 @@ function charList() {
     ...GALERIA.filter(c => !meus.has(c.id)).map(c => ({ nome: c.nome, foto: c.foto, camisa: c.cor, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, key: 'g:' + c.id, custom: true, galeria: true })),
   ];
 }
-// boneco/amigo pelo número do online (secreto sem o código = null)
-const amigoDe = c => c >= SECRETO_BASE ? SECRETOS[c - SECRETO_BASE] || null : AMIGOS[c] || null;
+// boneco pelo número do online (amigos secretos vão como foto, igual aos criados)
+const amigoDe = c => AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
 const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: isTouch ? 'media' : 'alta', aim: true, inv: false, fps: false, btn: 1 };
@@ -3038,7 +3037,7 @@ function addPlayer(id, name, char, cor, lk) {
   net.lastSeen.set(id, performance.now());
   const n = String(name || 'Jogador').slice(0, 14);
   const cnt = [0, 0]; for (const q of Object.values(net.players)) cnt[q.team ?? 0]++;
-  const c = Number.isInteger(char) && ((char >= 0 && char < AMIGOS.length) || (char >= SECRETO_BASE && char < SECRETO_BASE + 32)) ? char : -1;
+  const c = Number.isInteger(char) && char >= 0 && char < AMIGOS.length ? char : -1;
   // em modos sem renascer, quem chega no meio da rodada espera a próxima
   const espera = net.isHost && semVolta() && rodadaRolando();
   net.players[id] = { name: n, char: c, cor: Number.isInteger(cor) ? cor & 0xffffff : 0x3db8ff, lk: cleanLook(lk), hp: hpMax(), kills: 0, deaths: 0, pts: 0, dead: espera, team: cnt[0] <= cnt[1] ? 0 : 1 };
@@ -3406,12 +3405,10 @@ function nameTag(text, color = '#fff') {
 // como desenhar o boneco de um jogador: amigo fixo ou personagem criado (com a foto que chegou pela rede)
 function defOf(id, p) {
   if (p.char >= 0 && amigoDe(p.char)) return amigoDe(p.char);
-  // amigo secreto e eu não tenho o código: aparece com rosto genérico
-  if (p.char >= SECRETO_BASE) return { nome: p.name, camisa: p.cor ?? 0x3db8ff, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, tex: placeholderTex(p.name, p.cor) };
   const foto = net.faces.get(id);
   return { nome: p.name, foto, camisa: p.cor ?? 0x3db8ff, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, tex: foto ? texFor(foto) : placeholderTex(p.name, p.cor) };
 }
-const faceKeyOf = (id, p) => (p.char >= 0 ? 'b' + p.char + (p.char >= SECRETO_BASE && SECRETOS.length ? 's' : '') : net.faces.has(id) ? 'f' + net.faces.get(id).length : 'x' + p.cor) + JSON.stringify(p.lk || {});
+const faceKeyOf = (id, p) => (p.char >= 0 ? 'b' + p.char : net.faces.has(id) ? 'f' + net.faces.get(id).length : 'x' + p.cor) + JSON.stringify(p.lk || {});
 
 function syncRemotes() {
   for (const [id, p] of Object.entries(net.players)) {
@@ -3645,8 +3642,10 @@ function readSetup() {
 // para a rede: amigo fixo = número; criado = -1 + foto mandada à parte
 function myNetChar() {
   const d = myCharDef();
-  if (d.custom) return { char: -1, cor: d.camisa | 0, face: d.foto, lk: myLook };
-  return { char: d.secreto ? SECRETO_BASE + +d.key.slice(2) : +d.key, cor: d.camisa | 0, lk: myLook };
+  // criado, da galeria ou amigo secreto: a foto vai junto, então todo mundo na sala vê o rosto
+  // (só quem tem o código pode ESCOLHER um amigo secreto)
+  if (d.custom || d.secreto) return { char: -1, cor: d.camisa | 0, face: d.foto, lk: myLook };
+  return { char: +d.key, cor: d.camisa | 0, lk: myLook };
 }
 function sendMyFace() { const c = myNetChar(); if (c.face && !net.local) sendNet({ t: 'face', img: c.face }); }
 
