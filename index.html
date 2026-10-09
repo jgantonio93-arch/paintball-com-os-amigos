@@ -904,7 +904,7 @@
             <b>Zumbis</b>: todos juntos contra hordas, com chefão gigante a cada 5 rodadas.</section>
           <section><h4>🧟 Hordas e lojinha</h4>
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
-            Na <b>💰 Lojinha</b> (E perto do quiosque) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 5. Cada um carrega 2 armas.<br>
+            Na <b>💰 Lojinha</b> (E perto do quiosque) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…).</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
@@ -3212,7 +3212,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 25;
+const VERSAO = 26;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -5184,7 +5184,7 @@ const ZTYPES = [
   { id: 'corredor', nome: 'Corredor', ic: '⚡', desc: 'corre muito e dá bote quando chega perto', hp: 0.55, spd: 1.75, dmg: 0.8, esc: 0.95, desde: 2, peso: 5, cor: 0x7a1f1f },
   { id: 'cuspidor', nome: 'Cuspidor', ic: '🤢', desc: 'fica de longe cuspindo ácido que te deixa lento', hp: 0.85, spd: 0.8, dmg: 0.7, esc: 1.05, desde: 3, peso: 3, cor: 0x4f6b1a },
   { id: 'bomba', nome: 'Bomba de Tinta', ic: '💥', desc: 'corre até você e EXPLODE (pinte de longe!)', hp: 0.6, spd: 1.2, dmg: 0, esc: 1.1, desde: 3, peso: 3, cor: 0x8a4a12 },
-  { id: 'tanque', nome: 'Brutamontes', ic: '🛡️', desc: 'blindado no corpo (mire na cabeça) e dá investida', hp: 3.6, spd: 0.62, dmg: 2, esc: 1.45, desde: 4, peso: 2, cor: 0x34383f },
+  { id: 'tanque', nome: 'Brutamontes', ic: '🛡️', desc: 'blindado no corpo (mire na cabeça) e dá investida', hp: 3, spd: 0.62, dmg: 1.8, esc: 1.45, desde: 4, peso: 2, cor: 0x34383f },
   { id: 'rastejante', nome: 'Rastejante', ic: '🕷️', desc: 'baixinho e rápido, difícil de acertar', hp: 0.4, spd: 1.5, dmg: 0.6, esc: 0.8, desde: 4, peso: 3, cor: 0x3d3a2a },
   { id: 'saltador', nome: 'Saltador', ic: '🦘', desc: 'pula de longe em cima de você', hp: 0.8, spd: 1.15, dmg: 1.3, esc: 1, desde: 5, peso: 2, cor: 0x5a6b1a },
   { id: 'fantasma', nome: 'Fantasma', ic: '👻', desc: 'quase invisível de longe e atravessa paredes', hp: 0.75, spd: 1.05, dmg: 1, esc: 1, desde: 6, peso: 2, cor: 0xbfd8ff },
@@ -5406,12 +5406,15 @@ const ZDIF = {
 };
 const zd = () => ZDIF[net.cfg.dif] || ZDIF[1];
 const difHp = () => zd().vida;
+// Balanceamento das hordas (simulado: o comum morre em ~1 s no começo e ~2 s na rodada 20 com a arma que dá
+// para ter; a arma chega ao nível máximo lá pela rodada 18–25 e depois disso a horda vai apertando)
+const zVidaBase = r => (70 + r * 12) * 1.05 ** (r - 1);
 const nJog = () => Math.max(1, Object.keys(net.players).length);
 const ZMAXV = () => Math.min(36, 24 + nJog() * 3);
 function zStartRound(r) {
   Z.round = r;
   const np = nJog();
-  Z.toSpawn = Math.max(3, Math.round((6 + r * 4) * (1 + (np - 1) * 0.6) * zd().qtd));
+  Z.toSpawn = Math.max(3, Math.round(Math.min(6 + r * 4, 22 + r * 1.5) * (1 + (np - 1) * 0.6) * zd().qtd));
   Z.boss = r % 5 === 0 ? Math.min(3, r / 5) : 0; // rodada do chefão (fica mais forte a cada 5)
   if (Z.boss) Z.toSpawn = Math.round(Z.toSpawn * 0.55) + 1;
   Z.evento = !Z.boss && r >= 3 && r % 3 === 0 ? randomFrom(Object.keys(EVENTOS)) : null;
@@ -5423,7 +5426,7 @@ function zStartRound(r) {
     else if (r > 1 && p.hp < hpMax(id)) { p.hp = Math.min(hpMax(id), p.hp + zd().cura); broadcast({ t: 'hp', id, hp: p.hp }); }
     // bônus por sobreviver e armas novas na lojinha
     if (!Array.isArray(p.inv)) zEcoInit(p, true);
-    if (r > 1 && !p.dead) zPagar(id, 150 + 25 * r);
+    if (r > 1 && !p.dead) zPagar(id, 100 + 15 * r);
     p.loja = lojaOfertas(p);
   }
   sendRoster();
@@ -5462,13 +5465,13 @@ function zSpot(minD = 16, maxD = 35) {
 function zAdd(type, x, y, z, extra = {}) {
   const r = Z.round, dif = net.cfg.dif || 1, T = ZTYPES[type], id = 'z' + (++Z.seq).toString(36);
   const elite = r >= 8 + Math.max(0, zd().desde) * 2 && T.id !== 'mae' && Math.random() < Math.min(0.25, 0.04 * (r - 6));
-  const hp = Math.round((70 + r * 28) * T.hp * difHp() * (1 + (nJog() - 1) * 0.3) * (elite ? 2.2 : 1));
+  const hp = Math.round(zVidaBase(r) * T.hp * difHp() * (1 + (nJog() - 1) * 0.3) * (elite ? 2.2 : 1));
   const cap = T.id === 'corredor' ? 9.5 : 6.2;
   const zz = {
     id, type, x, y, z, yaw: 0, kind: Math.floor(Math.random() * 997),
     hp, max: hp, elite, raiva: Z.evento === 'sangue' ? 999 : 0,
     speed: Math.min(cap, (2.6 + r * 0.28) * T.spd) * (0.85 + Math.random() * 0.3) * zd().vel,
-    dmg: Math.round((12 + r * 2) * T.dmg * zd().dano * (elite ? 1.4 : 1)),
+    dmg: Math.round((12 + r * 1.2) * T.dmg * zd().dano * (elite ? 1.4 : 1)),
     atkCd: 0.6, side: Math.random() < 0.5 ? 1 : -1, sideT: 0, stuck: 0, atkFlag: false,
     abil: 2 + Math.random() * 2, fuse: -1, charge: 0, cx: 0, cz: 0, air: false, vx: 0, vy: 0, vz: 0, grito: 0, ...extra,
   };
@@ -5482,7 +5485,7 @@ function zSpawn() {
   if (Z.boss) {
     // chefão: um amigo gigante com pancada no chão, investida e (depois) cuspe
     const nivel = Z.boss; Z.boss = 0;
-    const hpB = Math.round((900 + r * 150) * difHp() * (1 + (nJog() - 1) * 0.6));
+    const hpB = Math.round(zVidaBase(r) * 8 * difHp() * (1 + (nJog() - 1) * 0.6));
     zAdd(0, best.x, 0, best.z, { boss: nivel, hp: hpB, max: hpB, speed: (2.4 + nivel * 0.25) * zd().vel, dmg: Math.round((30 + nivel * 6) * zd().dano), atkCd: 1, raiva: nivel >= 3 ? 999 : 0, abil: 3, abil2: 6, abil3: 4 });
     return;
   }
@@ -5767,17 +5770,17 @@ function zHostHandle(from, m) {
     const W = WEAPONS[m.w === 'granada' && net.cfg.itens !== false ? 'granada' : hostWeaponOf(from, m.w)];
     const f = W.splash ? Math.min(1, Math.max(0.3, +m.f || 1)) : 1;
     const head = !W.splash && m.h === 1 && net.cfg.hs;
-    // brutamontes: blindado no corpo (40% do dano), a cabeça é o ponto fraco
-    const armadura = T.id === 'tanque' && !head && !W.splash ? 0.4 : 1;
+    // brutamontes: blindado no corpo (50% do dano), a cabeça é o ponto fraco
+    const armadura = T.id === 'tanque' && !head && !W.splash ? 0.5 : 1;
     // nas hordas a arma vale pelo nível que a pessoa comprou na lojinha
     const nivel = W === WEAPONS.granada ? 1.6 : zMult((sh.inv || []).find(x => x.w === hostWeaponOf(from, m.w))?.l || 1);
     const dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * armadura * nivel));
     z.hp -= dmg;
-    const c = zPagar(from, 5);
+    const c = zPagar(from, 2);
     broadcast({ t: 'zd', id: m.id, by: from, d: dmg, h: head ? 1 : 0, a: armadura < 1 ? 1 : 0, p: Math.max(0, Math.round(z.hp / z.max * 100)), c });
     if (z.hp <= 0) {
       if (T.id === 'bomba' && !z.boss) return zExplode(z, from); // explode ao morrer: cuidado de perto!
-      const premio = z.boss ? 800 : (RECOMPENSA[T.id] || 50) * (z.elite ? 2 : 1) + (head ? 25 : 0);
+      const premio = z.boss ? 600 + 100 * Z.round : Math.round((RECOMPENSA[T.id] || 50) * 0.8 * (1 + 0.04 * Z.round) * (z.elite ? 2 : 1)) + (head ? 20 : 0);
       Z.sim.delete(m.id); sh.kills++; Z.rosterDirty = true; broadcast({ t: 'zdie', id: m.id, by: from, h: head ? 1 : 0, b: z.boss | 0, c: zPagar(from, premio) });
       // o chefão solta 3 bolsas de sangue e um kit médico; elites e mães sempre soltam algo
       if (z.boss) for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; zDrop(k === 3 ? 'heal' : 'blood', z.x + Math.cos(a) * 1.6, z.z + Math.sin(a) * 1.6, 40000); }
@@ -6348,17 +6351,19 @@ placeObjectives();
 
 // ===== Lojinha do modo Zumbi: dinheiro, 2 armas por pessoa e níveis =====
 // Só vale nas hordas. Começa com uma pistola fraca; pintar monstros dá 💰; na lojinha (um quiosque em
-// todo mapa) dá para comprar uma das 2 armas da vez ou melhorar a arma na mão (até o nível 5).
+// todo mapa) dá para comprar uma das 2 armas da vez ou melhorar a arma na mão (até o nível NIVEL_MAX).
 // O dono da sala guarda o dinheiro e as armas de cada um (p.cash e p.inv).
 const WPRECO = { pistola: 250, rolo: 300, revolver: 450, smg: 500, marcador: 550, mangueira: 600, escopeta: 750, rajada: 800, metralha: 850, besta: 900, sniper: 950, balde: 1250 };
-const NIVEL_MAX = 5;
+const NIVEL_MAX = 10;
 const RECOMPENSA = { comum: 50, corredor: 60, rastejante: 40, cuspidor: 80, bomba: 70, saltador: 90, fantasma: 100, tanque: 140, gritador: 110, mae: 250 };
 const INV_INICIAL = () => [{ w: 'pistola', l: zd().nivel }]; // nos níveis fáceis a pistola já começa melhor
-const upPreco = (w, l) => Math.round((WPRECO[w] * 0.45 + 150) * l);
+const upPreco = (w, l) => Math.round((WPRECO[w] * 0.4 + 250) * 1.6 ** (l - 1));
+// as armas da lojinha vêm melhores com o passar das rodadas (nível 1 até a 4ª, 2 até a 8ª…)
+const zNivelLoja = () => Math.min(NIVEL_MAX, 1 + Math.floor((Math.max(1, (net.isHost ? Z.round : Z.roundView) | 0) - 1) / 4));
 // arma que já chega melhorada (troca) custa o preço dela + todas as melhorias até aquele nível
 const precoArma = (w, l = 1) => { let v = WPRECO[w]; for (let k = 1; k < l; k++) v += upPreco(w, k); return v; };
-// força da arma por nível nas hordas (nível 1 = 60% do normal)
-const zMult = l => 0.6 + 0.18 * (Math.max(1, l) - 1);
+// força da arma por nível nas hordas (nível 1 = 60% do normal, cada nível +22%: nível 10 ≈ 3,6×)
+const zMult = l => 0.6 * 1.22 ** (Math.max(1, l) - 1);
 // intervalo entre as rodadas (dá para comprar de qualquer lugar)
 const INTERVALO_S = 15;
 let zIntervaloAte = 0;
@@ -6391,7 +6396,7 @@ function zComprar(from, m) {
     const op = m.op | 0, w = p.loja?.[op];
     if (!w || !WPRECO[w] || p.inv.some(x => x.w === w)) return;
     const slot = p.inv.length < 2 ? p.inv.length : (m.slot === 1 ? 1 : 0);
-    const velho = p.inv[slot], l = velho ? velho.l : 1, preco = precoArma(w, l);
+    const velho = p.inv[slot], l = Math.max(velho ? velho.l : 1, zNivelLoja()), preco = precoArma(w, l);
     if ((p.cash | 0) < preco) return;
     p.cash -= preco;
     p.inv[slot] = { w, l };
@@ -6411,10 +6416,10 @@ function effW(id) {
   const W = WEAPONS[id];
   if (!W || !isZumbi() || id === 'granada') return W;
   const l = zLevel(id), k = id + l;
-  if (!effCache.has(k)) effCache.set(k, { ...W, dmg: W.dmg * zMult(l), mag: Math.round(W.mag * (1 + 0.2 * (l - 1))), reload: W.reload * (1 - 0.08 * (l - 1)), cd: W.cd * (1 - 0.06 * (l - 1)), lvl: l });
+  if (!effCache.has(k)) effCache.set(k, { ...W, dmg: W.dmg * zMult(l), mag: Math.round(W.mag * (1 + 0.1 * (l - 1))), reload: W.reload * (1 - 0.04 * (l - 1)), cd: W.cd * (1 - 0.03 * (l - 1)), lvl: l });
   return effCache.get(k);
 }
-const estrelas = l => `nv ${l} ${'★'.repeat(l)}`;
+const estrelas = l => `nv ${l} ${'★'.repeat(Math.min(5, l))}${l > 5 ? '+' + (l - 5) : ''}`;
 function setCash(v) {
   if (typeof v !== 'number') return;
   if (cashShown !== null && v > cashShown) {
@@ -6467,20 +6472,21 @@ function renderShop() {
   const cards = (me.loja || []).slice(0, 2).map((w, op) => {
     if (!w) return card(op + 1, '✅', 'Vendido!', 'Outra arma aparece na próxima rodada', 'esgotado', false, () => {});
     const W = WEAPONS[w];
-    const l = cheio ? sel.l : 1, preco = precoArma(w, l);
-    const troca = cheio ? `troca pela ${WEAPONS[sel.w].nome} e já vem ${estrelas(l)}${l > 1 ? ` (arma ${WPRECO[w]} + melhorias ${preco - WPRECO[w]})` : ''}` : 'vai para o espaço vazio';
+    const l = Math.max(cheio ? sel.l : 1, zNivelLoja()), preco = precoArma(w, l);
+    const extra = l > 1 ? ` (arma ${WPRECO[w]} + melhorias ${preco - WPRECO[w]})` : '';
+    const troca = cheio ? `troca pela ${WEAPONS[sel.w].nome} e já vem ${estrelas(l)}${extra}` : `vai para o espaço vazio${l > 1 ? ` e já vem ${estrelas(l)}${extra}` : ''}`;
     return card(op + 1, W.ic, W.nome, `${W.desc} · ${troca}`, `💰 ${preco}`, cash >= preco, () => comprarArma(op));
   });
   if (sel && sel.l < NIVEL_MAX) {
     const W = WEAPONS[sel.w], preco = upPreco(sel.w, sel.l);
     cards.push(card(3, '⬆️', `Melhorar ${W.nome}`, `nível ${sel.l} → ${sel.l + 1}: +${Math.round((zMult(sel.l + 1) / zMult(sel.l) - 1) * 100)}% dano, pente maior, recarga e tiro mais rápidos`, `💰 ${preco}`, cash >= preco, melhorarArma, 'up'));
-  } else if (sel) cards.push(card(3, '🏆', `${WEAPONS[sel.w].nome} no máximo`, 'Nível 5: não dá para melhorar mais', estrelas(NIVEL_MAX), false, () => {}, 'up'));
+  } else if (sel) cards.push(card(3, '🏆', `${WEAPONS[sel.w].nome} no máximo`, `Nível ${NIVEL_MAX}: não dá para melhorar mais`, estrelas(NIVEL_MAX), false, () => {}, 'up'));
   $('shopCards').replaceChildren(...cards);
 }
 function comprarArma(op) {
   if (!shopOpen) return;
   const me = net.players[net.myId], w = me?.loja?.[op]; if (!w) return;
-  const inv = zInv(), l = inv.length >= 2 && inv[shopSlot] ? inv[shopSlot].l : 1;
+  const inv = zInv(), l = Math.max(inv.length >= 2 && inv[shopSlot] ? inv[shopSlot].l : 1, zNivelLoja());
   if ((me.cash | 0) < precoArma(w, l)) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
   sendNet({ t: 'buy', op, slot: shopSlot });
 }
@@ -6507,11 +6513,11 @@ function onBought(m) {
     updateHud(); if (shopOpen) renderShop();
   }, 60);
 }
-// arma melhorada brilha cada vez mais (dourada no nível 5)
+// arma melhorada brilha cada vez mais (verde, azul, laranja, dourada, rosa no 9–10)
 function tingeArma(l) {
   if (!isZumbi() || l <= 1) return;
-  const cor = l >= 5 ? 0xffc83d : l >= 4 ? 0xff7a1a : l >= 3 ? 0x3db8ff : 0x3dff8b;
-  gunGroup.traverse(o => { if (o.material?.emissive) { o.material.emissive.setHex(cor); o.material.emissiveIntensity = 0.12 * (l - 1); } });
+  const cor = l >= 9 ? 0xff3dd2 : l >= 7 ? 0xffc83d : l >= 5 ? 0xff7a1a : l >= 3 ? 0x3db8ff : 0x3dff8b;
+  gunGroup.traverse(o => { if (o.material?.emissive) { o.material.emissive.setHex(cor); o.material.emissiveIntensity = Math.min(0.6, 0.07 * (l - 1)); } });
 }
 function shopTick() {
   const perto = pertoLoja() && state === 'play';
