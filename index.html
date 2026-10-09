@@ -3209,7 +3209,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 24;
+const VERSAO = 25;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -6352,6 +6352,8 @@ const NIVEL_MAX = 5;
 const RECOMPENSA = { comum: 50, corredor: 60, rastejante: 40, cuspidor: 80, bomba: 70, saltador: 90, fantasma: 100, tanque: 140, gritador: 110, mae: 250 };
 const INV_INICIAL = () => [{ w: 'pistola', l: zd().nivel }]; // nos níveis fáceis a pistola já começa melhor
 const upPreco = (w, l) => Math.round((WPRECO[w] * 0.45 + 150) * l);
+// arma que já chega melhorada (troca) custa o preço dela + todas as melhorias até aquele nível
+const precoArma = (w, l = 1) => { let v = WPRECO[w]; for (let k = 1; k < l; k++) v += upPreco(w, k); return v; };
 // força da arma por nível nas hordas (nível 1 = 60% do normal)
 const zMult = l => 0.6 + 0.18 * (Math.max(1, l) - 1);
 // intervalo entre as rodadas (dá para comprar de qualquer lugar)
@@ -6370,7 +6372,7 @@ function zEcoInit(p, zerar) {
 function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.cash = (p.cash | 0) + Math.round(v * zd().grana); return p.cash; }
 // compra (dono): op 0/1 = uma das 2 ofertas no espaço slot, op 2 = melhorar a arma escolhida (cur).
 // Com os dois espaços ocupados é uma TROCA: a nova entra no lugar da escolhida com o mesmo nível dela
-// (o que foi gasto melhorando não se perde; não tem dinheiro de volta)
+// (mas paga as melhorias que ela já traz: precoArma; não tem dinheiro de volta)
 function zComprar(from, m) {
   const p = net.players[from]; if (!p || p.dead || p.down || !obj.loja) return;
   const q = hostPos(from), naLoja = q && Math.hypot(q.x - obj.loja.x, q.z - obj.loja.z) <= 4.5;
@@ -6386,7 +6388,7 @@ function zComprar(from, m) {
     const op = m.op | 0, w = p.loja?.[op];
     if (!w || !WPRECO[w] || p.inv.some(x => x.w === w)) return;
     const slot = p.inv.length < 2 ? p.inv.length : (m.slot === 1 ? 1 : 0);
-    const velho = p.inv[slot], l = velho ? velho.l : 1, preco = WPRECO[w];
+    const velho = p.inv[slot], l = velho ? velho.l : 1, preco = precoArma(w, l);
     if ((p.cash | 0) < preco) return;
     p.cash -= preco;
     p.inv[slot] = { w, l };
@@ -6462,8 +6464,9 @@ function renderShop() {
   const cards = (me.loja || []).slice(0, 2).map((w, op) => {
     if (!w) return card(op + 1, '✅', 'Vendido!', 'Outra arma aparece na próxima rodada', 'esgotado', false, () => {});
     const W = WEAPONS[w];
-    const troca = cheio ? `troca pela ${WEAPONS[sel.w].nome} e já vem ${estrelas(sel.l)}` : 'vai para o espaço vazio';
-    return card(op + 1, W.ic, W.nome, `${W.desc} · ${troca}`, `💰 ${WPRECO[w]}`, cash >= WPRECO[w], () => comprarArma(op));
+    const l = cheio ? sel.l : 1, preco = precoArma(w, l);
+    const troca = cheio ? `troca pela ${WEAPONS[sel.w].nome} e já vem ${estrelas(l)}${l > 1 ? ` (arma ${WPRECO[w]} + melhorias ${preco - WPRECO[w]})` : ''}` : 'vai para o espaço vazio';
+    return card(op + 1, W.ic, W.nome, `${W.desc} · ${troca}`, `💰 ${preco}`, cash >= preco, () => comprarArma(op));
   });
   if (sel && sel.l < NIVEL_MAX) {
     const W = WEAPONS[sel.w], preco = upPreco(sel.w, sel.l);
@@ -6474,7 +6477,8 @@ function renderShop() {
 function comprarArma(op) {
   if (!shopOpen) return;
   const me = net.players[net.myId], w = me?.loja?.[op]; if (!w) return;
-  if ((me.cash | 0) < WPRECO[w]) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
+  const inv = zInv(), l = inv.length >= 2 && inv[shopSlot] ? inv[shopSlot].l : 1;
+  if ((me.cash | 0) < precoArma(w, l)) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
   sendNet({ t: 'buy', op, slot: shopSlot });
 }
 function melhorarArma() {
