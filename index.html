@@ -263,6 +263,7 @@
   .vote b { display:block; font-weight:900; font-size:14px; }
   .vote small { color:var(--muted); font-weight:800; }
   @media (max-height:520px) { .pod .step { display:none; } .podium { margin:4px 0 8px; } .hlGrid { grid-template-columns:repeat(3,1fr); } .hl { padding:5px 8px; } .hl i { font-size:18px; } }
+  #portaPrompt { position:absolute; left:50%; top:58%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; text-align:center; max-width:90vw; }
   #shopPrompt { position:absolute; left:50%; top:66%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; }
   #shopBtn { left:50%; transform:translateX(-50%); bottom:calc(80px + var(--sb)); width:130px; height:48px; border-radius:14px; font-size:14px; background:rgba(255,210,61,.5); display:none; }
   #cashPop { position:absolute; right:calc(24px + var(--sr)); bottom:calc(104px + var(--sb)); font-family:var(--disp); font-size:22px; color:var(--yel); text-shadow:0 2px 0 #000; opacity:0; }
@@ -619,6 +620,7 @@
   <div id="acid"></div>
   <div id="scream"></div>
   <div id="downBox"><b id="downTitle">VOCÊ CAIU!</b><span id="downText"></span><div class="bar"><div id="downFill"></div></div></div>
+  <div id="portaPrompt"></div>
   <div id="shopPrompt">🛒 Aperte <kbd>E</kbd> para abrir a lojinha</div>
   <div id="cashPop"></div>
   <div id="revivePrompt"><span id="reviveText"></span><div class="bar"><div id="reviveFill"></div></div></div>
@@ -1217,6 +1219,12 @@ function walls(material, h = 4) {
   addBox(-ARENA - 1, 0, 2, h, ARENA * 2 + 4, material);
   addBox(ARENA + 1, 0, 2, h, ARENA * 2 + 4, material);
 }
+// árvore da mata de fora: o mapa é quadrado, então nos cantos empurra para fora do muro
+function foraDoMuro(a, d, margem = 4) {
+  const x = Math.cos(a) * d, z = Math.sin(a) * d, m = Math.max(Math.abs(x), Math.abs(z));
+  const k = m < ARENA + margem ? (ARENA + margem) / m : 1;
+  return [x * k, z * k];
+}
 function tree(x, z, s = 1, solid = true) {
   const trunk = deco(meshAt(new THREE.CylinderGeometry(0.35 * s, 0.55 * s, 4 * s, 8), mat('trunk', () => lam(0x6b4a2b)), x, 2 * s, z));
   const leaf = mat('leaf', () => lam(0x2f7a35)), leaf2 = mat('leaf2', () => lam(0x3c8f3f));
@@ -1320,7 +1328,7 @@ function buildArena() {
   for (const [x, z] of [[6, 2], [-4, 6], [18, -18], [-18, -4]]) tires(x, z);
   // árvores fora do muro
   const r = seeded(17);
-  for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 20; tree(Math.cos(a) * d, Math.sin(a) * d, 1 + r() * 0.4, false); }
+  for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 20; tree(...foraDoMuro(a, d), 1 + r() * 0.4, false); }
 }
 
 // ---------- Mapa 1: Campus ----------
@@ -1362,7 +1370,7 @@ function buildCampus() {
   const e = signText('E', 0.8, 0.8, '#ffffff', '#1d4ed8', 'bold 300px system-ui'); e.position.set(-36.9, 2.2, 20); e.rotation.y = Math.PI / 2; mapGroup.add(e);
   // fora do muro: árvores e prédios ao longe
   const r = seeded(21);
-  for (let i = 0; i < 36; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 18; tree(Math.cos(a) * d, Math.sin(a) * d, 0.9 + r() * 0.5, false); }
+  for (let i = 0; i < 36; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 18; tree(...foraDoMuro(a, d), 0.9 + r() * 0.5, false); }
   skyline(0xa9b4c2, 14, 80, 4);
 }
 
@@ -1543,6 +1551,7 @@ function nearDoor() {
 function useDoor() {
   if (state !== 'play' || meDead || meDown) return;
   if (reviveId) return; // perto de amigo caído, o E é para levantar
+  const pp = portaPagaPerto(); if (pp >= 0) return comprarPorta(pp);
   const i = nearDoor(); if (i < 0) return;
   if (mode === 'online' && !net.local) sendNet({ t: 'door', i, o: doors[i].open ? 0 : 1 });
   else setDoor(i, !doors[i].open);
@@ -1554,7 +1563,7 @@ function updateDoors(dt) {
     d.pivot.rotation.y = d.ang;
   }
   if (isTouch && state === 'play') {
-    const perto = nearDoor() >= 0 && !reviveId;
+    const perto = (nearDoor() >= 0 || portaPagaPerto() >= 0) && !reviveId;
     if (perto !== updateDoors.btn) { updateDoors.btn = perto; $('doorBtn').style.display = perto ? 'flex' : 'none'; }
   }
 }
@@ -1661,7 +1670,7 @@ function buildEscola() {
   addBox(0, -6, 2, 2, 2, crate); addBox(-12, -10, 3, 1.4, 1.5, crate); addBox(14, -8, 1.5, 2.5, 1.5, crate);
   bunker(-4, -2, 0xffd23d); bunker(4, 12, 0x3db8ff); snake(-30, -14, 6, 0xff3d7f, false); snake(30, -2, 6, 0x3dffb0, false);
   const r = seeded(61);
-  for (let i = 0; i < 30; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 18; tree(Math.cos(a) * d, Math.sin(a) * d, 0.9 + r() * 0.5, false); }
+  for (let i = 0; i < 30; i++) { const a = r() * Math.PI * 2, d = ARENA + 8 + r() * 18; tree(...foraDoMuro(a, d), 0.9 + r() * 0.5, false); }
   skyline(0xb9c4d2, 12, 85, 7);
 }
 
@@ -1767,7 +1776,277 @@ function buildFloresta() {
   mapTick = dt => { tick0(dt); const k = performance.now(); fogo.scale.set(1 + Math.sin(k / 90) * 0.12, 1 + Math.sin(k / 70) * 0.2, 1); fl.intensity = 7 + Math.sin(k / 60) * 1.5; };
   // bunkers de paintball no meio da mata
   bunker(-6, -14, 0xff7a1a); bunker(8, 22, 0x3db8ff); bunker(-20, 4, 0xffd23d); tires(10, -4); tires(-14, 28);
-  for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = ARENA + 5 + r() * 20; pine(Math.cos(a) * d, Math.sin(a) * d, 1 + r() * 0.6, false); }
+  for (let i = 0; i < 40; i++) { const a = r() * Math.PI * 2, d = ARENA + 5 + r() * 20; pine(...foraDoMuro(a, d), 1 + r() * 0.6, false); }
+}
+
+// ---------- Mapa da Missão: Fazenda Assombrada (só no modo missao) ----------
+// Zonas (retângulos x1,z1,x2,z2) ligadas por portas pagas (jogadores) e por janelas/buracos na cerca (só zumbis).
+// FAZ guarda tudo que a Missão precisa: zonas, portas pagas, passagens, nascedouros e onde a loja fica.
+let FAZ = null;
+// barreira invisível para o corpo (o tiro passa e ninguém escala)
+function barreira(x, z, w, d, h = 1.9, y0 = 0) {
+  const o = { mesh: null, box: new THREE.Box3(new THREE.Vector3(x - w / 2, y0, z - d / 2), new THREE.Vector3(x + w / 2, y0 + h, z + d / 2)), semSubir: true, soCorpo: true };
+  obstacles.push(o); return o;
+}
+// parede reta com vãos: ax 'x' = ao longo de x em z = fixo (de a até b); vaos = [{ c, w, tipo: 'porta'|'janela'|'aberto', alto }]
+function muro(ax, fixo, a, b, h, vaos, material, t = 0.3) {
+  const box = (c0, c1, y0, y1) => {
+    if (c1 - c0 < 0.01 || y1 - y0 < 0.01) return;
+    const c = (c0 + c1) / 2, L = c1 - c0, H = y1 - y0;
+    if (ax === 'x') addBox(c, fixo, L, H, t, material, y0); else addBox(fixo, c, t, H, L, material, y0);
+  };
+  let pos = a;
+  for (const v of [...vaos].sort((p, q) => p.c - q.c)) {
+    const v0 = v.c - v.w / 2, v1 = v.c + v.w / 2;
+    box(pos, v0, 0, h);
+    if (v.tipo === 'janela') {
+      box(v0, v1, 0, 1.0); box(v0, v1, 2.1, h);
+      if (ax === 'x') barreira(v.c, fixo, v.w, t + 0.2, 1.2, 0.95); else barreira(fixo, v.c, t + 0.2, v.w, 1.2, 0.95);
+      // moldura
+      const mold = mat('moldJan', () => lam(0x3a2814));
+      for (const [y, hh] of [[1.0, 0.08], [2.06, 0.08]]) deco(ax === 'x' ? meshAt(new THREE.BoxGeometry(v.w, hh, t + 0.12), mold, v.c, y, fixo) : meshAt(new THREE.BoxGeometry(t + 0.12, hh, v.w), mold, fixo, y, v.c), false);
+    } else box(v0, v1, v.alto ?? 2.4, h);
+    pos = v1;
+  }
+  box(pos, b, 0, h);
+}
+// cerca de madeira (1,6 m) que não dá para pular; vaos: [{ c, w, tipo: 'porteira'|'buraco' }]
+function cerca(ax, fixo, a, b, vaos = []) {
+  const madeira = mat('cercaF', () => lam(0x5a3f26)), velha = mat('cercaV', () => lam(0x3e2c1a));
+  const dentro = (c, tipos) => vaos.find(v => tipos.includes(v.tipo) && Math.abs(c - v.c) < v.w / 2);
+  // postes e ripas (visual), sem nada na porteira e com tábuas quebradas no buraco
+  for (let c = a; c <= b + 0.01; c += 2.2) {
+    if (dentro(c, ['porteira'])) continue;
+    deco(ax === 'x' ? meshAt(new THREE.BoxGeometry(0.22, 1.8, 0.22), madeira, c, 0.9, fixo) : meshAt(new THREE.BoxGeometry(0.22, 1.8, 0.22), madeira, fixo, 0.9, c), false);
+  }
+  let pos = a;
+  const ripas = (c0, c1, quebrada) => {
+    const L = c1 - c0; if (L < 0.05) return;
+    for (const y of quebrada ? [1.45] : [0.55, 1.05, 1.5]) deco(ax === 'x' ? meshAt(new THREE.BoxGeometry(L, 0.14, 0.08), quebrada ? velha : madeira, (c0 + c1) / 2, y, fixo) : meshAt(new THREE.BoxGeometry(0.08, 0.14, L), quebrada ? velha : madeira, fixo, y, (c0 + c1) / 2), false);
+  };
+  const corpo = (c0, c1) => { if (c1 - c0 > 0.05) { if (ax === 'x') barreira((c0 + c1) / 2, fixo, c1 - c0, 0.35); else barreira(fixo, (c0 + c1) / 2, 0.35, c1 - c0); } };
+  for (const v of [...vaos].sort((p, q) => p.c - q.c)) {
+    const v0 = v.c - v.w / 2, v1 = v.c + v.w / 2;
+    ripas(pos, v0); corpo(pos, v0);
+    if (v.tipo === 'buraco') { ripas(v0, v1, true); corpo(v0, v1); } // o buraco segura gente; só zumbi passa (rastejando)
+    pos = v1;
+  }
+  ripas(pos, b); corpo(pos, b);
+}
+// porta ou porteira paga: segura todo mundo até alguém comprar (FAZ.portas[i])
+function portaPaga(nome, preco, x, z, w, ax, abre, cor = 0x6b4426, h = 2.3) {
+  const pivot = new THREE.Group(); pivot.position.set(ax ? x - w / 2 : x, 0, ax ? z : z - w / 2);
+  const tab = mat('porteira' + cor, () => lam(cor));
+  const painel = new THREE.Group();
+  for (let k = 0; k < 4; k++) { const y = 0.35 + k * (h - 0.5) / 3; const r = new THREE.Mesh(new THREE.BoxGeometry(ax ? w : 0.1, 0.16, ax ? 0.1 : w), tab); r.position.set(ax ? w / 2 : 0, y, ax ? 0 : w / 2); r.castShadow = true; painel.add(r); }
+  for (const f of [0.08, 0.5, 0.92]) { const v = new THREE.Mesh(new THREE.BoxGeometry(ax ? 0.14 : 0.12, h, ax ? 0.12 : 0.14), tab); v.position.set(ax ? w * f : 0, h / 2, ax ? 0 : w * f); painel.add(v); }
+  const diag = new THREE.Mesh(new THREE.BoxGeometry(ax ? Math.hypot(w, h) * 0.95 : 0.1, 0.14, ax ? 0.1 : Math.hypot(w, h) * 0.95), tab);
+  diag.position.set(ax ? w / 2 : 0, h / 2, ax ? 0 : w / 2); diag.rotation[ax ? 'z' : 'x'] = (ax ? 1 : -1) * Math.atan2(h, w); painel.add(diag);
+  pivot.add(painel); mapGroup.add(pivot);
+  const placa = signText(`🔒 ${nome} · 💰 ${preco}`, 3.2, 0.55, '#1a0b2e', '#ffd23d', 'bold 40px system-ui');
+  placa.position.set(x, h + 0.55, z); if (!ax) placa.rotation.y = Math.PI / 2;
+  const placa2 = placa.clone(); placa2.rotation.y += Math.PI; placa2.position.copy(placa.position);
+  mapGroup.add(placa, placa2);
+  const o = { mesh: null, box: new THREE.Box3(new THREE.Vector3(x - (ax ? w / 2 : 0.2), 0, z - (ax ? 0.2 : w / 2)), new THREE.Vector3(x + (ax ? w / 2 : 0.2), h, z + (ax ? 0.2 : w / 2))), semSubir: true };
+  obstacles.push(o);
+  return { nome, preco, x, z, w, ax, abre, pivot, placas: [placa, placa2], o, aberta: false, ang: 0 };
+}
+function buildFazenda() {
+  ARENA = 50;
+  setLook({ sky: 0x060914, fogNear: 10, fogFar: 62, hemiSky: 0x5a6a9a, hemiGround: 0x141a10, hemiI: 0.42, sunColor: 0x9fb4ff, sunI: 0.38 });
+  ground(texMat('terra', 30, 30), ARENA * 2 + 80);
+  const r = seeded(4242);
+  // muro alto de troncos em volta e a mata escura lá fora
+  walls(mat('palicada', () => lam(0x2e2216)), 4);
+  for (let i = 0; i < 70; i++) { const a = r() * Math.PI * 2, d = ARENA + 6 + r() * 26; pine(...foraDoMuro(a, d), 1.1 + r() * 0.8, false); }
+  // lua
+  const lua = deco(meshAt(new THREE.SphereGeometry(6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false }), -120, 95, -160), false);
+  lua.castShadow = false;
+  const terraClara = mat('terraQ', () => lam(0x5a4630)), grama = mat('gramaN', () => lam(0x24401f));
+  const madeira = texMat('madeira', 2, 1), madeiraEsc = mat('madEsc', () => lam(0x3d2a18));
+
+  // ===== 🏠 Casa (x -8..8, z 22..34): sala e cozinha, 4 janelas, porta da frente paga
+  floorPatch(mat('assoalho', () => lam(0x6b4a2b)), 0, 28, 16, 12, 0.02);
+  const paredeCasa = mat('paredeCasa', () => lam(0xcdbf9e));
+  muro('x', 22, -8, 8, 3.4, [{ c: -3, w: 1.6, tipo: 'porta' }, { c: 4.5, w: 1.4, tipo: 'janela' }], paredeCasa);
+  muro('x', 34, -8, 8, 3.4, [{ c: -6, w: 1.4, tipo: 'janela' }, { c: 6, w: 1.4, tipo: 'janela' }], paredeCasa);
+  muro('z', -8, 22, 34, 3.4, [{ c: 28, w: 1.4, tipo: 'janela' }], paredeCasa);
+  muro('z', 8, 22, 34, 3.4, [{ c: 28, w: 1.4, tipo: 'janela' }], paredeCasa);
+  muro('z', 1, 22, 34, 3.4, [{ c: 28, w: 2.2, tipo: 'aberto' }], paredeCasa); // sala | cozinha
+  addBox(0, 28, 16.8, 0.3, 12.8, madeiraEsc, 3.4); // forro
+  // telhado de duas águas (visual)
+  for (const sg of [-1, 1]) { const t = deco(meshAt(new THREE.BoxGeometry(17.6, 0.25, 7.4), mat('telhaC', () => lam(0x6b2a1a)), 0, 4.55, 28 + sg * 3.15), false); t.rotation.x = sg * 0.42; }
+  // móveis (cobertura dentro de casa)
+  addBox(-5.5, 24.6, 2.6, 0.9, 1, mat('sofa', () => lam(0x6a2f3a)));
+  addBox(4.5, 24, 2.4, 0.95, 0.9, mat('pia', () => lam(0xb8b8b0)));
+  addBox(6.6, 27, 1, 1.8, 1, mat('geladeira', () => lam(0xe8e8e0)));
+  addBox(4, 28.6, 1.8, 0.8, 1.1, mat('mesaC', () => lam(0x7a5230)));
+  const abajur = new THREE.PointLight(0xffb060, 4.5, 14, 1.4); abajur.position.set(-4, 2.6, 28); mapGroup.add(abajur);
+  const abajur2 = new THREE.PointLight(0xffb060, 3, 10, 1.4); abajur2.position.set(4.5, 2.6, 26); mapGroup.add(abajur2);
+  // varanda com luz piscando
+  const varanda = new THREE.PointLight(0xffd080, 6, 16, 1.3); varanda.position.set(-3, 3, 20.6); mapGroup.add(varanda);
+  deco(meshAt(new THREE.BoxGeometry(0.3, 0.2, 0.3), mat('lampV', () => lam(0xfff0b0, { emissive: 0xffd080, emissiveIntensity: 1 })), -3, 3.1, 21.7), false);
+
+  // ===== 🐔 Quintal (x -18..14, z -22..22)
+  floorPatch(terraClara, -3, 6, 4, 30, 0.015); // estradinha até a porta
+  floorPatch(terraClara, -2, -6, 34, 3.2, 0.015);
+  const poco = deco(meshAt(new THREE.CylinderGeometry(1.1, 1.2, 1, 14), mat('pedraP', () => lam(0x6f6a62)), -9, 0.5, 10)); collider(-9, 10, 2.2, 2.2, 0, 1, poco);
+  for (const dx of [-0.9, 0.9]) addBox(-9 + dx, 10, 0.15, 2.4, 0.15, madeiraEsc);
+  addBox(-9, 10, 2.2, 0.2, 0.8, madeiraEsc, 2.4);
+  car(7, 8, 0x7a2b22, 0.3); // caminhonete velha
+  // galinheiro
+  addBox(-13, -14, 5, 2.2, 3.5, madeira); addBox(-13, -14, 5.6, 0.25, 4, madeiraEsc, 2.2);
+  // fardos de feno e lenha
+  const feno = mat('feno', () => lam(0xc9a24a));
+  for (const [x, z, ry] of [[-15, 4, 0], [10, -14, 1], [-2, -16, 0.4], [4, 16, 0]]) { const f = deco(meshAt(new THREE.BoxGeometry(2, 1, 1.2), feno, x, 0.5, z, ry)); collider(x, z, 2.1, 2.1, 0, 1, f); }
+  barrel(2, -9, 0x4a3a2a);
+  const fogo = deco(meshAt(new THREE.ConeGeometry(0.35, 0.8, 8), new THREE.MeshLambertMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1 }), 2, 1.5, -9), false);
+  const fl = new THREE.PointLight(0xff8a3d, 7, 18, 1.3); fl.position.set(2, 2.2, -9); mapGroup.add(fl);
+  tree(-6, -4, 1.2);
+  for (const x of [-16, 12]) lampPost(x, 18);
+
+  // ===== 🌾 Celeiro (zona x -50..-18; prédio x -44..-26, z -14..8)
+  const vermelho = mat('celeiro', () => lam(0x7a1f17));
+  muro('z', -26, -14, 8, 6, [{ c: -2, w: 5, tipo: 'aberto', alto: 4.4 }], vermelho);
+  muro('z', -44, -14, 8, 6, [], vermelho);
+  muro('x', -14, -44, -26, 6, [{ c: -35, w: 5, tipo: 'aberto', alto: 4.4 }], vermelho);
+  muro('x', 8, -44, -26, 6, [{ c: -35, w: 4, tipo: 'aberto', alto: 4.4 }], vermelho);
+  addBox(-35, -3, 18.6, 0.3, 22.6, madeiraEsc, 6);
+  for (const sg of [-1, 1]) { const t = deco(meshAt(new THREE.BoxGeometry(20, 0.3, 12.5), mat('telhaCel', () => lam(0x4a1410)), -35, 7.6, -3 + sg * 5.6), false); t.rotation.x = sg * 0.5; }
+  // mezanino de feno com escada
+  addBox(-40.5, -3, 7, 0.3, 22, madeiraEsc, 3);
+  for (let k = 0; k < 6; k++) addBox(-36.4 + k * 0, 5 - k * 0.9, 1.4, 0.5 * (k + 1), 0.9, madeiraEsc);
+  for (const [x, z] of [[-30, -10], [-29, 4], [-33, -6], [-31, -1]]) { const f = deco(meshAt(new THREE.BoxGeometry(2, 1, 1.2), feno, x, 0.5, z)); collider(x, z, 2.1, 1.3, 0, 1, f); }
+  const lc = new THREE.PointLight(0xffc070, 4, 16, 1.4); lc.position.set(-33, 4.5, -3); mapGroup.add(lc);
+  floorPatch(terraClara, -22, 0, 8, 3, 0.015);
+
+  // ===== 🌽 Milharal (x 14..50, z -22..22): milho alto que esconde (sem colisão), trilhas e espantalhos
+  const caule = new THREE.ConeGeometry(0.28, 2.6, 5), milho = new THREE.MeshLambertMaterial({ color: 0x5f6b25 });
+  const pts = [];
+  for (let x = 16; x < 49; x += 1.5) for (let z = -20.5; z < 21; z += 1.0) {
+    if (Math.abs(z + 6) < 1.8 || Math.abs(x - 32) < 1.8 || Math.hypot(x - 30, z - 4) < 5) continue; // trilhas e clareira
+    pts.push([x + (r() - 0.5) * 0.5, z + (r() - 0.5) * 0.4, 0.8 + r() * 0.5]);
+  }
+  const inst = new THREE.InstancedMesh(caule, milho, pts.length), m4 = new THREE.Matrix4();
+  pts.forEach(([x, z, s], i) => { m4.makeScale(1, s, 1); m4.setPosition(x, 1.3 * s, z); inst.setMatrixAt(i, m4); });
+  mapGroup.add(inst);
+  const espantalho = (x, z) => {
+    addBox(x, z, 0.2, 2.6, 0.2, madeiraEsc); deco(meshAt(new THREE.BoxGeometry(2, 0.15, 0.15), madeiraEsc, x, 2, z), false);
+    deco(meshAt(new THREE.BoxGeometry(0.8, 0.9, 0.4), mat('roupaE', () => lam(0x4a5a8a)), x, 1.9, z), false);
+    deco(meshAt(new THREE.SphereGeometry(0.32, 10, 8), feno, x, 2.65, z), false);
+    deco(meshAt(new THREE.ConeGeometry(0.5, 0.5, 10), mat('chapeuE', () => lam(0x3a2a1a)), x, 3.05, z), false);
+  };
+  espantalho(30, 4); espantalho(44, -14); espantalho(20, 14);
+
+  // ===== 🚜 Galpão (zona x 14..50, z 22..50): galpão de máquinas, trator e silo
+  const zinco = mat('zinco', () => lam(0x6e747a));
+  muro('x', 46, 22, 44, 5, [], zinco); muro('z', 44, 32, 46, 5, [], zinco); muro('z', 22, 32, 46, 5, [{ c: 39, w: 3, tipo: 'aberto' }], zinco);
+  addBox(33, 39, 22.6, 0.25, 14.6, zinco, 5);
+  for (const x of [22, 33, 44]) addBox(x, 32, 0.3, 5, 0.3, zinco);
+  // trator
+  addBox(30, 40, 2.4, 1.6, 3.6, mat('trator', () => lam(0x2f7a35))); addBox(30, 41, 1.6, 1.2, 1.4, mat('cabT', () => lam(0x1f2a22)), 1.6);
+  for (const [dx, dz, rr] of [[-1.35, 1, 0.9], [1.35, 1, 0.9], [-1.3, -1.2, 0.55], [1.3, -1.2, 0.55]]) { const w = deco(meshAt(new THREE.CylinderGeometry(rr, rr, 0.45, 14), mat('tire', () => lam(0x1d1d1d)), 30 + dx, rr, 40 + dz)); w.rotation.z = Math.PI / 2; }
+  addBox(40, 44, 4, 1, 1.4, mat('bancada', () => lam(0x5a4632)));
+  barrel(24, 44, 0x8a3a1a); barrel(25.2, 44.6, 0x3a5a8a);
+  const silo = deco(meshAt(new THREE.CylinderGeometry(3, 3, 12, 18), mat('silo', () => lam(0x9aa0a6)), 22, 6, 28)); collider(22, 28, 5.4, 5.4, 0, 12, silo);
+  deco(meshAt(new THREE.SphereGeometry(3, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat('silo', () => lam(0x9aa0a6)), 22, 12, 28), false);
+  const lg = new THREE.PointLight(0x9fd0ff, 3.5, 16, 1.4); lg.position.set(33, 4.4, 39); mapGroup.add(lg);
+
+  // ===== 🐄 Pasto (z -50..-22): campo aberto, cata-vento, rolos de feno e o heliponto
+  floorPatch(grama, 0, -36, 100, 28, 0.012);
+  const heli = new THREE.Mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshLambertMaterial({ map: canvasTex(256, 256, g => { g.fillStyle = '#5c5f63'; g.fillRect(0, 0, 256, 256); g.strokeStyle = '#ffd23d'; g.lineWidth = 14; g.beginPath(); g.arc(128, 128, 110, 0, Math.PI * 2); g.stroke(); g.fillStyle = '#fff'; g.font = 'bold 150px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('H', 128, 136); }) }));
+  heli.rotation.x = -Math.PI / 2; heli.position.set(0, 0.03, -40); mapGroup.add(heli);
+  addBox(-24, -40, 0.6, 9, 0.6, mat('metal', () => lam(0x55595f)));
+  const helice = new THREE.Group(); helice.position.set(-24, 9, -39.6); mapGroup.add(helice);
+  for (let k = 0; k < 6; k++) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 0.05), mat('metal', () => lam(0x55595f))); pa.position.y = 1.2; const g = new THREE.Group(); g.rotation.z = k * Math.PI / 3; g.add(pa); helice.add(g); }
+  for (const [x, z] of [[18, -30], [30, -44], [-38, -32], [-12, -46], [40, -30]]) { const f = deco(meshAt(new THREE.CylinderGeometry(0.9, 0.9, 1.4, 14), feno, x, 0.9, z)); f.rotation.z = Math.PI / 2; collider(x, z, 1.5, 1.9, 0, 1.8, f); }
+  tree(-44, -44, 1.3); tree(44, -46, 1.1);
+
+  // ===== 🌳 Jardim (só zumbis): árvores, mato e um cemitério da família
+  for (const [x, z] of [[-20, 30], [-40, 28], [-28, 44], [-14, 44], [10, 44], [-45, 46]]) tree(x, z, 1 + r() * 0.3);
+  const lapide = mat('lapide', () => lam(0x6f7378));
+  for (let i = 0; i < 9; i++) { const x = -34 + (i % 3) * 2.4, z = 34 + Math.floor(i / 3) * 2.6; addBox(x, z, 0.8, 1 + r() * 0.4, 0.25, lapide); }
+  for (let i = 0; i < 22; i++) { const x = -48 + r() * 60, z = 24 + r() * 24; if (x > -9 && x < 9 && z < 35) continue; deco(meshAt(new THREE.SphereGeometry(0.7 + r() * 0.5, 8, 6), mat('arbusto', () => lam(0x2e5e2a)), x, 0.35, z)).scale.y = 0.7; }
+
+  // ===== cercas entre as zonas, porteiras pagas e buracos (só zumbis passam)
+  cerca('z', -18, -22, 22, [{ c: 0, w: 3.2, tipo: 'porteira' }]);
+  cerca('z', 14, -22, 22, [{ c: -6, w: 3.2, tipo: 'porteira' }]);
+  cerca('x', 22, -50, -8, [{ c: -30, w: 1.6, tipo: 'buraco' }, { c: -13, w: 1.6, tipo: 'buraco' }]);
+  cerca('x', 22, 8, 14, [{ c: 11, w: 1.6, tipo: 'buraco' }]);
+  cerca('x', 22, 14, 50, [{ c: 32, w: 3.2, tipo: 'porteira' }]);
+  cerca('z', 14, 22, 50, [{ c: 40, w: 1.6, tipo: 'buraco' }]);
+  cerca('x', -22, -50, 50, [{ c: -34, w: 3.2, tipo: 'porteira' }, { c: 32, w: 3.2, tipo: 'porteira' }, { c: 0, w: 1.6, tipo: 'buraco' }]);
+
+  const portas = [
+    portaPaga('Porta da frente', 750, -3, 22, 1.6, true, -Math.PI / 2, 0x5a3820, 2.4),
+    portaPaga('Porteira do celeiro', 1000, -18, 0, 3.2, false, Math.PI / 2),
+    portaPaga('Porteira do milharal', 1250, 14, -6, 3.2, false, -Math.PI / 2),
+    portaPaga('Portão do galpão', 1500, 32, 22, 3.2, true, Math.PI / 2),
+    portaPaga('Porteira do pasto (celeiro)', 2000, -34, -22, 3.2, true, -Math.PI / 2),
+    portaPaga('Porteira do pasto (milharal)', 2000, 32, -22, 3.2, true, -Math.PI / 2),
+  ];
+  FAZ = {
+    portas,
+    zonas: [
+      { id: 'casa', nome: '🏠 Casa', rects: [[-8, 22, 8, 34]], abre: null, jog: true },
+      { id: 'celeiroD', nome: '🌾 Dentro do celeiro', rects: [[-44, -14, -26, 8]], abre: [1], jog: true },
+      { id: 'galpaoD', nome: '🚜 Dentro do galpão', rects: [[22, 32, 44, 46]], abre: [3], jog: true },
+      { id: 'quintal', nome: '🐔 Quintal', rects: [[-18, -22, 14, 22]], abre: [0], jog: true },
+      { id: 'celeiro', nome: '🌾 Celeiro', rects: [[-50, -22, -18, 22]], abre: [1], jog: true },
+      { id: 'milho', nome: '🌽 Milharal', rects: [[14, -22, 50, 22]], abre: [2], jog: true },
+      { id: 'galpao', nome: '🚜 Galpão', rects: [[14, 22, 50, 50]], abre: [3], jog: true },
+      { id: 'pasto', nome: '🐄 Pasto', rects: [[-50, -50, 50, -22]], abre: [4, 5], jog: true },
+      { id: 'jardimO', nome: '🌳 Jardim', rects: [[-50, 22, -8, 50]], abre: null, jog: false },
+      { id: 'jardimS', nome: '🌳 Jardim', rects: [[-8, 34, 14, 50]], abre: null, jog: false },
+      { id: 'jardimL', nome: '🌳 Jardim', rects: [[8, 22, 14, 34]], abre: null, jog: false },
+    ],
+    // passagens: a ↔ b, ponto do lado a (pa) e do lado b (pb); porta = índice da porta paga (só abre comprando)
+    passagens: [
+      { a: 'casa', b: 'quintal', pa: [-3, 23.4], pb: [-3, 20.6], tipo: 'porta', porta: 0 },
+      { a: 'quintal', b: 'celeiro', pa: [-16.6, 0], pb: [-19.4, 0], tipo: 'porta', porta: 1 },
+      { a: 'quintal', b: 'milho', pa: [12.6, -6], pb: [15.4, -6], tipo: 'porta', porta: 2 },
+      { a: 'milho', b: 'galpao', pa: [32, 20.6], pb: [32, 23.4], tipo: 'porta', porta: 3 },
+      { a: 'celeiro', b: 'pasto', pa: [-34, -20.6], pb: [-34, -23.4], tipo: 'porta', porta: 4 },
+      { a: 'milho', b: 'pasto', pa: [32, -20.6], pb: [32, -23.4], tipo: 'porta', porta: 5 },
+      { a: 'casa', b: 'jardimO', pa: [-6.8, 28], pb: [-9.3, 28], tipo: 'janela' },
+      { a: 'casa', b: 'jardimS', pa: [-6, 32.8], pb: [-6, 35.3], tipo: 'janela' },
+      { a: 'casa', b: 'jardimS', pa: [6, 32.8], pb: [6, 35.3], tipo: 'janela' },
+      { a: 'casa', b: 'jardimL', pa: [6.8, 28], pb: [9.3, 28], tipo: 'janela' },
+      { a: 'casa', b: 'quintal', pa: [4.5, 23.2], pb: [4.5, 20.8], tipo: 'janela' },
+      { a: 'quintal', b: 'jardimO', pa: [-13, 20.8], pb: [-13, 23.2], tipo: 'buraco' },
+      { a: 'quintal', b: 'jardimL', pa: [11, 20.8], pb: [11, 23.2], tipo: 'buraco' },
+      { a: 'celeiro', b: 'jardimO', pa: [-30, 20.8], pb: [-30, 23.2], tipo: 'buraco' },
+      { a: 'galpao', b: 'jardimS', pa: [15.2, 40], pb: [12.8, 40], tipo: 'buraco' },
+      // passagens abertas dentro da mesma área (vãos dos prédios e as voltas em torno da casa)
+      { a: 'celeiroD', b: 'celeiro', pa: [-27.6, -2], pb: [-24.4, -2], tipo: 'aberto' },
+      { a: 'celeiroD', b: 'celeiro', pa: [-35, -12.6], pb: [-35, -15.4], tipo: 'aberto' },
+      { a: 'celeiroD', b: 'celeiro', pa: [-35, 6.6], pb: [-35, 9.4], tipo: 'aberto' },
+      { a: 'galpaoD', b: 'galpao', pa: [27.5, 33.6], pb: [27.5, 30.4], tipo: 'aberto' },
+      { a: 'galpaoD', b: 'galpao', pa: [38.5, 33.6], pb: [38.5, 30.4], tipo: 'aberto' },
+      { a: 'galpaoD', b: 'galpao', pa: [23.6, 39], pb: [20.4, 39], tipo: 'aberto' },
+      { a: 'jardimO', b: 'jardimS', pa: [-9.6, 42], pb: [-6.4, 42], tipo: 'aberto' },
+      { a: 'jardimS', b: 'jardimL', pa: [11, 35.6], pb: [11, 32.4], tipo: 'aberto' },
+      { a: 'quintal', b: 'pasto', pa: [0, -20.8], pb: [0, -23.2], tipo: 'buraco' },
+    ],
+    // de onde os zumbis saem do chão, por zona (o jardim alimenta as janelas da casa)
+    nascedouros: {
+      jardim: [[-13, 27], [-14, 32], [-6, 41], [5, 41], [11.2, 30], [-24, 30], [-36, 42], [12, 44]],
+      quintal: [[-15, -19], [10, -19], [-15, 16], [11, 12], [-4, -12], [8, -2]],
+      celeiro: [[-47, -19], [-47, 19], [-21, -19], [-30, 15], [-21, 18]],
+      milho: [[47, -19], [47, 19], [19, -18], [26, 2], [40, 10]],
+      galpao: [[47, 47], [19, 47], [47, 26], [36, 26]],
+      pasto: [[-46, -47], [46, -47], [0, -47], [-20, -30], [22, -36]],
+    },
+    inicio: [[-5, 26], [-3, 30], [3.5, 25.5], [5, 31]],
+    loja: [-3.5, 31.3],
+  };
+  mapTick = dt => {
+    const k = performance.now();
+    fogo.scale.set(1 + Math.sin(k / 90) * 0.12, 1 + Math.sin(k / 70) * 0.2, 1); fl.intensity = 6 + Math.sin(k / 60) * 1.4;
+    varanda.intensity = Math.random() < 0.015 ? 0.4 : 6; // a luz da varanda falha de vez em quando
+    helice.rotation.z += dt * 0.6;
+    for (const P of FAZ.portas) { const alvo = P.aberta ? P.abre : 0; P.ang += (alvo - P.ang) * Math.min(1, dt * 4); P.pivot.rotation.y = P.ang; }
+  };
 }
 // pinheiro (floresta)
 function pine(x, z, s = 1, solid = true) {
@@ -1779,7 +2058,7 @@ function pine(x, z, s = 1, solid = true) {
 
 // ---------- Clima: sol, chuva, noite (com lanternas) e tempestade ----------
 const CLIMAS = { auto: { nome: 'Do mapa', ic: '🗺️' }, sol: { nome: 'Sol', ic: '☀️' }, chuva: { nome: 'Chuva', ic: '🌧️' }, noite: { nome: 'Noite', ic: '🌙' }, tempestade: { nome: 'Tempestade', ic: '⛈️' } };
-const MAP_NOITE = { shopping: true };
+const MAP_NOITE = { shopping: true, fazenda: true };
 let baseLook = null, clima = 'sol', raio = 0;
 // lanterna presa na câmera: liga sozinha de noite (forte e aberta, apontada para a frente)
 const LANTERNA_I = 65;
@@ -1790,6 +2069,21 @@ lanterna.target.position.set(0, -0.9, -12); camera.add(lanterna.target);
 const fachoGeo = new THREE.ConeGeometry(1.7, 10, 20, 1, true); fachoGeo.translate(0, -5, 0); fachoGeo.rotateX(-Math.PI / 2 + 0.06);
 const fachoMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0, transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
 const lanternaLigada = () => lanterna.intensity > 0;
+// a lanterna diminui sozinha quando tem parede bem na frente (senão estoura tudo de branco dentro de casa)
+let lantBase = 0, lantK = 1, lantT = 0;
+const lantRay = new THREE.Raycaster(), lantDir = new THREE.Vector3();
+function ajustaLanterna(dt) {
+  if (lantBase <= 0) return;
+  lantT -= dt;
+  if (lantT <= 0) {
+    lantT = 0.12;
+    camera.getWorldDirection(lantDir); lantRay.set(camera.getWorldPosition(new THREE.Vector3()), lantDir); lantRay.far = 9;
+    const hit = lantRay.intersectObjects(obstacles.filter(o => o.mesh).map(o => o.mesh), false)[0];
+    ajustaLanterna.alvo = THREE.MathUtils.clamp(((hit ? hit.distance : 9) - 0.4) / 7, 0.1, 1);
+  }
+  lantK += ((ajustaLanterna.alvo ?? 1) - lantK) * Math.min(1, dt * 8);
+  lanterna.intensity = lantBase * lantK;
+}
 const chuva = (() => {
   const n = 1400, pos = new Float32Array(n * 6);
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -1815,13 +2109,14 @@ function applyClima() {
   if (molhado) { L.sky = noite ? 0x070a14 : 0x6f7b88; L.hemiI *= 0.75; L.sunI *= 0.5; L.fogNear = Math.min(L.fogNear, 14); L.fogFar = Math.min(L.fogFar, 65); }
   setLookRaw(L);
   const antes = lanterna.intensity;
-  lanterna.intensity = noite ? LANTERNA_I : 0;
+  lanterna.intensity = lantBase = noite ? LANTERNA_I : 0;
   if (noite && !antes && climaAvisa && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
   chuva.lines.visible = molhado;
 }
 // só avisa depois de o jogo terminar de abrir (o 1º loadMap roda antes de `state` existir)
 let climaAvisa = false;
 function updateClima(dt) {
+  ajustaLanterna(dt);
   if (chuva.lines.visible) {
     const p = chuva.pos, cx = camera.position.x, cz = camera.position.z;
     chuva.lines.position.set(0, 0, 0);
@@ -1849,6 +2144,7 @@ const MAPS = {
   escola: { nome: 'Escola', desc: 'quadra, salas com porta, ônibus e cantina', build: buildEscola },
   shopping: { nome: 'Shopping à noite', desc: 'lojas iluminadas, fonte e mezanino', build: buildShopping },
   floresta: { nome: 'Floresta', desc: 'neblina, riacho, cabana e fogueira', build: buildFloresta },
+  fazenda: { nome: 'Fazenda Assombrada', desc: 'sítio à noite: casa, celeiro, milharal, galpão e pasto', build: buildFazenda, so: 'missao' },
 };
 function loadMap(id) {
   if (!MAPS[id]) id = 'arena';
@@ -1858,7 +2154,7 @@ function loadMap(id) {
   scene.remove(mapGroup);
   mapGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   mapGroup = new THREE.Group(); scene.add(mapGroup);
-  obstacles.length = 0; mapTick = null; doors.length = 0;
+  obstacles.length = 0; mapTick = null; doors.length = 0; FAZ = null;
   MAPS[id].build();
   applyClima(); try { placeObjectives(); } catch {} // na 1ª carga os objetivos ainda não existem
   if (!first) onMapChanged();
@@ -1869,7 +2165,8 @@ const soloCfg = { modo: 'ondas', mapa: 'arena', dif: 1, clima: 'auto', ...(load(
 if (!MAPS[soloCfg.mapa]) soloCfg.mapa = 'arena';
 const OPT_DIF_SOLO = [0.5, 0.75, 1, 1.4, 1.8]; // mesmos níveis do OPT.dif
 if (!OPT_DIF_SOLO.includes(+soloCfg.dif)) soloCfg.dif = 1;
-if (soloCfg.modo !== 'zumbi') soloCfg.modo = 'ondas';
+if (!['zumbi', 'missao'].includes(soloCfg.modo)) soloCfg.modo = 'ondas';
+if (soloCfg.modo === 'missao') soloCfg.mapa = 'fazenda'; else if (soloCfg.mapa === 'fazenda') soloCfg.mapa = 'arena';
 loadMap(soloCfg.mapa);
 climaAvisa = true;
 
@@ -2199,7 +2496,7 @@ const STEP_MAX = 0.65, CLIMB_MAX = 2.1;
 const _cp = new THREE.Vector3();
 function acharSubida(pos, dirX, dirZ, r, h, alcance) {
   _cp.set(pos.x + dirX * (r + 0.12), pos.y, pos.z + dirZ * (r + 0.12));
-  const o = collides(_cp, r * 0.6, h); if (!o) return null;
+  const o = collides(_cp, r * 0.6, h); if (!o || o.semSubir) return null;
   const top = o.box.max.y; if (top - pos.y > alcance || top <= pos.y) return null;
   // em cima tem que caber (sem teto) e não pode ser fora do mapa
   const alvo = new THREE.Vector3(pos.x + dirX * (r + 0.35), top + 0.01, pos.z + dirZ * (r + 0.35));
@@ -2540,6 +2837,7 @@ function updateHud() {
       $('score').textContent = Z.roundView ? `🧟 Rodada ${Z.roundView} · restam ${Z.left}${tipos ? ' · ' + tipos : ''}` : '🧟 Prepare-se…';
       const O = Z.objView, D = Z.dzView, linhas = [];
       if (O) linhas.push(O.k === 'gen' ? (O.f ? '💥 Gerador quebrado' : `⚡ Proteja o gerador: ${O.max ? Math.round(O.hp / O.max * 100) : 0}%`) : O.ok ? '📍 Área segura!' : `📍 Segure a área: ${Math.floor(O.t)}/${O.meta} s`);
+      if (FAZ && isMissao()) { const zn = zonaInfo(fazZonaVista), prox = FAZ.portas.find(P => !P.aberta); linhas.unshift(`${zn ? zn.nome : '🌾 Fazenda'}${prox ? ` · 🔒 próxima: ${prox.nome} (💰 ${prox.preco})` : ''}`); }
       if (D) linhas.push(D.ok ? '🏅 Desafio cumprido!' : `${DESAFIOS[D.k].ic} ${DESAFIOS[D.k].txt(D.n)} (${Math.min(D.p, D.n)}/${D.n})`);
       obj = linhas.join(' · ');
     } else if (isTdm()) {
@@ -3049,7 +3347,7 @@ function start() {
   mode = 'solo'; net.cfg = { ...CFG_PADRAO }; renderBoard(); loadMap(soloCfg.mapa);
   resetGame(); state = 'play'; lockPointer(); goFullscreen();
 }
-function startSolo() { readSetup(); if (soloCfg.modo === 'zumbi') startLocalZombie(); else start(); }
+function startSolo() { readSetup(); if (ehZumbi(soloCfg.modo)) startLocalZombie(); else start(); }
 
 function showResults(title, text, stats) {
   state = 'over';
@@ -3132,7 +3430,8 @@ function removePickup(id) {
 function clearPickups() { for (const id of [...pickups.keys()]) { scene.remove(pickups.get(id).mesh); pickups.delete(id); } puTimer = 4; }
 function pickupSpot() {
   for (let i = 0; i < 40; i++) {
-    const p = new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 4), 0, (Math.random() * 2 - 1) * (ARENA - 4));
+    const p = FAZ ? lugarFaz(2, 1.2) : new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 4), 0, (Math.random() * 2 - 1) * (ARENA - 4));
+    if (!p) return null;
     if (collides(p, 1.2, 2)) continue;
     if ([...pickups.values()].some(o => Math.hypot(o.x - p.x, o.z - p.z) < 8)) continue;
     return p;
@@ -3213,7 +3512,10 @@ const MODOS = {
   ultimo: { nome: 'Último de pé', icone: '💀', desc: 'sem voltar: o último vivo ganha a rodada' },
   esconde:{ nome: 'Esconde-esconde', icone: '📦', desc: 'um time vira objeto do cenário, o outro caça' },
   zumbi:  { nome: 'Zumbis', icone: '🧟', desc: 'todos juntos contra hordas; chefão a cada 5 rodadas' },
+  missao: { nome: 'Missão: Fazenda', icone: '🌾', desc: 'sítio assombrado à noite: abra caminho, ligue os geradores e fuja de helicóptero' },
 };
+// modos de hordas (o Missão é o Zumbi com a camada da fazenda por cima)
+const ehZumbi = m => m === 'zumbi' || m === 'missao';
 // opções que o dono da sala pode escolher (0 = indeterminado / sem limite; rInt 0 = aleatório)
 const OPT = { tempo: [0, 3, 5, 10, 15, 20], kills: [0, 5, 10, 15, 20, 30, 50], vida: [0.5, 1, 2], respawn: [2, 3, 5, 8], dif: [0.5, 0.75, 1, 1.4, 1.8], rInt: [0, 10, 20, 30, 45, 60],
   caps: [0, 1, 3, 5, 7], hill: [0, 30, 60, 100, 150], rounds: [3, 5, 7], bots: [0, 2, 4, 6, 8],
@@ -3237,7 +3539,7 @@ const ggOrder = () => ggOrderOf(net.cfg);
 // meta de abates (0 = sem meta): no Gun Game é passar por todas as armas
 const goalKills = () => net.cfg.modo === 'gg' ? ggOrder().length : ['dm', 'tdm', 'roleta'].includes(net.cfg.modo) ? net.cfg.kills : 0;
 // meta do modo (o que aparece no placar): abates, capturas, pontos do morro ou rodadas
-const goalOf = (modo = net.cfg.modo, c = net.cfg) => modo === 'gg' ? ggOrderOf(c).length : modo === 'ctf' ? c.caps : modo === 'koth' ? c.hill : ['ultimo', 'esconde'].includes(modo) ? c.rounds : modo === 'zumbi' ? 0 : c.kills;
+const goalOf = (modo = net.cfg.modo, c = net.cfg) => modo === 'gg' ? ggOrderOf(c).length : modo === 'ctf' ? c.caps : modo === 'koth' ? c.hill : ['ultimo', 'esconde'].includes(modo) ? c.rounds : ehZumbi(modo) ? 0 : c.kills;
 // modos com times (Times, Pique-bandeira, Esconde-esconde)
 const isTdm = () => ['tdm', 'ctf', 'esconde'].includes(net.cfg.modo);
 const teamOf = id => net.players[id]?.team ?? 0;
@@ -3255,7 +3557,7 @@ function cleanCfg(c) {
   const pick = k => OPT[k].includes(+c[k]) ? +c[k] : CFG_PADRAO[k];
   const armas = Array.isArray(c.armas) ? WEAPON_ORDER.filter(id => c.armas.includes(id)) : [];
   return {
-    modo: MODOS[c.modo] ? c.modo : 'dm', mapa: MAPS[c.mapa] ? c.mapa : 'arena', clima: CLIMAS[c.clima] ? c.clima : 'auto',
+    modo: MODOS[c.modo] ? c.modo : 'dm', mapa: c.modo === 'missao' ? 'fazenda' : MAPS[c.mapa] && c.mapa !== 'fazenda' ? c.mapa : 'arena', clima: c.modo === 'missao' ? 'noite' : CLIMAS[c.clima] ? c.clima : 'auto',
     tempo: pick('tempo'), kills: pick('kills'), caps: pick('caps'), hill: pick('hill'), rounds: pick('rounds'), bots: pick('bots'),
     vida: pick('vida'), respawn: pick('respawn'), dif: pick('dif'), rInt: pick('rInt'),
     grav: pick('grav'), velo: pick('velo'), vamp: pick('vamp'), prot: pick('prot'), alvo: ALVOS.includes(c.alvo) ? c.alvo : 'normal',
@@ -3266,7 +3568,7 @@ function cleanCfg(c) {
 }
 // arma que vale para o dano, decidida pelo dono da sala
 function hostWeaponOf(id, claimed) {
-  if (net.cfg.modo === 'zumbi') { const inv = net.players[id]?.inv || INV_INICIAL(); return inv.some(s => s.w === claimed) ? claimed : inv[0].w; }
+  if (ehZumbi(net.cfg.modo)) { const inv = net.players[id]?.inv || INV_INICIAL(); return inv.some(s => s.w === claimed) ? claimed : inv[0].w; }
   if (net.cfg.modo === 'gg') return ggOrder()[Math.min(net.players[id]?.kills || 0, ggOrder().length - 1)];
   if (net.cfg.modo === 'roleta') return WEAPONS[net.roll[id]] ? net.roll[id] : net.cfg.armas[0];
   return net.cfg.armas.includes(claimed) ? claimed : net.cfg.armas[0];
@@ -3275,7 +3577,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 28;
+const VERSAO = 29;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -3299,7 +3601,7 @@ function addPlayer(id, name, char, cor, lk) {
   // em modos sem renascer, quem chega no meio da rodada espera a próxima
   const espera = net.isHost && semVolta() && rodadaRolando();
   net.players[id] = { name: n, char: c, cor: Number.isInteger(cor) ? cor & 0xffffff : 0x3db8ff, lk: cleanLook(lk), hp: hpMax(), kills: 0, deaths: 0, pts: 0, dead: espera, team: cnt[0] <= cnt[1] ? 0 : 1 };
-  if (net.cfg.modo === 'zumbi') zEcoInit(net.players[id], true);
+  if (ehZumbi(net.cfg.modo)) zEcoInit(net.players[id], true);
   if (net.cfg.modo === 'roleta') net.roll[id] = net.cfg.rIgual ? (net.roll[net.myId] || randomFrom(net.cfg.armas)) : randomFrom(net.cfg.armas);
 }
 const randomFrom = list => list[Math.floor(Math.random() * list.length)];
@@ -3329,7 +3631,7 @@ function startMatch() {
   syncBots();
   for (const [id, p] of Object.entries(net.players)) Object.assign(p, { kills: 0, deaths: 0, pts: 0, hp: hpMax(id), dead: false, down: false });
   if (isTdm()) balanceTeams();
-  net.endAt = net.cfg.tempo && !['zumbi', 'esconde'].includes(net.cfg.modo) ? performance.now() + net.cfg.tempo * 60000 : 0;
+  net.endAt = net.cfg.tempo && !['zumbi', 'missao', 'esconde'].includes(net.cfg.modo) ? performance.now() + net.cfg.tempo * 60000 : 0;
   net.roll = {};
   if (net.cfg.modo === 'roleta') rollWeapons(true);
   modeStart();
@@ -3340,7 +3642,7 @@ const VOTE_S = 12;
 function endMatch(w) {
   if (net.winning) return;
   net.winning = true; net.endAt = 0; net.votes = {};
-  const opcoes = [net.cfg.mapa, ...Object.keys(MAPS).filter(m => m !== net.cfg.mapa).sort(() => Math.random() - 0.5)].slice(0, 3);
+  const opcoes = [net.cfg.mapa, ...Object.keys(MAPS).filter(m => m !== net.cfg.mapa && !MAPS[m].so).sort(() => Math.random() - 0.5)].slice(0, 3);
   net.voteMaps = opcoes;
   broadcast({ t: 'win', ...w, hl: highlights(), pod: podium(), vm: opcoes, vs: VOTE_S });
   setTimeout(() => {
@@ -3423,6 +3725,7 @@ function hostHandle(from, m) {
       net.faces.set(from, m.img);
       broadcast({ t: 'face', id: from, img: m.img });
       break;
+    case 'pporta': if (isMissao()) fazComprarPorta(from, m.i | 0); break;
     case 'door': {
       const i = m.i | 0; if (!doors[i]) return;
       broadcast({ t: 'door', i, o: m.o ? 1 : 0 });
@@ -3466,10 +3769,10 @@ function hostHandle(from, m) {
       broadcast({ ...m, f: undefined, id: from }, from);
       break;
     case 'zhit': case 'revive': case 'zretrato': zHostHandle(from, m); break;
-    case 'buy': if (net.cfg.modo === 'zumbi') zComprar(from, m); break;
+    case 'buy': if (ehZumbi(net.cfg.modo)) zComprar(from, m); break;
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
-      if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning || net.cfg.modo === 'zumbi') return;
+      if (!sh || !tg || sh.dead || tg.dead || from === m.target || net.winning || ehZumbi(net.cfg.modo)) return;
       // esconde-esconde: só caçador acerta escondido, e só na hora da caça
       if (net.cfg.modo === 'esconde' && (sh.team !== 1 || tg.team !== 0 || net.hs?.ph !== 'caca')) return;
       if (semVolta() && net.hs?.ph === 'fim') return;
@@ -3774,6 +4077,7 @@ function hitReact(o, dt) {
 }
 
 function onlineSpawn() {
+  if (FAZ && isMissao()) { const [x, z] = randomFrom(FAZ.inicio); return new THREE.Vector3(x + (Math.random() - 0.5), 0, z + (Math.random() - 0.5)); }
   let best = null, bestD = -1;
   // no modo Times cada time nasce do seu lado do mapa
   const lado = mode === 'online' && isTdm() ? (teamOf(net.myId) === 0 ? -1 : 1) : 0;
@@ -3857,7 +4161,7 @@ function onMapChanged() {
 }
 
 function clearWorld() {
-  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; retratoPedido.clear(); Z.retratosView = []; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
+  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; retratoPedido.clear(); Z.retratosView = []; fazFecharTudo(); $('portaPrompt').style.display = 'none'; missaoTick.i = -2; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
   clearPickups(); net.inv.clear(); resetMoves(); clearFloats();
   clearZombies(); meDown = false; reviveT = 0; $('bossBar').style.display = 'none'; $('acid').classList.remove('on'); acidT = 0; player.slowT = 0;
   $('downOverlay').classList.remove('on'); $('downBox').style.display = $('revivePrompt').style.display = $('reviveBtn').style.display = 'none';
@@ -3917,7 +4221,7 @@ function enterOnline() {
   player.pos.copy(onlineSpawn());
   player.ammoBy = {}; player.weapon = null; syncWeapon(false);
   const M = MODOS[net.cfg.modo];
-  if (net.cfg.modo === 'zumbi') { banner('🧟 Zumbis!', 2); if (net.isHost && !Z.started) zBegin(); }
+  if (ehZumbi(net.cfg.modo)) { banner('🧟 Zumbis!', 2); if (net.isHost && !Z.started) zBegin(); }
   else if (net.cfg.modo === 'ctf') banner(`🚩 Pique-bandeira · Time ${teamName(teamOf(net.myId))}!`, 2.2);
   else if (net.cfg.modo === 'esconde') banner(`📦 Esconde-esconde · você é ${teamOf(net.myId) === 0 ? 'Escondido' : 'Caçador'}!`, 2.2);
   else if (isTdm()) banner(`Você é do Time ${teamName(teamOf(net.myId))}!`, 2);
@@ -4009,7 +4313,7 @@ setInterval(() => {
   }
   net.hbT = (net.hbT || 0) + 1;
   if (net.hbT % 4 === 0 && !net.local) broadcast({ t: 'hb', id: net.myId, n: humanosNaSala() }); // "estou vivo" (a cada 2 s)
-  if (isZumbi() || net.cfg.modo === 'zumbi') return;
+  if (isZumbi() || ehZumbi(net.cfg.modo)) return;
   modeHostTick(0.5);
   if (!net.winning && net.endAt && now >= net.endAt) endByTime();
   if (!net.winning && net.cfg.modo === 'roleta' && now >= net.rollAt) rollWeapons();
@@ -4122,7 +4426,7 @@ function virarDono() {
   if (net.cfg.modo === 'roleta') net.rollAt = net.rollNext || now + (net.cfg.rInt || 20) * 1000;
   for (const p of Object.values(net.players)) if (p.down) p.downUntil = now + BLEED_S * 1000;
   // zumbis: a simulação estava no antigo dono, a rodada atual recomeça
-  if (net.cfg.modo === 'zumbi') {
+  if (ehZumbi(net.cfg.modo)) {
     Z.sim.clear(); Z.spits.length = 0;
     Object.assign(Z, { started: true, over: false, round: Math.max(0, (Z.roundView || 1) - 1), toSpawn: 0, breakT: 4 });
     broadcast({ t: 'zclear' });
@@ -4216,7 +4520,7 @@ function quickPlay() {
     const r2 = melhor();
     setBusy(false);
     if (r2) joinRoom(r2.code);
-    else { netStatus('Nenhuma sala aberta: criando uma para você…'); hostRoom({ ...draftCfg, modo: draftCfg.modo === 'zumbi' ? 'dm' : draftCfg.modo }, true); }
+    else { netStatus('Nenhuma sala aberta: criando uma para você…'); hostRoom({ ...draftCfg, modo: ehZumbi(draftCfg.modo) ? 'dm' : draftCfg.modo }, true); }
   }, lobby.clients.some(c => c.connected) ? 1200 : 3500);
 }
 
@@ -4287,7 +4591,7 @@ function renderLobby() {
     const ic = document.createElement('span'); ic.className = 'rm'; ic.textContent = MODOS[r.modo].icone;
     const info = document.createElement('span'); info.className = 'ri';
     const t = document.createElement('b'); t.textContent = `Sala de ${r.name}`;
-    const sm = document.createElement('small'); sm.textContent = [MODOS[r.modo].nome, r.mapa, r.tempo === 0 ? 'sem tempo' : r.tempo ? `${r.tempo} min` : '', r.modo !== 'zumbi' ? (r.k ? `${r.k} ${({ ctf: 'capturas', koth: 'pts', ultimo: 'rodadas', esconde: 'rodadas', gg: 'armas' })[r.modo] || 'abates'}` : 'sem meta') : ''].filter(Boolean).join(' · ');
+    const sm = document.createElement('small'); sm.textContent = [MODOS[r.modo].nome, r.mapa, r.tempo === 0 ? 'sem tempo' : r.tempo ? `${r.tempo} min` : '', !ehZumbi(r.modo) ? (r.k ? `${r.k} ${({ ctf: 'capturas', koth: 'pts', ultimo: 'rodadas', esconde: 'rodadas', gg: 'armas' })[r.modo] || 'abates'}` : 'sem meta') : ''].filter(Boolean).join(' · ');
     info.append(t, sm);
     const n = document.createElement('span'); n.className = 'rn'; n.textContent = `👥 ${r.n}/12` + (r.b ? ` +🤖${r.b}` : '');
     const go = document.createElement('span'); go.className = 'go'; go.textContent = 'ENTRAR';
@@ -4411,7 +4715,7 @@ const minTxt = v => v ? `${v} min` : '∞ Sem limite';
 function renderCfgForm() {
   const c = draftCfg, set = (k, v) => { draftCfg = cleanCfg({ ...draftCfg, [k]: v }); cfgChanged(k); };
   choice($('cfgModo'), Object.entries(MODOS).map(([v, m]) => ({ v, t: m.nome, ic: m.icone, s: m.desc })), v => v === c.modo, v => set('modo', v), 'card2');
-  choice($('cfgMapa'), Object.entries(MAPS).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === c.mapa, v => set('mapa', v), 'card2');
+  choice($('cfgMapa'), Object.entries(MAPS).filter(([v, m]) => c.modo === 'missao' ? m.so === 'missao' : !m.so).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === c.mapa, v => set('mapa', v), 'card2');
   choice($('cfgTempo'), OPT.tempo.map(v => ({ v, t: minTxt(v) })), v => v === c.tempo, v => set('tempo', v));
   // meta do modo: abates, capturas, pontos do morro ou rodadas
   const gk = { ctf: 'caps', koth: 'hill', ultimo: 'rounds', esconde: 'rounds' }[c.modo] || 'kills';
@@ -4421,7 +4725,7 @@ function renderCfgForm() {
   choice($('cfgRInt'), OPT.rInt.map(v => ({ v, t: v ? `${v} s` : '🎲 Aleatório' })), v => v === c.rInt, v => set('rInt', v));
   choice($('cfgRIgual'), [{ v: true, t: '🤝 Iguais para todos' }, { v: false, t: '🔀 Diferentes para cada um' }], v => v === c.rIgual, v => set('rIgual', v));
   choice($('cfgDif'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === c.dif, v => set('dif', v));
-  const gg = c.modo === 'gg', zb = c.modo === 'zumbi', rol = c.modo === 'roleta', es = c.modo === 'esconde';
+  const gg = c.modo === 'gg', zb = ehZumbi(c.modo), rol = c.modo === 'roleta', es = c.modo === 'esconde';
   $('rowTempo').hidden = zb || es; $('rowKills').hidden = gg || zb; $('rowRInt').hidden = !rol; $('rowRIgual').hidden = !rol;
   $('rowBots').hidden = zb || es; $('rowDif').hidden = !(zb || c.bots > 0) || es;
   $('cfgDifTxt').textContent = zb ? '🧟 Dificuldade das hordas' : '🤖 Dificuldade dos bots';
@@ -4507,7 +4811,7 @@ function applyCfg() {
   if (before.modo !== net.cfg.modo || before.mapa !== net.cfg.mapa) loadMap(net.cfg.mapa);
   balanceTeams();
   // entrou/saiu do modo zumbi (ou mudou o mapa/dificuldade): recomeça as hordas
-  if (before.modo === 'zumbi' || net.cfg.modo === 'zumbi') { zReset(); broadcast({ t: 'zclear' }); if (net.cfg.modo === 'zumbi' && mode === 'online') zBegin(); }
+  if (ehZumbi(before.modo) || ehZumbi(net.cfg.modo)) { zReset(); broadcast({ t: 'zclear' }); if (ehZumbi(net.cfg.modo) && mode === 'online') zBegin(); }
   if (before.power && !net.cfg.power) { clearPickups(); broadcast({ t: 'puclear' }); }
   if (before.modo !== net.cfg.modo) buildObjectives();
   if (before.clima !== net.cfg.clima) applyClima();
@@ -5191,16 +5495,21 @@ $('shareBtn').onclick = async () => {
 };
 // treino solo
 function showSolo() {
-  const set = (k, v) => { soloCfg[k] = v; save('pb-solo', soloCfg); if (k === 'mapa') loadMap(v); showSolo(); };
-  choice($('soloModeSeg'), [{ v: 'ondas', t: 'Ondas de amigos', ic: '🎨', s: 'sobreviva às ondas atirando de volta' }, { v: 'zumbi', t: 'Zumbis', ic: '🧟', s: 'rodadas de hordas, quanto mais longe melhor' }], v => v === soloCfg.modo, v => set('modo', v), 'card2');
-  choice($('mapSel'), Object.entries(MAPS).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === soloCfg.mapa, v => set('mapa', v), 'card2');
+  const set = (k, v) => {
+    soloCfg[k] = v;
+    // a Missão é sempre na fazenda (e a fazenda só existe na Missão)
+    if (k === 'modo') { const m = v === 'missao' ? 'fazenda' : soloCfg.mapa === 'fazenda' ? 'arena' : soloCfg.mapa; if (m !== soloCfg.mapa) { soloCfg.mapa = m; loadMap(m); } }
+    save('pb-solo', soloCfg); if (k === 'mapa') loadMap(v); showSolo();
+  };
+  choice($('soloModeSeg'), [{ v: 'ondas', t: 'Ondas de amigos', ic: '🎨', s: 'sobreviva às ondas atirando de volta' }, { v: 'zumbi', t: 'Zumbis', ic: '🧟', s: 'rodadas de hordas, quanto mais longe melhor' }, { v: 'missao', t: 'Missão: Fazenda', ic: '🌾', s: 'sítio à noite: abra caminho e fuja' }], v => v === soloCfg.modo, v => set('modo', v), 'card2');
+  choice($('mapSel'), Object.entries(MAPS).filter(([v, m]) => soloCfg.modo === 'missao' ? m.so === 'missao' : !m.so).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === soloCfg.mapa, v => set('mapa', v), 'card2');
   choice($('difSel'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === +soloCfg.dif, v => set('dif', v));
   choice($('soloClima'), Object.entries(CLIMAS).map(([v, m]) => ({ v, t: `${m.ic} ${m.nome}` })), v => v === (soloCfg.clima || 'auto'), v => { soloCfg.clima = v; save('pb-solo', soloCfg); applyClima(); showSolo(); });
   if ($('soloScreen').style.display !== 'flex') { loadMap(soloCfg.mapa); showScreen('soloScreen'); }
 }
 $('soloBackBtn').onclick = openHome;
 $('playBtn').onclick = startSolo;
-$('againBtn').onclick = () => { readSetup(); lastSolo === 'zumbi' ? startLocalZombie() : start(); };
+$('againBtn').onclick = () => { readSetup(); ehZumbi(lastSolo) ? startLocalZombie() : start(); };
 $('overMenuBtn').onclick = backToMenu;
 $('crBackBtn').onclick = openHome;
 $('shopClose').onclick = () => toggleShop(false);
@@ -5236,7 +5545,8 @@ $('fps').style.display = settings.fps ? 'block' : 'none';
 // Quem zera a vida fica derrubado por BLEED_S segundos; um amigo levanta segurando E/LEVANTAR por REVIVE_S
 // segundos perto dele. Se ninguém levantar, morre e só volta na próxima rodada. Todos caídos = fim de jogo.
 const BLEED_S = 30, REVIVE_S = 3;
-const isZumbi = () => mode === 'online' && net.cfg.modo === 'zumbi';
+const isZumbi = () => mode === 'online' && ehZumbi(net.cfg.modo);
+const isMissao = () => mode === 'online' && net.cfg.modo === 'missao';
 const zombies = new Map();
 const Z = { caes: new Map(), sim: new Map(), spits: [], round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, seq: 0, sendT: 0, rosterT: 0, started: false, roundView: 0, left: 0, evento: null, vistos: new Set(), eventoView: null };
 let meDown = false, downEnd = 0, reviveT = 0, reviveId = null, touchRevive = false;
@@ -5587,7 +5897,7 @@ function zStartRound(r) {
     p.loja = lojaOfertas(p);
   }
   sendRoster();
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
@@ -5605,6 +5915,7 @@ function zPickType(r) {
   return 0;
 }
 function zSpot(minD = 16, maxD = 35) {
+  if (FAZ) return zSpotFaz();
   const alvos = Object.keys(net.players).map(zPlayerPos).filter(Boolean);
   let best = null, bestD = -1;
   for (let i = 0; i < 30; i++) {
@@ -5632,6 +5943,7 @@ function zAdd(type, x, y, z, extra = {}) {
     atkCd: 0.6, side: Math.random() < 0.5 ? 1 : -1, sideT: 0, stuck: 0, atkFlag: false,
     abil: 2 + Math.random() * 2, fuse: -1, charge: 0, cx: 0, cz: 0, air: false, vx: 0, vy: 0, vz: 0, grito: 0, ...extra,
   };
+  if (FAZ && y === 0 && !extra.semEmergir) { zz.y = -1.9; zz.sobe = { x, y: 0, z }; } // na fazenda eles saem da terra
   Z.sim.set(id, zz);
   if (!extra.boss && !extra.ladrao && !Z.vistos.has(T.id) && T.id !== 'comum') { Z.vistos.add(T.id); broadcast({ t: 'znovo', ty: type }); }
   return zz;
@@ -5646,7 +5958,7 @@ function zSpawn() {
     zAdd(ZT[C.tipo] ?? 0, best.x, 0, best.z, { boss: nivel, chefe: C.id, chefeI: Z.chefeI | 0, hp: hpB, max: hpB, speed: (2.4 + nivel * 0.25) * zd().vel, dmg: Math.round((30 + nivel * 6) * zd().dano), atkCd: 1, raiva: nivel >= 3 ? 999 : 0, abil: 3, abil2: 6, abil3: 4 });
     return;
   }
-  if (r >= 4 && !Z.ladrao && Math.random() < 0.05) {
+  if (r >= 4 && !Z.ladrao && !FAZ && Math.random() < 0.05) {
     // 💸 Zumbi Ladrão: rouba dinheiro de quem encostar e foge; quem derrubar ganha o dobro
     Z.ladrao = true;
     const n = zAdd(ZT.corredor, best.x, 0, best.z, { ladrao: true, dmg: 0, fogeT: 0 });
@@ -5702,6 +6014,19 @@ function zMove(z, alvos, dt) {
     if (z.y < c.y) z.y = Math.min(c.y, z.y + 3.2 * dt);
     else { z.x = c.x; z.z = c.z; z.sobe = null; }
     return;
+  }
+  // Missão: pulando a janela / rastejando pelo buraco da cerca
+  if (z.cruza) {
+    const c = z.cruza; c.t += dt / (c.tipo === 'buraco' ? 1.1 : 0.85); const k = Math.min(1, c.t);
+    z.x = c.x0 + (c.x1 - c.x0) * k; z.z = c.z0 + (c.z1 - c.z0) * k; z.y = c.tipo === 'janela' ? Math.sin(k * Math.PI) * 1.1 : 0;
+    z.yaw = Math.atan2(c.x1 - c.x0, c.z1 - c.z0);
+    if (k >= 1) { z.cruza = null; z.y = 0; }
+    return;
+  }
+  // Missão: alvo em outra zona → vai até a passagem certa
+  if (FAZ && alvo) {
+    const w = zRumo(z, alvo);
+    if (w) { dx = w.x - z.x; dz = w.z - z.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; z.yaw = Math.atan2(dx, dz); best = Math.max(best, 9); if (z.cruza) return; }
   }
   let spd = z.speed * (z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4) * (buffOn('zgelo') ? 0.15 : 1) * (z.lentoT > 0 ? 0.4 : 1);
   let ir = 1; // 1 = vem, -1 = foge, 0 = fica rodeando
@@ -5828,6 +6153,7 @@ function zDesafioAbate(from, z, head, o) {
 }
 // 📍 Rodadas com objetivo (7, 12, 17…): proteger o gerador ou segurar a área
 function lugarObjetivo() {
+  if (FAZ) return lugarFaz() || new THREE.Vector3(...FAZ.inicio[0].slice(0, 1), 0, FAZ.inicio[0][1]);
   for (let i = 0; i < 60; i++) {
     const r = 4 + i * 0.25, a = Math.random() * Math.PI * 2, p = new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r);
     if (!collides(p, 1.6, 2) && groundHeight(p, 1) < 0.2 && (!obj.loja || Math.hypot(p.x - obj.loja.x, p.z - obj.loja.z) > 6)) return p;
@@ -6143,6 +6469,7 @@ function zPremioVisto(k, by) {
   updateHud(); updateFx();
 }
 function zDrop(k, x, z, vida = 25000) {
+  if (FAZ && !lugarAcessivel(x, z)) return; // caiu no jardim ou numa área fechada: ninguém alcança
   const id = k[0] + (++puSeq) + Math.random().toString(36).slice(2, 5);
   broadcast({ t: 'pu', id, k, x: r3(x), z: r3(z) });
   setTimeout(() => { if (pickups.has(id) && net.isHost) broadcast({ t: 'pux', id }); }, vida);
@@ -6213,7 +6540,7 @@ function zEventoLook(ev) {
   if (!ev || !baseLook) return applyClima();
   applyClima();
   if (ev === 'neblina') { scene.fog.near = 2; scene.fog.far = 20; scene.background.setHex(0x8a958f); scene.fog.color.setHex(0x8a958f); }
-  if (ev === 'apagao') { hemi.intensity *= 0.18; sun.intensity *= 0.1; scene.background.setHex(0x05060c); scene.fog.color.setHex(0x05060c); scene.fog.far = 45; lanterna.intensity = LANTERNA_I; if (state === 'play') feed('🔦 Apagão: lanterna ligada'); }
+  if (ev === 'apagao') { hemi.intensity *= 0.18; sun.intensity *= 0.1; scene.background.setHex(0x05060c); scene.fog.color.setHex(0x05060c); scene.fog.far = 45; lanterna.intensity = lantBase = LANTERNA_I; if (state === 'play') feed('🔦 Apagão: lanterna ligada'); }
   if (ev === 'sangue') { scene.background.setHex(0x3a0508); scene.fog.color.setHex(0x3a0508); sun.color.setHex(0xff5a4a); hemi.color.setHex(0xff8a7a); }
 }
 // --- do lado de cada jogador: monstros, efeitos, derrubado, reviver ---
@@ -6246,6 +6573,7 @@ function zOnNet(m) {
     case 'zround': {
       Z.roundView = m.r; zIntervaloAte = 0; updateHud();
       if (Array.isArray(m.rt)) onRetrato({ rt: m.rt });
+      if (Array.isArray(m.pp)) for (const i of m.pp) fazAbrirPorta(i, null, true);
       Z.dzView = Array.isArray(m.dz) && DESAFIOS[m.dz[0]] ? { k: m.dz[0], n: +m.dz[1] || 1, p: 0, ok: false } : null;
       if (Z.dzView) feed(`${DESAFIOS[Z.dzView.k].ic} Desafio da rodada: ${DESAFIOS[Z.dzView.k].txt(Z.dzView.n)} (+${300 + 25 * m.r} 💰)`);
       zObjView(m.o || null);
@@ -6315,6 +6643,7 @@ function zOnNet(m) {
       return true;
     }
     case 'retrato': onRetrato(m); return true;
+    case 'pporta': fazAbrirPorta(m.i | 0, m.by); updateHud(); return true;
     case 'zdesafio': {
       if (m.id !== net.myId) { if (m.ok) feed(`🏅 ${nameOf(m.id)} cumpriu o desafio da rodada`); return true; }
       if (Z.dzView) Z.dzView.p = +m.p || 0;
@@ -6471,11 +6800,11 @@ function zClientTick(dt) {
 
 // partida de zumbi sozinho: uma "sala local" sem internet, eu mesmo sou o dono
 function startLocalZombie() {
-  initAudio(); lastSolo = 'zumbi';
+  initAudio(); lastSolo = soloCfg.modo === 'missao' ? 'missao' : 'zumbi';
   if (net.clients.length) leaveOnline(null);
   readSetup();
   Object.assign(net, { local: true, isHost: true, joined: true, myId: newId(), code: 'SOLO', players: {}, clients: [], winning: false });
-  net.cfg = cleanCfg({ modo: 'zumbi', mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima });
+  net.cfg = cleanCfg({ modo: soloCfg.modo === 'missao' ? 'missao' : 'zumbi', mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima });
   loadMap(net.cfg.mapa);
   const c = myNetChar();
   addPlayer(net.myId, myName, c.char, c.cor, c.lk);
@@ -6522,7 +6851,7 @@ function freeSpot(x, z, r = 1.4) {
 function placeObjectives() {
   obj.hill = freeSpot(0, 0, 2.2);
   obj.bases = [freeSpot(0, -ARENA * 0.72, 1.2), freeSpot(0, ARENA * 0.72, 1.2)];
-  obj.loja = freeSpot(ARENA * 0.4, ARENA * 0.4, 2.4);
+  obj.loja = FAZ ? new THREE.Vector3(FAZ.loja[0], 0, FAZ.loja[1]) : freeSpot(ARENA * 0.4, ARENA * 0.4, 2.4);
   buildObjectives();
 }
 function buildObjectives() {
@@ -6530,7 +6859,8 @@ function buildObjectives() {
   obj.hillMesh = obj.flagMeshes = obj.lojaMesh = null;
   if (obj.lojaObs) { const i = obstacles.indexOf(obj.lojaObs); if (i >= 0) obstacles.splice(i, 1); obj.lojaObs = null; }
   let modo = 'dm'; try { modo = mode === 'online' ? net.cfg.modo : 'dm'; } catch {}
-  if (modo === 'zumbi') { buildLoja(); buildRetratos(); }
+  if (ehZumbi(modo)) { buildLoja(); buildRetratos(); }
+  if (modo === 'missao') buildMissao();
   if (modo === 'koth' && obj.hill) {
     const g = new THREE.Group(); g.position.copy(obj.hill);
     const anel = new THREE.Mesh(new THREE.RingGeometry(HILL_R - 0.25, HILL_R, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
@@ -6789,6 +7119,127 @@ function huntMiss() {
   sendNet({ t: 'miss' });
 }
 placeObjectives();
+
+
+// ===== Missão: Fazenda Assombrada (zonas, portas pagas e o caminho dos zumbis) =====
+// Os zumbis andam de zona em zona pelas passagens: portas que vocês já abriram, janelas e buracos na cerca
+// (esses dois só eles usam, com uma animação de pular/rastejar). Na mesma zona do alvo, vão direto.
+function zonaDe(x, z) {
+  if (!FAZ) return null;
+  for (const Zn of FAZ.zonas) for (const [x1, z1, x2, z2] of Zn.rects) if (x >= x1 && x <= x2 && z >= z1 && z <= z2) return Zn.id;
+  return null;
+}
+const zonaInfo = id => FAZ?.zonas.find(Zn => Zn.id === id);
+const zonaAberta = id => { const Zn = zonaInfo(id); return !!Zn && (!Zn.abre || Zn.abre.some(i => FAZ.portas[i].aberta)); };
+const passagemLivre = P => P.tipo !== 'porta' || FAZ.portas[P.porta].aberta;
+// próxima passagem no caminho mais curto (em número de zonas) de uma zona até outra
+function proxPassagem(de, para) {
+  const k = `${de}>${para}|${FAZ.ver | 0}`; FAZ.cache ||= new Map();
+  if (FAZ.cache.has(k)) return FAZ.cache.get(k);
+  const veio = new Map([[de, null]]), fila = [de];
+  while (fila.length) {
+    const z = fila.shift(); if (z === para) break;
+    for (const P of FAZ.passagens) {
+      if (!passagemLivre(P)) continue;
+      const out = P.a === z ? P.b : P.b === z ? P.a : null;
+      if (out && !veio.has(out)) { veio.set(out, { z, P }); fila.push(out); }
+    }
+  }
+  let res = null;
+  if (veio.has(para)) { let z = para; while (veio.get(z) && veio.get(z).z !== de) z = veio.get(z).z; res = veio.get(z)?.P || null; }
+  FAZ.cache.set(k, res);
+  return res;
+}
+// dono: para onde o zumbi anda agora (ou null = direto no alvo)
+function zRumo(z, alvo) {
+  const za = zonaDe(z.x, z.z), zb = zonaDe(alvo.x, alvo.z);
+  if (!za || !zb || za === zb) return null;
+  const P = proxPassagem(za, zb); if (!P) return null;
+  const [lado, outro] = P.a === za ? [P.pa, P.pb] : [P.pb, P.pa];
+  // já está passando por essa porta: segue até o outro lado (senão fica indo e voltando no vão)
+  if (z.passo?.P === P && performance.now() < z.passo.ate) return { x: outro[0], z: outro[1] };
+  if (Math.hypot(lado[0] - z.x, lado[1] - z.z) < 0.9) {
+    if (P.tipo === 'janela' || P.tipo === 'buraco') z.cruza = { x0: z.x, z0: z.z, x1: outro[0], z1: outro[1], t: 0, tipo: P.tipo };
+    else z.passo = { P, ate: performance.now() + 3000 };
+    return { x: outro[0], z: outro[1] };
+  }
+  return { x: lado[0], z: lado[1] };
+}
+// dono: de onde sai o próximo zumbi (nascedouros das zonas abertas + o jardim, longe o bastante de todo mundo)
+function zSpotFaz(minD = 9, maxD = 34) {
+  const alvos = Object.keys(net.players).map(zPlayerPos).filter(Boolean);
+  const pts = [];
+  for (const [zid, lista] of Object.entries(FAZ.nascedouros)) if (zid === 'jardim' || zonaAberta(zid)) pts.push(...lista.filter(([x, z]) => !(zonaInfo(zonaDe(x, z))?.jog === true && !zonaAberta(zonaDe(x, z)))));
+  let best = null, nota0 = -1;
+  for (const [x, z] of pts.sort(() => Math.random() - 0.5)) {
+    const d = alvos.length ? Math.min(...alvos.map(a => Math.hypot(a[0] - x, a[2] - z))) : 20;
+    const nota = d >= minD && d <= maxD ? 100 - Math.abs(d - 18) + Math.random() * 10 : Math.min(d, 8);
+    if (nota > nota0) { nota0 = nota; best = new THREE.Vector3(x + (Math.random() - 0.5) * 1.5, 0, z + (Math.random() - 0.5) * 1.5); }
+  }
+  return best;
+}
+// lugar livre numa zona aberta (objetivos e power-ups)
+function lugarFaz(margem = 3, r = 1.6) {
+  const zonas = FAZ.zonas.filter(Zn => Zn.jog && zonaAberta(Zn.id));
+  for (let i = 0; i < 80; i++) {
+    const Zn = randomFrom(zonas), [x1, z1, x2, z2] = randomFrom(Zn.rects);
+    const p = new THREE.Vector3(x1 + margem + Math.random() * Math.max(0, x2 - x1 - margem * 2), 0, z1 + margem + Math.random() * Math.max(0, z2 - z1 - margem * 2));
+    if (!collides(p, r, 2) && groundHeight(p, 1) < 0.2 && (!obj.loja || Math.hypot(p.x - obj.loja.x, p.z - obj.loja.z) > 4)) return p;
+  }
+  return null;
+}
+const lugarAcessivel = (x, z) => { const id = zonaDe(x, z); return !!id && zonaInfo(id).jog && zonaAberta(id); };
+// portas pagas: perto, comprar (dono), abrir/fechar em todos
+function portaPagaPerto() {
+  if (!FAZ || !isMissao()) return -1;
+  let best = 2.8, idx = -1;
+  FAZ.portas.forEach((P, i) => { if (P.aberta) return; const d = Math.hypot(P.x - player.pos.x, P.z - player.pos.z); if (d < best) { best = d; idx = i; } });
+  return idx;
+}
+function comprarPorta(i) {
+  const P = FAZ?.portas[i], me = net.players[net.myId]; if (!P || P.aberta || !me) return;
+  if ((me.cash | 0) < P.preco) { ui.erro(); feed(`💰 Precisa de ${P.preco} para abrir: ${P.nome}`); return; }
+  sendNet({ t: 'pporta', i });
+}
+function fazComprarPorta(from, i) {
+  const P = FAZ?.portas[i], p = net.players[from]; if (!P || P.aberta || !p || p.dead || p.down) return;
+  const q = hostPos(from); if (!q || Math.hypot(q.x - P.x, q.z - P.z) > 4.5 || (p.cash | 0) < P.preco) return;
+  p.cash -= P.preco; Z.rosterDirty = true;
+  broadcast({ t: 'pporta', i, by: from });
+}
+function fazAbrirPorta(i, by, quieto) {
+  const P = FAZ?.portas[i]; if (!P || P.aberta) return;
+  P.aberta = true; FAZ.ver = (FAZ.ver | 0) + 1;
+  const k = obstacles.indexOf(P.o); if (k >= 0) obstacles.splice(k, 1);
+  for (const pl of P.placas) pl.visible = false;
+  if (quieto) return;
+  const novas = FAZ.zonas.filter(Zn => Zn.abre?.includes(i)).map(Zn => Zn.nome).join(', ');
+  banner(`🔓 ${P.nome}${novas ? ` · ${novas} liberado!` : ''}`, 2.4);
+  feed(`🔓 ${by === net.myId ? 'Você abriu' : nameOf(by) + ' abriu'} ${P.nome} (💰 ${P.preco})`);
+  noise(0.6, { type: 'lowpass', f: 600, f2: 200, vol: 0.08 }); tone(196, 0.5, { type: 'sawtooth', vol: 0.05, slide: 60, lp: 900 });
+}
+function fazFecharTudo() {
+  if (!FAZ) return;
+  for (const P of FAZ.portas) { P.aberta = false; P.ang = 0; P.pivot.rotation.y = 0; for (const pl of P.placas) pl.visible = true; if (!obstacles.includes(P.o)) obstacles.push(P.o); }
+  FAZ.ver = (FAZ.ver | 0) + 1; fazZonaVista = null;
+}
+const fazAbertas = () => FAZ ? FAZ.portas.map((P, i) => P.aberta ? i : -1).filter(i => i >= 0) : [];
+// do meu lado: aviso de porta perto e o nome da zona quando entro nela
+let fazZonaVista = null;
+function missaoTick() {
+  if (!FAZ || !isMissao()) { $('portaPrompt').style.display = 'none'; return; }
+  const i = state === 'play' && !meDead && !meDown && !shopOpen ? portaPagaPerto() : -1;
+  if (i !== missaoTick.i) {
+    missaoTick.i = i;
+    const P = FAZ.portas[i];
+    $('portaPrompt').innerHTML = P ? `🔒 ${isTouch ? 'Toque em <b>PORTA</b>' : 'Aperte <kbd>E</kbd>'} para abrir <b>${P.nome}</b> · 💰 ${P.preco}` : '';
+    $('portaPrompt').style.display = P ? 'block' : 'none';
+  }
+  const zn = meDead ? null : zonaDe(player.pos.x, player.pos.z);
+  if (zn && zn !== fazZonaVista) { const primeira = !fazZonaVista; fazZonaVista = zn; if (!primeira) feed(`📍 ${zonaInfo(zn)?.nome}`); updateHud(); }
+}
+// a Missão por cima do modo Zumbi (as próximas fases vêm aqui: barricadas, geradores, rádio e extração)
+function buildMissao() {}
 
 // ===== Lojinha do modo Zumbi: dinheiro, 2 armas por pessoa e níveis =====
 // Só vale nas hordas. Começa com uma pistola fraca; pintar monstros dá 💰; na lojinha (um quiosque em
@@ -7152,6 +7603,7 @@ function lugaresRetratos() {
     if (ok.length >= 8) break;
     const [x, z, y, rot] = f, fora = new THREE.Vector3(x + Math.sin(rot) * 0.4, 0.2, z + Math.cos(rot) * 0.4);
     if (Math.abs(fora.x) > ARENA - 1 || Math.abs(fora.z) > ARENA - 1 || collides(fora, 0.25, 1.5)) continue;
+    if (FAZ && !zonaInfo(zonaDe(fora.x, fora.z))?.jog) continue;
     if (obj.loja && Math.hypot(x - obj.loja.x, z - obj.loja.z) < 6) continue;
     if (ok.some(o => Math.hypot(o[0] - x, o[1] - z) < 9)) continue;
     ok.push(f);
@@ -7271,7 +7723,7 @@ function endTick() {
 // atiram bolinhas de verdade e vão atrás dos objetivos (bandeira, morro).
 function syncBots() {
   if (!net.isHost || net.local) return;
-  const quer = ['zumbi', 'esconde'].includes(net.cfg.modo) ? 0 : net.cfg.bots;
+  const quer = ['zumbi', 'missao', 'esconde'].includes(net.cfg.modo) ? 0 : net.cfg.bots;
   const humanos = Object.values(net.players).filter(p => !p.bot).length;
   const alvo = Math.max(0, quer - humanos);
   const ids = [...net.bots.keys()];
@@ -7877,6 +8329,7 @@ function updateBalls(dt) {
     }
     // obstáculos
     for (const o of obstacles) {
+      if (o.soCorpo) continue; // cerca vazada e vão de janela: a bolinha passa
       const p = ballRay.intersectBox(o.box, new THREE.Vector3());
       if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { box: o.box, p }; } }
     }
@@ -8073,7 +8526,7 @@ function frame() {
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt);
-    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); }
+    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(); }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
     if (armaOpen && (state !== 'play' || meDead)) toggleArmaMenu(false);
@@ -8110,7 +8563,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
