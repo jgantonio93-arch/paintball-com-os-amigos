@@ -385,6 +385,8 @@
   .admRow small { color:var(--muted); font-weight:700; }
   .admX { border:0; border-radius:10px; background:#e74c3c; color:#fff; font-weight:900; padding:6px 10px; cursor:pointer; }
   .admItem .admX { position:absolute; top:4px; right:4px; padding:3px 7px; }
+  .ch .del.ren { top:30px; font-size:11px; }
+  .admItem .admRen { position:absolute; top:4px; left:4px; padding:3px 6px; border:0; border-radius:10px; background:rgba(0,0,0,.65); color:#fff; cursor:pointer; font-size:12px; }
   .ch .del { position:absolute; top:4px; left:4px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; font-size:12px; font-weight:900; cursor:pointer; display:grid; place-items:center; padding:0; }
   .field { font:inherit; font-weight:900; font-size:17px; padding:11px 14px; border-radius:12px; border:2px solid var(--line); background:rgba(255,255,255,.07); color:#fff; outline:none; width:min(260px,100%); }
   .field:focus { border-color:var(--yel); }
@@ -795,7 +797,7 @@
     </section>
     <section class="panel">
       <h3>🌎 Galeria de personagens <span id="admGalN"></span></h3>
-      <p class="hint" style="margin-top:0">Fotos que o pessoal colocou na galeria (viram personagem e zumbi para todos). ✕ apaga para sempre.</p>
+      <p class="hint" style="margin-top:0">Fotos que o pessoal colocou na galeria (viram personagem e zumbi para todos). ✏️ muda o nome para todo mundo · ✕ apaga para sempre.</p>
       <div class="admGrid" id="admGal"></div>
     </section>
     <section class="panel">
@@ -4444,6 +4446,12 @@ function renderChars() {
     const badge = c.secreto ? '⭐' : c.galeria ? '🌎' : c.custom && CUSTOM.find(x => 'c:' + x.id === c.key)?.pub ? '🌎' : '';
     if (badge) { const t = document.createElement('i'); t.className = 'badge'; t.textContent = badge; t.title = c.secreto ? 'Personagem secreto' : 'Da galeria'; b.append(t); }
     b.onclick = () => { myChar = c.key; save('pb-char', myChar); renderChars(); };
+    // ✏️ renomear: os seus personagens criados (e, para o admin, qualquer um da galeria)
+    if ((c.custom && !c.galeria) || (c.galeria && adm.on)) {
+      const ren = document.createElement('button'); ren.className = 'del ren'; ren.textContent = '✏️'; ren.title = 'Mudar o nome';
+      ren.onclick = e => { e.stopPropagation(); renomearPersonagem(c.key, c.nome); };
+      b.append(ren);
+    }
     if (c.custom && !c.galeria) {
       const del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.title = 'Apagar personagem';
       del.onclick = e => {
@@ -4848,6 +4856,29 @@ function publicarGaleria(c) {
     }
   }, 4000);
 }
+// regrava a entrada da galeria (nome novo vale para todo mundo)
+function publicarEntradaGaleria(id, d) {
+  const txt = JSON.stringify({ nome: d.nome, foto: d.foto, cor: d.cor | 0, ts: Date.now() });
+  for (const c of lobby.clients) if (c.connected) c.publish(`${GAL_TOPIC}/${id}`, txt, { retain: true, qos: 1 });
+}
+// muda o nome de um personagem: os criados por mim (chave c:) ou, sendo admin, os da galeria (g:)
+function renomearPersonagem(key, atual) {
+  const novo = prompt(`✏️ Novo nome para "${atual}":`, atual);
+  if (novo === null) return;
+  const nome = novo.trim().slice(0, 14);
+  if (!nome) { alert('O nome não pode ficar vazio.'); return; }
+  if (key.startsWith('g:')) {
+    const g = GALERIA.find(x => 'g:' + x.id === key); if (!g || !adm.on) return;
+    g.nome = nome; publicarEntradaGaleria(g.id, { nome, foto: g.foto, cor: g.cor });
+  } else {
+    const meu = CUSTOM.find(x => 'c:' + x.id === key); if (!meu) return;
+    meu.nome = nome; save('pb-custom', CUSTOM);
+    const g = GALERIA.find(x => x.id === meu.id); if (g) g.nome = nome;
+    if (meu.pub) publicarEntradaGaleria(meu.id, { nome, foto: meu.foto, cor: meu.camisa });
+  }
+  ui.confirm?.(); feed(`✏️ Agora se chama "${nome}"`);
+  renderChars(); if ($('admScreen').style.display !== 'none') renderAdm();
+}
 function tirarDaGaleria(id) {
   GALERIA = GALERIA.filter(c => c.id !== id);
   for (const c of lobby.clients) if (c.connected) c.publish(`${GAL_TOPIC}/${id}`, '', { retain: true, qos: 1 });
@@ -4876,7 +4907,8 @@ function renderAdm() {
     const d = document.createElement('div'); d.className = 'admItem';
     const img = document.createElement('img'); img.src = c.foto; img.alt = '';
     const n = document.createElement('div'); n.textContent = c.nome;
-    d.append(img, n, x(() => { if (!confirm(`Apagar "${c.nome}" da galeria para todo mundo?`)) return; tirarDaGaleria(c.id); admBan('gal', c.id); renderAdm(); renderChars(); }));
+    const ren = document.createElement('button'); ren.className = 'admRen'; ren.textContent = '✏️'; ren.title = 'Mudar o nome'; ren.onclick = () => renomearPersonagem('g:' + c.id, c.nome);
+    d.append(img, n, ren, x(() => { if (!confirm(`Apagar "${c.nome}" da galeria para todo mundo?`)) return; tirarDaGaleria(c.id); admBan('gal', c.id); renderAdm(); renderChars(); }));
     return d;
   }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Nenhuma foto na galeria ainda.' })]));
   const salas = [...lobby.rooms.values()].filter(r => Date.now() - r.ts < 30000);
