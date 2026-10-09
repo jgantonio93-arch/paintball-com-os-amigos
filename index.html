@@ -305,6 +305,7 @@
   .shopCard .preco { font-family:var(--disp); font-size:18px; color:var(--yel); }
   body.touch .kbdHint, body.touch .shopCard kbd { display:none; }
   @media (max-height:520px) { .shopCards { gap:6px; } .shopCard { padding:8px; } .shopCard i { font-size:22px; } .shopHead h2 { font-size:22px; } }
+  #pregarBtn { left:50%; transform:translateX(-50%); bottom:calc(76px + var(--sb)); width:150px; height:54px; border-radius:16px; font-size:14px; background:rgba(138,98,54,.6); display:none; }
   #reviveBtn { left:50%; transform:translateX(-50%); bottom:calc(16px + var(--sb)); width:140px; height:54px; border-radius:16px; font-size:14px; background:rgba(61,255,139,.4); display:none; }
   body.touch #hpwrap { bottom:auto; top:calc(8px + var(--st)); left:calc(10px + var(--sl)); width:min(200px,30vw); padding:5px 10px 7px; }
   body.touch .hpTop b { font-size:15px; }
@@ -647,6 +648,7 @@
   <div class="tbtn tsm" id="boardBtn">📋</div>
   <div class="tbtn tsm" id="chatBtn">💬</div>
   <div class="tbtn" id="reviveBtn">LEVANTAR</div>
+  <div class="tbtn" id="pregarBtn">🔨 PREGAR</div>
   <div class="tbtn" id="grenBtn"><span><i>💣</i>GRANADA</span></div>
   <div class="tbtn" id="shieldBtn"><span><i>🛡</i>ESCUDO</span></div>
   <div class="tbtn tsm" id="emoBtn">😀</div>
@@ -1783,6 +1785,7 @@ function buildFloresta() {
 // Zonas (retângulos x1,z1,x2,z2) ligadas por portas pagas (jogadores) e por janelas/buracos na cerca (só zumbis).
 // FAZ guarda tudo que a Missão precisa: zonas, portas pagas, passagens, nascedouros e onde a loja fica.
 let FAZ = null;
+const TABUAS = 5;
 // barreira invisível para o corpo (o tiro passa e ninguém escala)
 function barreira(x, z, w, d, h = 1.9, y0 = 0) {
   const o = { mesh: null, box: new THREE.Box3(new THREE.Vector3(x - w / 2, y0, z - d / 2), new THREE.Vector3(x + w / 2, y0 + h, z + d / 2)), semSubir: true, soCorpo: true };
@@ -2040,6 +2043,21 @@ function buildFazenda() {
     inicio: [[-5, 26], [-3, 30], [3.5, 25.5], [5, 31]],
     loja: [-3.5, 31.3],
   };
+  // 🪵 barricadas: 5 tábuas em cada janela (FAZ.tab = quantas ainda estão pregadas)
+  FAZ.janelas = FAZ.passagens.filter(P => P.tipo === 'janela');
+  FAZ.janelas.forEach((P, j) => { P.j = j; });
+  FAZ.tab = FAZ.janelas.map(() => TABUAS);
+  const tabMat = mat('tabua', () => lam(0x8a6236)), rt = seeded(99);
+  FAZ.tabMesh = FAZ.janelas.map(P => {
+    const cx = (P.pa[0] + P.pb[0]) / 2, cz = (P.pa[1] + P.pb[1]) / 2, aoLongoX = Math.abs(P.pa[0] - P.pb[0]) < 0.01;
+    // do lado de fora (o lado que não é a casa)
+    const fora = P.a === 'casa' ? P.pb : P.pa, ox = Math.sign(fora[0] - cx) * 0.22, oz = Math.sign(fora[1] - cz) * 0.22;
+    return Array.from({ length: TABUAS }, (_, k) => {
+      const t = deco(meshAt(new THREE.BoxGeometry(aoLongoX ? 1.75 : 0.07, 0.2, aoLongoX ? 0.07 : 1.75), tabMat, cx + ox, 1.12 + k * 0.2, cz + oz), false);
+      t.rotation[aoLongoX ? 'z' : 'x'] = (rt() - 0.5) * 0.5;
+      return t;
+    });
+  });
   mapTick = dt => {
     const k = performance.now();
     fogo.scale.set(1 + Math.sin(k / 90) * 0.12, 1 + Math.sin(k / 70) * 0.2, 1); fl.intensity = 6 + Math.sin(k / 60) * 1.4;
@@ -2079,7 +2097,7 @@ function ajustaLanterna(dt) {
     lantT = 0.12;
     camera.getWorldDirection(lantDir); lantRay.set(camera.getWorldPosition(new THREE.Vector3()), lantDir); lantRay.far = 9;
     const hit = lantRay.intersectObjects(obstacles.filter(o => o.mesh).map(o => o.mesh), false)[0];
-    ajustaLanterna.alvo = THREE.MathUtils.clamp(((hit ? hit.distance : 9) - 0.4) / 7, 0.1, 1);
+    ajustaLanterna.alvo = THREE.MathUtils.clamp(((hit ? hit.distance : 9) - 0.4) / 9, 0.08, 1);
   }
   lantK += ((ajustaLanterna.alvo ?? 1) - lantK) * Math.min(1, dt * 8);
   lanterna.intensity = lantBase * lantK;
@@ -3024,7 +3042,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG' && !e.repeat) throwGrenade();
   if (e.code === 'KeyF' && !e.repeat) placeShield();
   if (e.code === 'KeyV' && !e.repeat) toggleQuick();
-  if (e.code === 'KeyE' && !e.repeat) { if (shopOpen || pertoLoja()) toggleShop(); else useDoor(); }
+  if (e.code === 'KeyE' && !e.repeat) { if (shopOpen) toggleShop(); else if (janelaPerto() >= 0) { /* segurar E prega (missaoTick) */ } else if (pertoLoja()) toggleShop(); else useDoor(); }
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) jumpPressed(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') renderBoard(); });
@@ -3079,7 +3097,7 @@ function stickUpdate(t) {
   const k = Math.hypot(dx, dy) / max < 0.12 ? 0 : 1;
   touchMove.x = dx / max * k; touchMove.y = dy / max * k;
 }
-const touchBtn = id => ({ shopBtn: 1, fireBtn: 1, jumpBtn: 1, crouchBtn: 1, weapBtn: 1, zoomBtn: 1, reloadBtn: 1, pauseBtn: 1, boardBtn: 1, chatBtn: 1, reviveBtn: 1, grenBtn: 1, shieldBtn: 1, emoBtn: 1, doorBtn: 1, propBtn: 1 })[id];
+const touchBtn = id => ({ shopBtn: 1, fireBtn: 1, jumpBtn: 1, crouchBtn: 1, weapBtn: 1, zoomBtn: 1, reloadBtn: 1, pauseBtn: 1, boardBtn: 1, chatBtn: 1, reviveBtn: 1, pregarBtn: 1, grenBtn: 1, shieldBtn: 1, emoBtn: 1, doorBtn: 1, propBtn: 1 })[id];
 $('touch').addEventListener('touchstart', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
@@ -3099,6 +3117,7 @@ $('touch').addEventListener('touchstart', e => {
     else if (id === 'zoomBtn') { if (curW().zoom && player.reloading <= 0) player.zoom = !player.zoom; updateWeaponBtns(); }
     else if (id === 'reloadBtn') reload();
     else if (id === 'reviveBtn') touchRevive = true;
+    else if (id === 'pregarBtn') touchPrega = true;
     else if (id === 'grenBtn') throwGrenade();
     else if (id === 'shieldBtn') placeShield();
     else if (id === 'emoBtn') toggleQuick();
@@ -3131,9 +3150,10 @@ function touchEnd(e) {
     if (el && el.id !== 'crouchBtn' && el.id !== 'zoomBtn') el.classList.remove('on');
     if (el?.id === 'jumpBtn') touchJump = false;
     if (el?.id === 'reviveBtn') touchRevive = false;
+    if (el?.id === 'pregarBtn') touchPrega = false;
   }
   // nenhum dedo na tela: zera tudo (evita joystick ou tiro "presos")
-  if (!e.touches.length) { stickId = lookId = fireId = null; touchFire = touchJump = touchRevive = false; touchMove.x = touchMove.y = 0; stickRest(); for (const b of document.querySelectorAll('#touch .tbtn.on')) if (b.id !== 'crouchBtn' && b.id !== 'zoomBtn') b.classList.remove('on'); }
+  if (!e.touches.length) { stickId = lookId = fireId = null; touchFire = touchJump = touchRevive = touchPrega = false; touchMove.x = touchMove.y = 0; stickRest(); for (const b of document.querySelectorAll('#touch .tbtn.on')) if (b.id !== 'crouchBtn' && b.id !== 'zoomBtn') b.classList.remove('on'); }
 }
 $('touch').addEventListener('touchend', touchEnd);
 $('touch').addEventListener('touchcancel', touchEnd);
@@ -3726,6 +3746,7 @@ function hostHandle(from, m) {
       broadcast({ t: 'face', id: from, img: m.img });
       break;
     case 'pporta': if (isMissao()) fazComprarPorta(from, m.i | 0); break;
+    case 'prega': if (isMissao()) fazPregar(from, m.j | 0); break;
     case 'door': {
       const i = m.i | 0; if (!doors[i]) return;
       broadcast({ t: 'door', i, o: m.o ? 1 : 0 });
@@ -4161,7 +4182,7 @@ function onMapChanged() {
 }
 
 function clearWorld() {
-  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; retratoPedido.clear(); Z.retratosView = []; fazFecharTudo(); $('portaPrompt').style.display = 'none'; missaoTick.i = -2; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
+  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; retratoPedido.clear(); Z.retratosView = []; fazFecharTudo(); $('portaPrompt').style.display = $('pregarBtn').style.display = 'none'; missaoTick.i = -2; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
   clearPickups(); net.inv.clear(); resetMoves(); clearFloats();
   clearZombies(); meDown = false; reviveT = 0; $('bossBar').style.display = 'none'; $('acid').classList.remove('on'); acidT = 0; player.slowT = 0;
   $('downOverlay').classList.remove('on'); $('downBox').style.display = $('revivePrompt').style.display = $('reviveBtn').style.display = 'none';
@@ -5871,6 +5892,7 @@ function zj(n = nJog()) {
 }
 function zStartRound(r) {
   Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now();
+  for (const p of Object.values(net.players)) p.pregou = 0;
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
   Z.desafio = r >= 2 ? { k: randomFrom(ks), n: 0 } : null; if (Z.desafio) Z.desafio.n = DESAFIOS[Z.desafio.k].n;
   for (const p of Object.values(net.players)) p.dz = { p: 0, ok: false };
@@ -5897,7 +5919,7 @@ function zStartRound(r) {
     p.loja = lojaOfertas(p);
   }
   sendRoster();
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
@@ -6021,6 +6043,18 @@ function zMove(z, alvos, dt) {
     z.x = c.x0 + (c.x1 - c.x0) * k; z.z = c.z0 + (c.z1 - c.z0) * k; z.y = c.tipo === 'janela' ? Math.sin(k * Math.PI) * 1.1 : 0;
     z.yaw = Math.atan2(c.x1 - c.x0, c.z1 - c.z0);
     if (k >= 1) { z.cruza = null; z.y = 0; }
+    return;
+  }
+  // Missão: arrancando as tábuas da janela (e batendo em quem estiver colado nela)
+  if (z.quebra) {
+    const q = z.quebra, j = q.P.j;
+    if (!alvo || zonaDe(alvo.x, alvo.z) === zonaDe(z.x, z.z)) { z.quebra = null; return; } // o alvo saiu: desiste
+    z.yaw = Math.atan2(q.outro[0] - z.x, q.outro[1] - z.z);
+    if (FAZ.tab[j] <= 0) { z.quebra = null; z.cruza = { x0: z.x, z0: z.z, x1: q.outro[0], z1: q.outro[1], t: 0, tipo: 'janela' }; return; }
+    z.atkCd -= dt;
+    if (z.dmg > 0 && best < 1.9 && z.atkCd <= 0 && !buffOn('zgelo')) { z.atkCd = 1.1 * zd().atk; z.atkFlag = true; zDamage(alvo.id, Math.round(z.dmg * 0.8)); }
+    q.t -= dt * (buffOn('zgelo') ? 0.2 : 1);
+    if (q.t <= 0) { q.t = zTempoTabua(z); FAZ.tab[j]--; z.atkFlag = true; broadcast({ t: 'tabua', j, n: FAZ.tab[j], q: 1 }); }
     return;
   }
   // Missão: alvo em outra zona → vai até a passagem certa
@@ -6574,6 +6608,7 @@ function zOnNet(m) {
       Z.roundView = m.r; zIntervaloAte = 0; updateHud();
       if (Array.isArray(m.rt)) onRetrato({ rt: m.rt });
       if (Array.isArray(m.pp)) for (const i of m.pp) fazAbrirPorta(i, null, true);
+      if (Array.isArray(m.tb) && FAZ) m.tb.forEach((n, j) => { if (FAZ.tabMesh[j]) { FAZ.tab[j] = n | 0; fazTabuasView(j); } });
       Z.dzView = Array.isArray(m.dz) && DESAFIOS[m.dz[0]] ? { k: m.dz[0], n: +m.dz[1] || 1, p: 0, ok: false } : null;
       if (Z.dzView) feed(`${DESAFIOS[Z.dzView.k].ic} Desafio da rodada: ${DESAFIOS[Z.dzView.k].txt(Z.dzView.n)} (+${300 + 25 * m.r} 💰)`);
       zObjView(m.o || null);
@@ -6644,6 +6679,15 @@ function zOnNet(m) {
     }
     case 'retrato': onRetrato(m); return true;
     case 'pporta': fazAbrirPorta(m.i | 0, m.by); updateHud(); return true;
+    case 'tabua': {
+      const j = m.j | 0, n = Math.max(0, Math.min(TABUAS, m.n | 0)); if (!FAZ?.tabMesh[j]) return true;
+      const antes = FAZ.tab[j]; FAZ.tab[j] = n; fazTabuasView(j);
+      const P = FAZ.janelas[j], pos = new THREE.Vector3((P.pa[0] + P.pb[0]) / 2, 1.5, (P.pa[1] + P.pb[1]) / 2), v = longe(pos);
+      if (n < antes) { noise(0.25, { type: 'bandpass', f: 900, q: 1.2, vol: 0.12 * v }); tone(140, 0.12, { type: 'square', vol: 0.05 * v, slide: -60, lp: 900 }); burst(pos, 0x8a6236, 8, 3); if (n === 0 && v > 0.4) feed('🪵 Arrebentaram uma janela!'); }
+      else { tone(880, 0.05, { type: 'square', vol: 0.05 * v, lp: 3000 }); tone(660, 0.06, { type: 'square', vol: 0.04 * v, lp: 2500, delay: 0.09 }); }
+      if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); }
+      return true;
+    }
     case 'zdesafio': {
       if (m.id !== net.myId) { if (m.ok) feed(`🏅 ${nameOf(m.id)} cumpriu o desafio da rodada`); return true; }
       if (Z.dzView) Z.dzView.p = +m.p || 0;
@@ -7150,6 +7194,8 @@ function proxPassagem(de, para) {
   FAZ.cache.set(k, res);
   return res;
 }
+// segundos para arrancar cada tábua (brutamontes e chefão arrebentam rápido)
+const zTempoTabua = z => (z.boss ? 0.25 : ZTYPES[z.type].id === 'tanque' ? 0.6 : ZTYPES[z.type].id === 'corredor' ? 1.1 : 1.6) * (0.85 + Math.random() * 0.3) / Math.max(0.6, zd().vel);
 // dono: para onde o zumbi anda agora (ou null = direto no alvo)
 function zRumo(z, alvo) {
   const za = zonaDe(z.x, z.z), zb = zonaDe(alvo.x, alvo.z);
@@ -7159,6 +7205,7 @@ function zRumo(z, alvo) {
   // já está passando por essa porta: segue até o outro lado (senão fica indo e voltando no vão)
   if (z.passo?.P === P && performance.now() < z.passo.ate) return { x: outro[0], z: outro[1] };
   if (Math.hypot(lado[0] - z.x, lado[1] - z.z) < 0.9) {
+    if (P.tipo === 'janela' && FAZ.tab[P.j] > 0) { z.quebra = { P, outro, t: zTempoTabua(z) }; return { x: lado[0], z: lado[1] }; }
     if (P.tipo === 'janela' || P.tipo === 'buraco') z.cruza = { x0: z.x, z0: z.z, x1: outro[0], z1: outro[1], t: 0, tipo: P.tipo };
     else z.passo = { P, ate: performance.now() + 3000 };
     return { x: outro[0], z: outro[1] };
@@ -7201,6 +7248,17 @@ function comprarPorta(i) {
   if ((me.cash | 0) < P.preco) { ui.erro(); feed(`💰 Precisa de ${P.preco} para abrir: ${P.nome}`); return; }
   sendNet({ t: 'pporta', i });
 }
+// dono: alguém pregou uma tábua (perto da janela, do lado de dentro; 0,7 s entre uma e outra)
+const PREGA_GRANA = 10, PREGA_MAX = 30; // dinheiro por tábua e quantas pagam por rodada
+function fazPregar(from, j) {
+  const P = FAZ?.janelas[j], p = net.players[from], now = performance.now(); if (!P || !p || p.dead || p.down) return;
+  const dentro = P.a === 'casa' ? P.pa : P.pb, q = hostPos(from);
+  if (!q || Math.hypot(q.x - dentro[0], q.z - dentro[1]) > 2.6 || FAZ.tab[j] >= TABUAS || now - (p.pregaT || 0) < 650) return;
+  p.pregaT = now; FAZ.tab[j]++;
+  let c;
+  if ((p.pregou | 0) < PREGA_MAX) { p.pregou = (p.pregou | 0) + 1; c = zPagar(from, PREGA_GRANA); }
+  broadcast({ t: 'tabua', j, n: FAZ.tab[j], by: from, c });
+}
 function fazComprarPorta(from, i) {
   const P = FAZ?.portas[i], p = net.players[from]; if (!P || P.aberta || !p || p.dead || p.down) return;
   const q = hostPos(from); if (!q || Math.hypot(q.x - P.x, q.z - P.z) > 4.5 || (p.cash | 0) < P.preco) return;
@@ -7218,23 +7276,40 @@ function fazAbrirPorta(i, by, quieto) {
   feed(`🔓 ${by === net.myId ? 'Você abriu' : nameOf(by) + ' abriu'} ${P.nome} (💰 ${P.preco})`);
   noise(0.6, { type: 'lowpass', f: 600, f2: 200, vol: 0.08 }); tone(196, 0.5, { type: 'sawtooth', vol: 0.05, slide: 60, lp: 900 });
 }
+function fazTabuasView(j) { FAZ.tabMesh[j].forEach((t, k) => { t.visible = k < FAZ.tab[j]; }); }
 function fazFecharTudo() {
   if (!FAZ) return;
+  FAZ.tab = FAZ.janelas.map(() => TABUAS); FAZ.janelas.forEach((P, j) => fazTabuasView(j));
   for (const P of FAZ.portas) { P.aberta = false; P.ang = 0; P.pivot.rotation.y = 0; for (const pl of P.placas) pl.visible = true; if (!obstacles.includes(P.o)) obstacles.push(P.o); }
   FAZ.ver = (FAZ.ver | 0) + 1; fazZonaVista = null;
 }
 const fazAbertas = () => FAZ ? FAZ.portas.map((P, i) => P.aberta ? i : -1).filter(i => i >= 0) : [];
+// janela da casa perto de mim (do lado de dentro) que está faltando tábua
+function janelaPerto() {
+  if (!FAZ || !isMissao() || meDead || meDown) return -1;
+  let best = 2.1, idx = -1;
+  FAZ.janelas.forEach((P, j) => { if (FAZ.tab[j] >= TABUAS) return; const d0 = P.a === 'casa' ? P.pa : P.pb, d = Math.hypot(d0[0] - player.pos.x, d0[1] - player.pos.z); if (d < best) { best = d; idx = j; } });
+  return idx;
+}
+let touchPrega = false, pregaCd = 0;
 // do meu lado: aviso de porta perto e o nome da zona quando entro nela
 let fazZonaVista = null;
-function missaoTick() {
-  if (!FAZ || !isMissao()) { $('portaPrompt').style.display = 'none'; return; }
+function missaoTick(dt = 1 / 60) {
+  if (!FAZ || !isMissao()) { $('portaPrompt').style.display = $('pregarBtn').style.display = 'none'; return; }
   const i = state === 'play' && !meDead && !meDown && !shopOpen ? portaPagaPerto() : -1;
-  if (i !== missaoTick.i) {
-    missaoTick.i = i;
+  const jn = state === 'play' && !shopOpen ? janelaPerto() : -1;
+  const chave = i >= 0 ? 'p' + i : jn >= 0 ? `j${jn}:${FAZ.tab[jn]}` : '';
+  if (chave !== missaoTick.i) {
+    missaoTick.i = chave;
     const P = FAZ.portas[i];
-    $('portaPrompt').innerHTML = P ? `🔒 ${isTouch ? 'Toque em <b>PORTA</b>' : 'Aperte <kbd>E</kbd>'} para abrir <b>${P.nome}</b> · 💰 ${P.preco}` : '';
-    $('portaPrompt').style.display = P ? 'block' : 'none';
+    $('portaPrompt').innerHTML = P ? `🔒 ${isTouch ? 'Toque em <b>PORTA</b>' : 'Aperte <kbd>E</kbd>'} para abrir <b>${P.nome}</b> · 💰 ${P.preco}`
+      : jn >= 0 ? `🔨 ${isTouch ? 'Segure <b>PREGAR</b>' : 'Segure <kbd>E</kbd>'} para pregar tábuas na janela (${FAZ.tab[jn]}/${TABUAS})` : '';
+    $('portaPrompt').style.display = chave ? 'block' : 'none';
+    $('pregarBtn').style.display = jn >= 0 && isTouch ? 'flex' : 'none';
   }
+  // segurando E (ou PREGAR): uma tábua a cada 0,7 s
+  pregaCd -= dt;
+  if (jn >= 0 && (keys.KeyE || touchPrega) && pregaCd <= 0 && !reviveId) { pregaCd = 0.7; sendNet({ t: 'prega', j: jn }); gunGroup.rotation.x -= 0.4; }
   const zn = meDead ? null : zonaDe(player.pos.x, player.pos.z);
   if (zn && zn !== fazZonaVista) { const primeira = !fazZonaVista; fazZonaVista = zn; if (!primeira) feed(`📍 ${zonaInfo(zn)?.nome}`); updateHud(); }
 }
@@ -8526,7 +8601,7 @@ function frame() {
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt);
-    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(); }
+    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
     if (armaOpen && (state !== 'play' || meDead)) toggleArmaMenu(false);
@@ -8563,7 +8638,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
