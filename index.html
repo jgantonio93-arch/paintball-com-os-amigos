@@ -121,6 +121,8 @@
   #downOverlay { position:absolute; inset:0; background:radial-gradient(ellipse at center, rgba(120,0,0,.05) 30%, rgba(150,0,0,.6)); opacity:0; transition:opacity .3s; }
   #downOverlay.on { opacity:1; animation:pulse 1.2s ease-in-out infinite alternate; }
   @keyframes pulse { from { filter:brightness(.8); } to { filter:brightness(1.3); } }
+  body.assistindo #hpwrap, body.assistindo #ammo, body.assistindo #cross { display:none !important; }
+  body.assistindo #killcam { bottom:calc(10% + var(--sb)); }
   #downBox { position:absolute; left:50%; top:60%; transform:translateX(-50%); text-align:center; display:none; width:min(420px,90vw); }
   #downBox b { display:block; font-family:var(--disp); font-weight:400; font-size:clamp(22px,4vw,34px); text-shadow:0 3px 0 #000a; }
   #downBox span { font-weight:800; text-shadow:0 2px 0 #000a; }
@@ -2663,6 +2665,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Tab') { e.preventDefault(); if (state === 'play') renderBoard(); }
   if (state !== 'play') return;
+  if (assistindo() && (e.code === 'ArrowRight' || e.code === 'ArrowLeft' || e.code === 'Space')) { specProximo(); return; }
   if (e.code === 'KeyR') reload();
   if ((e.code === 'KeyC' || e.code === 'ControlLeft') && !e.repeat) crouchPressed();
   if (/^Digit[1-9]$/.test(e.code)) {
@@ -2692,6 +2695,7 @@ document.addEventListener('pointerlockchange', () => {
 canvas.addEventListener('mousedown', e => {
   if (state !== 'play' || document.pointerLockElement !== canvas) return;
   if (armaOpen) { if (e.button === 2) toggleArmaMenu(false); else pegarArma(armaHl); return; }
+  if (assistindo()) { specProximo(); return; }
   if (e.button === 2) { if (curW().zoom && player.reloading <= 0) player.zoom = true; }
   else mouseDown = true;
 });
@@ -2738,6 +2742,7 @@ $('touch').addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
     const el = t.target.closest?.('.tbtn') || t.target;
     const id = touchBtn(el.id) ? el.id : '';
+    if (assistindo() && (!id || id === 'fireBtn')) { specProximo(); continue; }
     if (id === 'fireBtn') {
       touchFire = true; fireId = t.identifier;
       if (lookId === null) { lookId = t.identifier; lookLast = { x: t.clientX, y: t.clientY }; }
@@ -3664,7 +3669,7 @@ function syncRemotes() {
 
 function updateRemotes(dt, t) {
   for (const r of remotes.values()) {
-    r.root.visible = r.seen;
+    r.root.visible = r.seen && !(meDead && net.specFp === r.id);
     if (!r.seen) continue;
     r.head.scale.setScalar(regra('cabecao') ? 1.6 : 1);
     // de noite cada jogador aparece com o facho da lanterna
@@ -5990,7 +5995,7 @@ function zClientTick(dt) {
   // minha tela de derrubado / morto
   const caido = meDown || (meDead && isZumbi());
   $('downOverlay').classList.toggle('on', meDown);
-  $('downBox').style.display = caido ? 'block' : 'none';
+  $('downBox').style.display = caido && !assistindo() ? 'block' : 'none';
   if (meDown) {
     const rest = Math.max(0, (downEnd - performance.now()) / 1000);
     const vivos = Object.entries(net.players).filter(([id, p]) => id !== net.myId && !p.dead && !p.down).length;
@@ -7355,6 +7360,7 @@ const camQ = new THREE.Quaternion(), camM = new THREE.Matrix4(), camT = new THRE
 function deadCam(dt) {
   net.deadT = (net.deadT || 0) + dt;
   const k = Math.min(1, net.deadT * 3);
+  if (isZumbi() && net.deadT > 1.6 && zSpecCam(dt)) return;
   let alvo = remotes.get(net.killer);
   if (!alvo || alvo.dead || !alvo.seen) alvo = spectateTarget();
   if (alvo && net.deadT > 0.7) {
@@ -7379,6 +7385,37 @@ function deadCam(dt) {
   camera.position.set(player.pos.x, player.pos.y + EYE - k * 1.3, player.pos.z);
   camera.rotation.set(-0.15 * k, player.yaw, 0.7 * k, 'YXZ');
 }
+// zumbi: morto até a próxima rodada assiste em 1ª pessoa quem ainda está de pé (toque/clique troca)
+const zVivos = () => [...remotes.values()].filter(r => r.seen && !r.dead && !r.down).sort((a, b) => a.id < b.id ? -1 : 1);
+const specYaw = { y: 0, p: 0 };
+function zSpecCam(dt) {
+  const vivos = zVivos();
+  if (!vivos.length) { net.specFp = null; return false; }
+  let alvo = vivos.find(r => r.id === net.specFp);
+  if (!alvo) { alvo = vivos[(net.specI | 0) % vivos.length]; specYaw.y = alvo.yaw; specYaw.p = alvo.pitch; }
+  net.specFp = alvo.id;
+  // vira junto com ele, suavizado (a posição dele chega 10×/s)
+  let dy = alvo.yaw - specYaw.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  specYaw.y += dy * Math.min(1, dt * 12); specYaw.p += ((alvo.pitch || 0) - specYaw.p) * Math.min(1, dt * 12);
+  camera.position.set(alvo.pos.x, alvo.pos.y + (alvo.crouch ? 1.1 : EYE), alvo.pos.z);
+  camera.rotation.set(specYaw.p, specYaw.y, 0, 'YXZ');
+  gunGroup.visible = false;
+  if (!frame.kc || frame.kcId !== 'fp:' + alvo.id) {
+    frame.kc = true; frame.kcId = 'fp:' + alvo.id;
+    $('killcam').style.display = 'block';
+    $('killcam').firstElementChild.textContent = `👀 Assistindo ${vivos.length > 1 ? `(${vivos.indexOf(alvo) + 1}/${vivos.length})` : ''}`;
+    $('kcName').textContent = alvo.name;
+    $('kcInfo').textContent = `você volta na próxima rodada${vivos.length > 1 ? (isTouch ? ' · toque para trocar' : ' · clique para trocar') : ''}`;
+  }
+  $('kcFill').style.width = Math.max(0, Math.min(1, alvo.hpPct ?? 1)) * 100 + '%';
+  return true;
+}
+function specProximo() {
+  const vivos = zVivos(); if (vivos.length < 2) return;
+  const i = vivos.findIndex(r => r.id === net.specFp);
+  net.specI = (i + 1) % vivos.length; net.specFp = null; ui.tab?.();
+}
+const assistindo = () => mode === 'online' && meDead && isZumbi() && !!net.specFp;
 // modos sem renascer: quem caiu assiste os vivos
 const semVolta = () => ['ultimo', 'esconde'].includes(net.cfg.modo);
 function spectateTarget() {
@@ -7395,6 +7432,8 @@ function frame() {
   const noMenu = state === 'menu' || state === 'over';
   if (noMenu !== frame.menu) { frame.menu = noMenu; document.body.classList.toggle('inmenu', noMenu); if (noMenu) startMusic(); else stopMusic(); }
   if (state === 'menu') { menuScene(t); updateEnemies(dt, t); }
+  const assist = state !== 'menu' && state !== 'over' && assistindo();
+  if (assist !== frame.assist) { frame.assist = assist; document.body.classList.toggle('assistindo', assist); }
   if (mode === 'online' && state !== 'menu') {
     if (state === 'play' && !meDead) updatePlayer(dt);
     else if (meDead) deadCam(dt);
@@ -7402,7 +7441,7 @@ function frame() {
       camera.position.set(player.pos.x, player.pos.y + EYE, player.pos.z);
       camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
     }
-    if (!meDead) { net.deadT = 0; if (frame.kc) { frame.kc = false; $('killcam').style.display = 'none'; } }
+    if (!meDead) { net.deadT = 0; net.specFp = null; if (frame.kc) { frame.kc = false; $('killcam').style.display = 'none'; } }
     $('cross').style.visibility = meDead ? 'hidden' : '';
     updateRemotes(dt, t);
     if (net.isHost) { botTick(dt); ctfHostTick(dt); }
@@ -7445,7 +7484,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
