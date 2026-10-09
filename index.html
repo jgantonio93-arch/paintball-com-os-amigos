@@ -263,6 +263,9 @@
   .vote b { display:block; font-weight:900; font-size:14px; }
   .vote small { color:var(--muted); font-weight:800; }
   @media (max-height:520px) { .pod .step { display:none; } .podium { margin:4px 0 8px; } .hlGrid { grid-template-columns:repeat(3,1fr); } .hl { padding:5px 8px; } .hl i { font-size:18px; } }
+  #setaObj { position:absolute; left:50%; top:calc(118px + var(--st, 0px)); transform:translateX(-50%); display:none; align-items:center; gap:8px; background:var(--hud); border:1px solid rgba(255,210,61,.5); border-radius:999px; padding:4px 12px 4px 6px; font-weight:900; font-size:13px; pointer-events:none; }
+  #setaObj b { display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:#ffd23d; color:#1a0b2e; font-size:16px; transition:transform .1s linear; }
+  body.raiz #setaObj { display:none !important; }
   #portaPrompt { position:absolute; left:50%; top:58%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; text-align:center; max-width:90vw; }
   #shopPrompt { position:absolute; left:50%; top:66%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; }
   #shopBtn { left:50%; transform:translateX(-50%); bottom:calc(80px + var(--sb)); width:130px; height:48px; border-radius:14px; font-size:14px; background:rgba(255,210,61,.5); display:none; }
@@ -622,6 +625,7 @@
   <div id="scream"></div>
   <div id="downBox"><b id="downTitle">VOCÊ CAIU!</b><span id="downText"></span><div class="bar"><div id="downFill"></div></div></div>
   <div id="portaPrompt"></div>
+  <div id="setaObj"><b>⬆</b><span></span></div>
   <div id="shopPrompt">🛒 Aperte <kbd>E</kbd> para abrir a lojinha</div>
   <div id="cashPop"></div>
   <div id="revivePrompt"><span id="reviveText"></span><div class="bar"><div id="reviveFill"></div></div></div>
@@ -928,6 +932,8 @@
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
             Na <b>💰 Lojinha</b> (E perto do quiosque) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…).</section>
+          <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
+            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 3 peças do 📻 rádio (🔋 📡 📻, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 1:30 de horda; 5) quem estiver no 🅷 do pasto quando ele decolar escapa. O chefão da fazenda é o 🎃 Espantalho Gigante.</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
@@ -3644,7 +3650,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 31;
+const VERSAO = 32;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -4232,7 +4238,7 @@ function onMapChanged() {
 }
 
 function clearWorld() {
-  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; retratoPedido.clear(); Z.retratosView = []; fazFecharTudo(); $('portaPrompt').style.display = $('pregarBtn').style.display = 'none'; missaoTick.i = -2; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
+  hideEnd(); clearWalls(); if (shopOpen) toggleShop(false); cashShown = null; caixaView = null; shopTab = 'armas'; retratoPedido.clear(); Z.retratosView = []; fazFecharTudo(); $('portaPrompt').style.display = $('pregarBtn').style.display = $('setaObj').style.display = 'none'; missaoTick.i = -2; effCache.clear(); toggleQuick(false); $('killcam').style.display = 'none';
   clearPickups(); net.inv.clear(); resetMoves(); clearFloats();
   clearZombies(); meDown = false; reviveT = 0; $('bossBar').style.display = 'none'; $('acid').classList.remove('on'); acidT = 0; player.slowT = 0;
   $('downOverlay').classList.remove('on'); $('downBox').style.display = $('revivePrompt').style.display = $('reviveBtn').style.display = 'none';
@@ -5645,7 +5651,10 @@ const CHEFES = [
   { id: 'aranha',   nome: 'Aranha Rainha',    ic: '🕷️', tipo: 'rastejante', desc: 'cospe teia que prende e bota rastejantes' },
   { id: 'palhaco',  nome: 'Palhaço de Tinta', ic: '🤡', tipo: 'fantasma',   desc: 'some e reaparece atrás de alguém' },
   { id: 'bombeiro', nome: 'Zumbi Bombeiro',   ic: '🧑‍🚒', tipo: 'tanque',     desc: 'jato de água que empurra e LAVA a tinta dele (se cura)' },
+  { id: 'espantalho', nome: 'Espantalho Gigante', ic: '🎃', tipo: 'comum',    desc: 'cospe sementes, chama os mortos do milharal e pega fogo quando fica furioso' },
 ];
+// na Missão o rodízio começa pelo Espantalho
+const CHEFES_MISSAO = [4, 1, 0, 2, 3];
 const chefeDe = b => CHEFES[Math.floor((b | 0) / 10)] || CHEFES[0]; // no online o boss vai como índice×10 + nível
 // rodadas especiais (a cada 3, menos na do chefão)
 const EVENTOS = {
@@ -5689,7 +5698,7 @@ const zRostos = () => [...GALERIA, ...SECRETOS, ...AMIGOS];
 function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const C = boss ? chefeDe(boss) : null; boss = boss % 10;
   const rostos = zRostos(), a = rostos[kind % rostos.length], T = ZTYPES[type] || ZTYPES[0];
-  const camisa = boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
+  const camisa = C?.id === 'espantalho' ? 0x3a4a8a : boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
   const parts = buildFriend({ ...a, tex: zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
   parts.gun.visible = false;
   parts.root.position.set(x, y, z);
@@ -5699,7 +5708,13 @@ function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const extra = { glow: [] };
   let esc = T.esc;
   if (boss) {
-    esc = 2.1; olhos(0xff2020); applyLook(parts, { h: 'chifre', m: 1 });
+    esc = 2.1; olhos(0xff2020);
+    if (C?.id === 'espantalho') {
+      // chapéu de palha, camisa xadrez e braços de pau
+      add(new THREE.ConeGeometry(0.75, 0.6, 12), L(0x6b4a1f), 0, 0.72, 0, parts.head); add(new THREE.CylinderGeometry(0.95, 0.95, 0.06, 16), L(0x8a6a2f), 0, 0.45, 0, parts.head);
+      add(new THREE.BoxGeometry(2.6, 0.12, 0.12), L(0x5a3f26), 0, 1.45, -0.1);
+      for (const x of [-1.2, 1.2]) add(new THREE.SphereGeometry(0.22, 8, 6), L(0xc9a24a), x, 1.45, -0.1);
+    } else applyLook(parts, { h: 'chifre', m: 1 });
     if (boss >= 2) for (let k = 0; k < 5; k++) { const p = add(new THREE.SphereGeometry(0.12, 8, 6), L(0x7dff3a, 0x2a6a00), Math.cos(k) * 0.4, 1.1 + k * 0.12, 0.27); extra.glow.push(p.material); }
   } else if (T.id === 'corredor') { olhos(0xff3030); parts.body.scale.set(0.85, 1, 0.85); }
   else if (T.id === 'cuspidor') {
@@ -5955,7 +5970,7 @@ function zStartRound(r) {
   const np = nJog();
   Z.toSpawn = Math.max(3, Math.round(Math.min(6 + r * 4, 22 + r * 1.5) * zj(np).qtd * zd().qtd));
   Z.boss = r % 5 === 0 ? Math.min(3, Math.ceil(r / 20)) : 0; // rodada do chefão (nível sobe a cada volta do rodízio)
-  Z.chefeI = r % 5 === 0 ? (r / 5 - 1) % CHEFES.length : 0;
+  Z.chefeI = r % 5 === 0 ? (FAZ ? CHEFES_MISSAO[(r / 5 - 1) % CHEFES_MISSAO.length] : (r / 5 - 1) % 4) : 0;
   if (Z.boss) Z.toSpawn = Math.round(Z.toSpawn * 0.55) + 1;
   Z.evento = !Z.boss && !Z.obj && r >= 3 && r % 3 === 0 ? randomFrom(Object.keys(EVENTOS)) : null;
   if (Z.evento === 'corredores' || Z.evento === 'bombas') Z.toSpawn = Math.round(Z.toSpawn * 1.2);
@@ -6358,6 +6373,13 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     z.hp = Math.min(z.max, z.hp + z.max * (z.fase2 ? 0.08 : 0.05));
     broadcast({ t: 'zjato', x: r2(z.x), z: r2(z.z), dx: r2(dx), dz: r2(dz) });
     z.hab = 6 * f2;
+  } else if (z.chefe === 'espantalho') {
+    // sementes em leque e os mortos do milharal; furioso, pega fogo (anda mais rápido e queima quem encosta)
+    if (ve && best < 26) zSpit(z, alvo, z.fase2 ? 5 : 3);
+    const filhos = [...Z.sim.values()].filter(o => o.mae === z.id).length;
+    if (filhos < (z.fase2 ? 7 : 4)) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.rastejante, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.7); }
+    if (z.fase2) { z.fogoT = 99; z.fogoDps = 0; }
+    z.hab = 5 * f2;
   } else z.hab = 99;
 }
 function zSpit(z, alvo, volley = 1) {
@@ -7531,6 +7553,43 @@ function fazExtrView(m) {
     } else { banner(`😱 Você ficou para trás… ${m.quem.map(nameOf).join(', ')} escapou`, 8); }
   }
   updateHud();
+}
+// 🌙 sons da noite na fazenda (grilos, coruja, corvos, vento)
+const amb = { grilo: 0, coruja: 8, corvo: 14, vento: 5 };
+function fazAmbiente(dt) {
+  if (!actx || state !== 'play') return;
+  amb.grilo -= dt; amb.coruja -= dt; amb.corvo -= dt; amb.vento -= dt;
+  if (amb.grilo <= 0) { amb.grilo = 0.25 + Math.random() * 0.9; const f = 3800 + Math.random() * 900; for (let k = 0; k < 3; k++) tone(f, 0.03, { type: 'sine', vol: 0.006, delay: k * 0.06 }); }
+  if (amb.coruja <= 0) { amb.coruja = 18 + Math.random() * 20; tone(380, 0.35, { type: 'sine', vol: 0.025, slide: -40 }); tone(360, 0.5, { type: 'sine', vol: 0.025, slide: -50, delay: 0.5 }); }
+  if (amb.corvo <= 0) { amb.corvo = 22 + Math.random() * 25; for (let k = 0; k < 2; k++) { noise(0.18, { type: 'bandpass', f: 1300, q: 3, vol: 0.03, delay: k * 0.3 }); tone(520, 0.16, { type: 'sawtooth', vol: 0.015, slide: -200, lp: 1600, delay: k * 0.3 }); } }
+  if (amb.vento <= 0) { amb.vento = 12 + Math.random() * 14; noise(3.5, { type: 'lowpass', f: 260, f2: 520, vol: 0.035 }); }
+}
+// 🧭 seta no alto da tela apontando o próximo objetivo da Missão
+function fazAlvo() {
+  const pos = player.pos, d2 = (x, z) => Math.hypot(x - pos.x, z - pos.z);
+  const portaAlcancavel = i => FAZ.passagens.some(P => P.porta === i && (zonaAberta(P.a) || zonaAberta(P.b)));
+  const portaMaisPerto = (filtro = () => true) => { let b = null; FAZ.portas.forEach((P, i) => { if (!P.aberta && portaAlcancavel(i) && filtro(i) && (!b || d2(P.x, P.z) < d2(b.x, b.z))) b = { x: P.x, z: P.z, ic: '🔒', txt: P.nome }; }); return b; };
+  const perto = lista => lista.filter(Boolean).sort((a, b) => d2(a.x, a.z) - d2(b.x, b.z))[0];
+  const E = FAZ.extr;
+  if (E) return zonaAberta('pasto') ? { x: FAZ.heliPos[0], z: FAZ.heliPos[1], ic: '🚁', txt: 'Heliponto' } : portaMaisPerto(i => i >= 4) || portaMaisPerto();
+  if (!FAZ.portas[0].aberta) return { x: FAZ.portas[0].x, z: FAZ.portas[0].z, ic: '🔒', txt: FAZ.portas[0].nome };
+  if (!FAZ.energia) { const g = perto(FAZ.gens.map((G, i) => !G.ok && lugarAcessivel(G.x, G.z) && { x: G.x, z: G.z, ic: '⚡', txt: `Gerador ${i + 1}` })); return g || portaMaisPerto(); }
+  const faltam = (FAZ.pecasView || []).filter(e => !e[4]);
+  if (faltam.length) { const pc = perto(faltam.map(([k, x, , z]) => lugarAcessivel(x, z) && { x, z, ic: PECAS[k].ic, txt: PECAS[k].nome })); return pc || portaMaisPerto(); }
+  return { x: FAZ.radio[0], z: FAZ.radio[1], ic: '📻', txt: 'Rádio' };
+}
+function fazSeta(dt) {
+  const el = $('setaObj');
+  if (!FAZ || !isMissao() || state !== 'play' || meDead) { el.style.display = 'none'; return; }
+  fazSeta.t = (fazSeta.t || 0) - dt;
+  if (fazSeta.t <= 0) { fazSeta.t = 0.5; fazSeta.alvo = fazAlvo(); }
+  const A = fazSeta.alvo; if (!A) { el.style.display = 'none'; return; }
+  const dx = A.x - player.pos.x, dz = A.z - player.pos.z, dist = Math.hypot(dx, dz);
+  if (dist < 3) { el.style.display = 'none'; return; }
+  const rel = Math.atan2(-dx, -dz) - player.yaw;
+  el.style.display = 'flex';
+  el.firstElementChild.style.transform = `rotate(${-rel}rad)`;
+  el.lastElementChild.textContent = `${A.ic} ${A.txt} · ${Math.round(dist)} m`;
 }
 function animHeli(dt, t) {
   if (!FAZ?.heli) return;
@@ -8842,7 +8901,7 @@ function frame() {
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt);
-    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
+    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
     if (armaOpen && (state !== 'play' || meDead)) toggleArmaMenu(false);
