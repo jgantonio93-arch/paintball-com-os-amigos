@@ -1798,9 +1798,11 @@ function applyClima() {
   setLookRaw(L);
   const antes = lanterna.intensity;
   lanterna.intensity = noite ? LANTERNA_I : 0;
-  if (noite && !antes && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
+  if (noite && !antes && climaAvisa && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
   chuva.lines.visible = molhado;
 }
+// só avisa depois de o jogo terminar de abrir (o 1º loadMap roda antes de `state` existir)
+let climaAvisa = false;
 function updateClima(dt) {
   if (chuva.lines.visible) {
     const p = chuva.pos, cx = camera.position.x, cz = camera.position.z;
@@ -1851,6 +1853,7 @@ const OPT_DIF_SOLO = [0.5, 0.75, 1, 1.4, 1.8]; // mesmos níveis do OPT.dif
 if (!OPT_DIF_SOLO.includes(+soloCfg.dif)) soloCfg.dif = 1;
 if (soloCfg.modo !== 'zumbi') soloCfg.modo = 'ondas';
 loadMap(soloCfg.mapa);
+climaAvisa = true;
 
 // ===== Rostos =====
 const loader = new THREE.TextureLoader();
