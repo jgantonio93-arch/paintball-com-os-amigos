@@ -177,6 +177,17 @@
   #bossBar b { font-family:var(--disp); font-weight:400; font-size:16px; color:#ff6b5e; text-shadow:0 2px 0 #000; }
   #bossBar .bar { width:100%; height:12px; margin-top:4px; border:1px solid rgba(255,107,94,.6); }
   #bossFill { height:100%; width:100%; background:linear-gradient(90deg,#ff3b3b,#ff9a3d); transition:width .2s; }
+  #admVida { position:fixed; inset:0; z-index:41; display:none; align-items:center; justify-content:center; padding:16px; background:rgba(8,10,24,.86); overflow:auto; }
+  #admVida.on { display:flex; }
+  .avIn { max-width:560px; text-align:left; background:linear-gradient(160deg,#3a1650,#13234a); }
+  .avIn h2, .avIn > p { text-align:center; }
+  #avList { display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow:auto; }
+  .avRow { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.07); }
+  .avRow b { flex:1 1 120px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .avRow small { color:var(--muted); font-weight:800; min-width:70px; }
+  .avRow input { width:74px; padding:6px 8px; font-size:15px; }
+  .avRow button { padding:6px 10px; border-radius:10px; border:0; font:inherit; font-weight:900; cursor:pointer; background:rgba(255,255,255,.14); color:#fff; }
+  .avRow button.ok { background:var(--yel); color:#1a0b2e; }
   #criarBox { position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; padding:16px; background:radial-gradient(ellipse at center, rgba(40,10,60,.82), rgba(8,10,24,.94)); overflow:auto; }
   #criarBox.on { display:flex; animation:fadein .3s ease-out; }
   .cvIn { max-width:420px; width:100%; text-align:center; display:flex; flex-direction:column; gap:12px; align-items:stretch; padding:24px 20px; border-radius:24px; background:linear-gradient(160deg,rgba(255,61,127,.22),rgba(61,184,255,.18)); border:2px solid rgba(255,210,61,.55); box-shadow:0 0 50px rgba(255,61,127,.35); animation:pop .35s ease-out; }
@@ -604,6 +615,12 @@
   <div class="row"><button class="btn ghost" id="shopClose">Fechar</button></div>
 </div></div>
 <div id="blind"><b>🔦 Olhos fechados!</b><span>Os escondidos estão virando objetos…</span><i></i></div>
+<div id="admVida"><div class="cvIn avIn">
+  <h2>🛡️ Vida dos jogadores</h2>
+  <p>Só o administrador vê isto. Coloque a vida que quiser (1 a 9999); acima do normal ela vira a vida máxima da pessoa e continua ao renascer. ↺ volta ao normal.</p>
+  <div id="avList"></div>
+  <button class="btn big" id="avFechar">FECHAR</button>
+</div></div>
 <div id="criarBox"><div class="cvIn">
   <div class="cvFace">📸</div>
   <h2>Crie seu personagem!</h2>
@@ -886,6 +903,7 @@
     <div class="menu">
       <button class="btn big" id="resumeBtn">CONTINUAR</button>
       <button class="btn ghost" id="pauseRoomBtn">⚙️ Regras da sala</button>
+      <button class="btn" id="pauseAdmBtn" hidden>🛡️ Vida dos jogadores</button>
       <button class="btn ghost" id="pauseSettingsBtn">🎮 Controles e ajustes</button>
       <button class="btn danger" id="quitBtn">Sair para o menu</button>
     </div>
@@ -2742,6 +2760,7 @@ function pauseGame(primeira) {
   $('resumeBtn').textContent = primeira ? 'ENTRAR NO JOGO' : 'CONTINUAR';
   $('quitBtn').textContent = online ? 'Sair da sala' : 'Sair para o menu';
   $('pauseRoomBtn').hidden = !(online && net.isHost);
+  $('pauseAdmBtn').hidden = !(adm.on && mode === 'online');
   showScreen('pauseScreen');
   document.exitPointerLock?.();
 }
@@ -3086,12 +3105,13 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 20;
+const VERSAO = 21;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
-const hpMax = () => Math.round(100 * (mode === 'online' || net.joined ? net.cfg.vida : 1));
-const myMaxHp = hpMax;
+// com id: a vida máxima daquele jogador (o admin pode ter aumentado: p.vmax)
+const hpMax = id => { const v = id ? net.players[id]?.vmax : 0; return v > 0 ? v : Math.round(100 * (mode === 'online' || net.joined ? net.cfg.vida : 1)); };
+const myMaxHp = () => hpMax(net.myId);
 // a regeneração vale no PvP (se a sala deixar) e no treino de ondas; nas hordas não
 const regenOn = () => mode === 'online' ? net.cfg.regen && !isZumbi() : true;
 const topic = k => `pbamigos/v${VERSAO}/${net.code}/${k}`;
@@ -3137,7 +3157,7 @@ function startMatch() {
   if (!net.isHost) return;
   net.winning = false; net.votes = {}; net.tpts = [0, 0]; net.ms = {};
   syncBots();
-  for (const p of Object.values(net.players)) Object.assign(p, { kills: 0, deaths: 0, pts: 0, hp: hpMax(), dead: false, down: false });
+  for (const [id, p] of Object.entries(net.players)) Object.assign(p, { kills: 0, deaths: 0, pts: 0, hp: hpMax(id), dead: false, down: false });
   if (isTdm()) balanceTeams();
   net.endAt = net.cfg.tempo && !['zumbi', 'esconde'].includes(net.cfg.modo) ? performance.now() + net.cfg.tempo * 60000 : 0;
   net.roll = {};
@@ -3195,18 +3215,31 @@ function hostHandle(from, m) {
   net.lastSeen.set(from, performance.now());
   switch (m.t) {
     case 'bye': if (from !== net.myId) dropPlayer(from); break;
+    case 'admhp': { // administrador mudou a vida de alguém
+      const tg = net.players[m.id];
+      if (!net.players[from]?.adm || !tg || tg.dead || tg.down) return;
+      const base = hpMax();
+      if (m.reset) { delete tg.vmax; tg.hp = base; }
+      else { const v = Math.max(1, Math.min(9999, Math.round(+m.hp || 0))); tg.hp = v; if (v > base) tg.vmax = v; else delete tg.vmax; }
+      net.lastDmg.set(m.id, performance.now());
+      sendRoster();
+      broadcast({ t: 'hp', id: m.id, hp: tg.hp });
+      broadcast({ t: 'admhp', id: m.id, hp: tg.hp });
+      break;
+    }
     case 'grab': {
       const pu = pickups.get(m.id), pl = net.players[from];
       if (!pu || !pl || pl.dead || pl.down) return;
       broadcast({ t: 'got', id: m.id, by: from, k: pu.k });
       if (pu.k === 'inv') net.inv.set(from, performance.now() + POWERS.inv.dur * 1000 + 300);
-      if (POWERS[pu.k]?.cura) { pl.hp = Math.min(hpMax(), pl.hp + POWERS[pu.k].cura); broadcast({ t: 'hp', id: from, hp: pl.hp }); }
+      if (POWERS[pu.k]?.cura) { pl.hp = Math.min(hpMax(from), pl.hp + POWERS[pu.k].cura); broadcast({ t: 'hp', id: from, hp: pl.hp }); }
       break;
     }
     case 'hello':
       if (net.players[from]) { sendRoster(); return; }
       if (Object.keys(net.players).length >= 12) return;
       addPlayer(from, m.name, m.char, m.cor, m.lk);
+      if (m.adm === 1) net.players[from].adm = true;
       syncBots();
       sendRoster();
       broadcast({ t: 'pus', list: [...pickups.values()].map(pu => [pu.id, pu.k, r3(pu.x), r3(pu.z)]) });
@@ -3289,14 +3322,14 @@ function hostHandle(from, m) {
         tg.dead = true; tg.deaths++;
         if (amigo) sh.kills = Math.max(0, sh.kills - 1); else { sh.kills++; ms.st++; ms.best = Math.max(ms.best, ms.st); } // pintar o próprio time tira ponto
         // vida por abate (vampiro)
-        if (!amigo && net.cfg.vamp && !sh.dead && sh.hp < hpMax()) { sh.hp = Math.min(hpMax(), sh.hp + net.cfg.vamp); broadcast({ t: 'hp', id: from, hp: sh.hp }); }
+        if (!amigo && net.cfg.vamp && !sh.dead && sh.hp < hpMax(from)) { sh.hp = Math.min(hpMax(from), sh.hp + net.cfg.vamp); broadcast({ t: 'hp', id: from, hp: sh.hp }); }
         msOf(m.target).st = 0;
         broadcast({ t: 'kill', killer: from, victim: m.target, w: wid, h: head ? 1 : 0, tk: amigo ? 1 : 0 });
         onKillMode(m.target);
         sendRoster();
         if (!semVolta()) setTimeout(() => {
           if (net.players[m.target] !== tg || !tg.dead) return;
-          Object.assign(tg, { hp: hpMax(), dead: false });
+          Object.assign(tg, { hp: hpMax(m.target), dead: false });
           if (net.cfg.prot) net.inv.set(m.target, performance.now() + net.cfg.prot * 1000); // proteção ao voltar
           broadcast({ t: 'respawn', id: m.target }); sendRoster();
         }, net.cfg.respawn * 1000);
@@ -3324,6 +3357,10 @@ function onNet(m) {
   switch (m.t) {
     case 'bye': if (!net.isHost) leaveOnline('A sala fechou (o dono saiu).'); return;
     case 'hb': return;
+    case 'admhp':
+      if (m.id === net.myId) { banner(`🛡️ O administrador mudou sua vida para ${m.hp}`, 1.8); updateHud(); }
+      if ($('admVida').classList.contains('on')) renderAdmVida();
+      return;
     case 'migra': // o dono saiu e passou a sala
       if (m.id === net.myId) virarDono();
       else { net.hostId = m.id; net.lastHostMsg = performance.now(); }
@@ -3403,7 +3440,7 @@ function onNet(m) {
       if (m.id === net.myId) { if (m.hp < player.hp) { hurtFx(); player.dmgT = 0; } player.hp = m.hp; updateHud(); }
       else {
         const r = remotes.get(m.id);
-        if (r) { if (m.d) r.flash = 0.15; r.hpPct = m.hp / hpMax(); }
+        if (r) { if (m.d) r.flash = 0.15; r.hpPct = Math.min(1, m.hp / hpMax(m.id)); }
         if (r && m.by === net.myId && m.d) {
           dmgNumber(r, m.d, m.hp <= 0 ? 'kill' : m.h ? 'head' : 'n'); showBar(r);
           if (m.h) { hitMarker('head'); sfx.head(); bumpStat('hs'); }
@@ -3756,7 +3793,7 @@ setInterval(() => {
   const now = performance.now();
   if (!net.winning && regenOn()) {
     for (const [id, p] of Object.entries(net.players)) {
-      const max = hpMax();
+      const max = hpMax(id);
       if (p.dead || p.down || p.hp >= max || now - (net.lastDmg.get(id) || 0) < REGEN_DELAY * 1000) continue;
       p.hp = Math.min(max, Math.round(p.hp + max * REGEN_RATE * 0.5));
       broadcast({ t: 'hp', id, hp: p.hp });
@@ -3833,6 +3870,29 @@ function rotaSala(m, tp) {
   onNet(m);
 }
 
+// ===== Administrador na partida: mudar a vida de qualquer jogador (o dono da sala aplica) =====
+function renderAdmVida() {
+  const lista = Object.entries(net.players).sort((a, b) => !!a[1].bot - !!b[1].bot);
+  $('avList').replaceChildren(...lista.map(([id, p]) => {
+    const row = document.createElement('div'); row.className = 'avRow';
+    const n = document.createElement('b'); n.textContent = (id === net.myId ? `${p.name} (você)` : p.name) + (p.adm ? ' 🛡️' : '');
+    const hpTxt = document.createElement('small');
+    const vivo = !p.dead && !p.down;
+    hpTxt.textContent = vivo ? `❤️ ${Math.ceil(p.hp)} / ${hpMax(id)}` : '💀 fora';
+    const inp = document.createElement('input'); inp.type = 'number'; inp.min = 1; inp.max = 9999; inp.className = 'field'; inp.value = Math.ceil(p.hp) || hpMax(id);
+    const manda = (hp, reset) => { sendNet({ t: 'admhp', id, hp, reset: reset ? 1 : 0 }); setTimeout(renderAdmVida, 400); };
+    const bt = (txt, fn, cls) => { const b = document.createElement('button'); b.textContent = txt; if (cls) b.className = cls; b.disabled = !vivo; b.onclick = fn; return b; };
+    row.append(n, hpTxt,
+      bt('−50', () => manda(Math.max(1, Math.ceil(p.hp) - 50))), bt('+50', () => manda(Math.ceil(p.hp) + 50)),
+      inp, bt('Definir', () => manda(+inp.value), 'ok'), bt('↺', () => manda(0, true)));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') manda(+inp.value); e.stopPropagation(); });
+    return row;
+  }));
+}
+function abrirAdmVida() { if (!adm.on) return; renderAdmVida(); $('admVida').classList.add('on'); }
+$('pauseAdmBtn').onclick = abrirAdmVida;
+$('avFechar').onclick = () => $('admVida').classList.remove('on');
+
 // ===== Troca de dono: se o dono sai ou cai, outro jogador vira o dono e a sala continua =====
 // Quem assume: o primeiro jogador de verdade (sem bots) na ordem de entrada. Se ele também sumiu, o seguinte.
 const sucessores = () => Object.entries(net.players).filter(([id, p]) => !p.bot && id !== net.hostId).map(([id]) => id);
@@ -3895,6 +3955,7 @@ function hostRoom(cfg, autoEnter) {
     const c = myNetChar();
     net.hello = { t: 'hello', name: myName, char: c.char, cor: c.cor, lk: c.lk };
     addPlayer(net.myId, myName, c.char, c.cor, c.lk);
+    if (adm.on) net.players[net.myId].adm = true;
     if (c.face) net.faces.set(net.myId, c.face);
     loadMap(net.cfg.mapa);
     startMatch();
@@ -3914,7 +3975,7 @@ function joinRoom(code) {
   netStatus('Conectando ao servidor…'); setBusy(true);
   Object.assign(net, { isHost: false, joined: false, local: false, myId: newId(), code, players: {}, lastHostMsg: performance.now() });
   const c = myNetChar();
-  net.hello = { t: 'hello', name: myName, char: c.char, cor: c.cor, lk: c.lk };
+  net.hello = { t: 'hello', name: myName, char: c.char, cor: c.cor, lk: c.lk, adm: adm.on ? 1 : 0 };
   connectAll(['a'], rotaSala, () => {
     clearTimers();
     netStatus(`Conectado (${serversTxt()}). Entrando na sala ${code}…`);
@@ -5174,8 +5235,8 @@ function zStartRound(r) {
   Z.spawnT = 1.2;
   // quem morreu volta na nova rodada; quem estava caído levanta; quem sobreviveu ganha +25 de vida
   for (const [id, p] of Object.entries(net.players)) {
-    if (p.dead || p.down) { Object.assign(p, { dead: false, down: false, hp: Math.round(hpMax() * 0.6) }); broadcast({ t: 'respawn', id }); broadcast({ t: 'hp', id, hp: p.hp }); }
-    else if (r > 1 && p.hp < hpMax()) { p.hp = Math.min(hpMax(), p.hp + 25); broadcast({ t: 'hp', id, hp: p.hp }); }
+    if (p.dead || p.down) { Object.assign(p, { dead: false, down: false, hp: Math.round(hpMax(id) * 0.6) }); broadcast({ t: 'respawn', id }); broadcast({ t: 'hp', id, hp: p.hp }); }
+    else if (r > 1 && p.hp < hpMax(id)) { p.hp = Math.min(hpMax(id), p.hp + 25); broadcast({ t: 'hp', id, hp: p.hp }); }
     // bônus por sobreviver e armas novas na lojinha
     if (!Array.isArray(p.inv)) zEcoInit(p, true);
     if (r > 1 && !p.dead) zPagar(id, 150 + 25 * r);
@@ -5422,7 +5483,7 @@ function zGameOver() {
 }
 function zRestart() {
   zReset(); Z.started = true; Z.breakT = 3;
-  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { kills: 0, deaths: 0, dead: false, down: false, hp: hpMax() }); zEcoInit(p, true); broadcast({ t: 'respawn', id }); }
+  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { kills: 0, deaths: 0, dead: false, down: false, hp: hpMax(id) }); zEcoInit(p, true); broadcast({ t: 'respawn', id }); }
   broadcast({ t: 'zclear' });
   sendRoster();
 }
@@ -5507,7 +5568,7 @@ function zHostHandle(from, m) {
     if (!tg?.down || !rv || rv.down || rv.dead || m.target === from) return;
     const a = zPlayerPos(from), b = zPlayerPos(m.target);
     if (!a || !b || Math.hypot(a[0] - b[0], a[2] - b[2]) > 3.5) return;
-    tg.down = false; tg.hp = Math.round(hpMax() * 0.4);
+    tg.down = false; tg.hp = Math.round(hpMax(m.target) * 0.4);
     net.lastDmg.set(m.target, performance.now());
     zPagar(from, 150); // levantar amigo dá dinheiro
     broadcast({ t: 'up', id: m.target, by: from, hp: tg.hp });
@@ -5748,6 +5809,7 @@ function startLocalZombie() {
   loadMap(net.cfg.mapa);
   const c = myNetChar();
   addPlayer(net.myId, myName, c.char, c.cor, c.lk);
+  if (adm.on) net.players[net.myId].adm = true;
   enterOnline();
   goFullscreen();
 }
@@ -5853,9 +5915,9 @@ function modeStart() {
 // rodada nova (Último de pé / Esconde-esconde): todo mundo volta
 function roundStart(r) {
   const m = net.cfg.modo, n = Object.keys(net.players).length;
-  if (n < 2) { net.hs = { ph: 'espera', t: 0, r }; for (const [id, p] of Object.entries(net.players)) if (p.dead) { Object.assign(p, { dead: false, hp: hpMax() }); broadcast({ t: 'respawn', id }); } broadcast({ t: 'hs', hs: net.hs }); return; }
+  if (n < 2) { net.hs = { ph: 'espera', t: 0, r }; for (const [id, p] of Object.entries(net.players)) if (p.dead) { Object.assign(p, { dead: false, hp: hpMax(id) }); broadcast({ t: 'respawn', id }); } broadcast({ t: 'hs', hs: net.hs }); return; }
   if (m === 'esconde' && r > 1) for (const p of Object.values(net.players)) p.team = 1 - (p.team ?? 0);
-  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, hp: hpMax(), pk: Math.floor(Math.random() * PROPS.length) }); broadcast({ t: 'respawn', id }); }
+  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, hp: hpMax(id), pk: Math.floor(Math.random() * PROPS.length) }); broadcast({ t: 'respawn', id }); }
   net.hs = m === 'esconde' ? { ph: 'esconder', t: 20, r } : { ph: 'jogo', t: 0, r };
   broadcast({ t: 'hs', hs: net.hs });
   sendRoster();
