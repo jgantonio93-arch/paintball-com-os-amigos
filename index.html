@@ -937,7 +937,7 @@
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…).</section>
           <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
-            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. 🚩 <b>Checkpoints</b>: encoste numa bandeira (quintal, celeiro, milharal, galpão, pasto) para ativá-la; quem morre volta nela e, se todo mundo cair, a Missão continua dali sem perder portas, geradores e peças (a rodada volta para a de quando a bandeira foi pega).</section>
+            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. 🚩 <b>Checkpoints</b>: encoste numa bandeira (quintal, celeiro, milharal, galpão, pasto) para ativá-la; quem morre volta nela e, se todo mundo cair, a Missão continua dali sem perder portas, geradores e peças (a rodada volta para a de quando a bandeira foi pega). Na rodada 5, 10, 15… o jogo também salva um 💾 checkpoint sozinho (sem bandeira, vocês voltam na casa).</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
@@ -5993,6 +5993,7 @@ function zj(n = nJog()) {
   return { n, qtd, vida: 1 + 0.15 * (n - 1), chefe: 1 + 0.75 * (n - 1), grana: n / qtd, extra: Math.floor((n - 1) / 2) };
 }
 function zStartRound(r) {
+  if (FAZ && isMissao() && r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', i: Z.ckpt, r }); } // 💾 checkpoint automático na 5ª, 10ª…
   Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now();
   for (const p of Object.values(net.players)) p.pregou = 0;
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
@@ -6487,13 +6488,13 @@ function zDamage(id, dmg) {
 function zGameOver() {
   Z.over = true; Z.overT = 9;
   const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
-  const ck = FAZ && isMissao() && Z.ckpt >= 0;
+  const ck = FAZ && isMissao() && Z.ckptR > 0;
   broadcast({ t: 'zover', r: Z.round, kills, ck: ck ? Z.ckpt : undefined });
   if (ck) { Z.continua = true; Z.overT = 6; return; } // 🚩 a Missão continua da bandeira, sem perder o progresso
   if (net.local) Z.started = false;
 }
 // 🚩 todos caíram com um checkpoint ativo: portas, geradores, peças e fogueira ficam; a rodada volta para a da bandeira
-const CKPT_S = 15;
+const CKPT_S = 15, CKPT_AUTO = 5; // sem bandeira, o checkpoint automático volta na casa
 function zContinuar() {
   Z.over = false; Z.continua = false; Z.sim.clear(); Z.spits.length = 0; Z.caes.clear(); Z.extr = null; Z.radioProg = 0; Z.obj = null; Z.evento = null; Z.boss = 0;
   Z.round = Math.max(0, Z.ckptR - 1); Z.toSpawn = 0; Z.breakT = CKPT_S;
@@ -6735,7 +6736,7 @@ function zOnNet(m) {
       if (m.by && !m.bm) killFeed(nameOf(m.by), m.b ? '👹 Chefão' : `${o?.T?.ic || '🧟'} ${o?.T?.nome || 'Zumbi'}`, m.ex ? 'balde' : null, m.h, m.by === net.myId, false);
       return true;
     }
-    case 'ckpt': if (FAZ) fazCkptView(m.i, m.by); return true;
+    case 'ckpt': if (FAZ) fazCkptView(m.i, m.by); if (m.r) { banner(`💾 Checkpoint salvo: rodada ${m.r}`, 2.5); feed(`💾 Se todo mundo cair, vocês voltam na rodada ${m.r} ${FAZ?.ckpts?.[m.i] ? 'na bandeira ' + FAZ.ckpts[m.i].nome : 'na casa'}, sem perder o progresso`); } return true;
     case 'zcont': {
       clearZombies(); if (Z.eventoView) zEventoLook(null); zObjView(null);
       if (FAZ) { FAZ.extr = null; FAZ.radioProg = 0; FAZ.heli.g.visible = false; FAZ.heliFeixe.visible = false; FAZ.radioLed.material.color.setHex(0x552222); fazCkptView(m.i); }
@@ -6904,7 +6905,7 @@ function zOnNet(m) {
       else { const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, true); } feed(`💀 ${nameOf(m.id)} não resistiu`); }
       return true;
     case 'zover': {
-      if (typeof m.ck === 'number') { banner(`💀 Todos caíram! Voltando do checkpoint ${FAZ?.ckpts?.[m.ck]?.nome || ''}…`, 5); return true; }
+      if (typeof m.ck === 'number') { banner(`💀 Todos caíram! Voltando do checkpoint ${FAZ?.ckpts?.[m.ck]?.nome || '🏠 Casa'}…`, 5); return true; }
       const meus = m.kills?.[net.myId] ?? player.kills;
       if (Z.eventoView) zEventoLook(null);
       if (net.local) {
