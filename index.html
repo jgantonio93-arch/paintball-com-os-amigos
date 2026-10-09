@@ -1745,9 +1745,15 @@ function pine(x, z, s = 1, solid = true) {
 const CLIMAS = { auto: { nome: 'Do mapa', ic: '🗺️' }, sol: { nome: 'Sol', ic: '☀️' }, chuva: { nome: 'Chuva', ic: '🌧️' }, noite: { nome: 'Noite', ic: '🌙' }, tempestade: { nome: 'Tempestade', ic: '⛈️' } };
 const MAP_NOITE = { shopping: true };
 let baseLook = null, clima = 'sol', raio = 0;
-const lanterna = new THREE.SpotLight(0xfff2d0, 0, 42, 0.5, 0.55, 1.1);
+// lanterna presa na câmera: liga sozinha de noite (forte e aberta, apontada para a frente)
+const LANTERNA_I = 65;
+const lanterna = new THREE.SpotLight(0xfff2d0, 0, 75, 0.68, 0.45, 0.85);
 lanterna.position.set(0.25, -0.2, 0); camera.add(lanterna);
-lanterna.target.position.set(0, -0.6, -6); camera.add(lanterna.target);
+lanterna.target.position.set(0, -0.9, -12); camera.add(lanterna.target);
+// facho dos outros jogadores (só um cone de luz transparente, para não pesar)
+const fachoGeo = new THREE.ConeGeometry(1.7, 10, 20, 1, true); fachoGeo.translate(0, -5, 0); fachoGeo.rotateX(-Math.PI / 2 + 0.06);
+const fachoMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0, transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+const lanternaLigada = () => lanterna.intensity > 0;
 const chuva = (() => {
   const n = 1400, pos = new Float32Array(n * 6);
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -1769,10 +1775,12 @@ function applyClima() {
   const noite = clima === 'noite' || clima === 'tempestade' || MAP_NOITE[curMap];
   const molhado = clima === 'chuva' || clima === 'tempestade';
   const L = { ...baseLook };
-  if (noite && !MAP_NOITE[curMap]) { L.sky = 0x0a0f22; L.hemiI *= 0.3; L.sunI *= 0.18; L.sunColor = 0x9fb4ff; L.fogNear = Math.min(L.fogNear, 18); L.fogFar = Math.min(L.fogFar, 70); }
+  if (noite && !MAP_NOITE[curMap]) { L.sky = 0x0a0f22; L.hemiI *= 0.42; L.sunI *= 0.24; L.sunColor = 0x9fb4ff; L.fogNear = Math.min(L.fogNear, 18); L.fogFar = Math.min(L.fogFar, 70); }
   if (molhado) { L.sky = noite ? 0x070a14 : 0x6f7b88; L.hemiI *= 0.75; L.sunI *= 0.5; L.fogNear = Math.min(L.fogNear, 14); L.fogFar = Math.min(L.fogFar, 65); }
   setLookRaw(L);
-  lanterna.intensity = noite ? 40 : 0;
+  const antes = lanterna.intensity;
+  lanterna.intensity = noite ? LANTERNA_I : 0;
+  if (noite && !antes && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
   chuva.lines.visible = molhado;
 }
 function updateClima(dt) {
@@ -1821,7 +1829,8 @@ function loadMap(id) {
 // treino solo: modo, mapa e dificuldade escolhidos (salvos no aparelho)
 const soloCfg = { modo: 'ondas', mapa: 'arena', dif: 1, clima: 'auto', ...(load('pb-solo', {}) || {}) };
 if (!MAPS[soloCfg.mapa]) soloCfg.mapa = 'arena';
-if (![0.7, 1, 1.4].includes(+soloCfg.dif)) soloCfg.dif = 1;
+const OPT_DIF_SOLO = [0.5, 0.75, 1, 1.4, 1.8]; // mesmos níveis do OPT.dif
+if (!OPT_DIF_SOLO.includes(+soloCfg.dif)) soloCfg.dif = 1;
 if (soloCfg.modo !== 'zumbi') soloCfg.modo = 'ondas';
 loadMap(soloCfg.mapa);
 
@@ -3066,7 +3075,7 @@ const MODOS = {
   zumbi:  { nome: 'Zumbis', icone: '🧟', desc: 'todos juntos contra hordas; chefão a cada 5 rodadas' },
 };
 // opções que o dono da sala pode escolher (0 = indeterminado / sem limite; rInt 0 = aleatório)
-const OPT = { tempo: [0, 3, 5, 10, 15, 20], kills: [0, 5, 10, 15, 20, 30, 50], vida: [0.5, 1, 2], respawn: [2, 3, 5, 8], dif: [0.7, 1, 1.4], rInt: [0, 10, 20, 30, 45, 60],
+const OPT = { tempo: [0, 3, 5, 10, 15, 20], kills: [0, 5, 10, 15, 20, 30, 50], vida: [0.5, 1, 2], respawn: [2, 3, 5, 8], dif: [0.5, 0.75, 1, 1.4, 1.8], rInt: [0, 10, 20, 30, 45, 60],
   caps: [0, 1, 3, 5, 7], hill: [0, 30, 60, 100, 150], rounds: [3, 5, 7], bots: [0, 2, 4, 6, 8],
   grav: [1, 0.45, 1.6], velo: [0.8, 1, 1.3, 1.6], vamp: [0, 25, 50, 100], prot: [0, 2, 4] };
 const ALVOS = ['normal', 'cabeca', 'umtiro'];
@@ -3126,7 +3135,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 21;
+const VERSAO = 22;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -3332,7 +3341,7 @@ function hostHandle(from, m) {
       if (net.cfg.alvo === 'cabeca' && !naCabeca) return; // regra "só vale na cabeça"
       const head = naCabeca && (net.cfg.hs || net.cfg.alvo === 'cabeca');
       // bots batem mais fraco em gente (Fácil 45%, Normal 60%, Difícil 80%)
-      const botMul = sh.bot && !tg.bot ? ({ 0.7: 0.45, 1: 0.6, 1.4: 0.8 })[net.cfg.dif] || 0.6 : 1;
+      const botMul = sh.bot && !tg.bot ? ({ 0.5: 0.3, 0.75: 0.45, 1: 0.6, 1.4: 0.8, 1.8: 1 })[net.cfg.dif] || 0.6 : 1;
       let dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * botMul));
       if (net.cfg.alvo === 'umtiro') dmg = Math.max(dmg, Math.ceil(tg.hp)); // um tiro pinta
       tg.hp -= dmg;
@@ -3581,6 +3590,9 @@ function updateRemotes(dt, t) {
     r.root.visible = r.seen;
     if (!r.seen) continue;
     r.head.scale.setScalar(regra('cabecao') ? 1.6 : 1);
+    // de noite cada jogador aparece com o facho da lanterna
+    if (lanternaLigada() && !r.facho) { r.facho = new THREE.Mesh(fachoGeo, fachoMat); r.facho.position.set(0.2, 0.05, 0.35); r.head.add(r.facho); }
+    if (r.facho) r.facho.visible = lanternaLigada() && !r.dead && !r.prop;
     // caçada ao líder: coroa que aparece através das paredes
     const lider = r.id === net.leader && !r.dead;
     if (lider && !r.crown) { r.crown = iconSprite('👑', 0xffd23d); r.crown.material.depthTest = false; r.crown.renderOrder = 20; r.crown.position.y = 4.3; r.root.add(r.crown); }
@@ -4266,7 +4278,7 @@ function renderCfgForm() {
   choice($('cfgBots'), OPT.bots.map(v => ({ v, t: v ? `até ${v}` : 'Sem bots' })), v => v === c.bots, v => set('bots', v));
   choice($('cfgRInt'), OPT.rInt.map(v => ({ v, t: v ? `${v} s` : '🎲 Aleatório' })), v => v === c.rInt, v => set('rInt', v));
   choice($('cfgRIgual'), [{ v: true, t: '🤝 Iguais para todos' }, { v: false, t: '🔀 Diferentes para cada um' }], v => v === c.rIgual, v => set('rIgual', v));
-  choice($('cfgDif'), [{ v: 0.7, t: 'Fácil' }, { v: 1, t: 'Normal' }, { v: 1.4, t: 'Difícil' }], v => v === c.dif, v => set('dif', v));
+  choice($('cfgDif'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === c.dif, v => set('dif', v));
   const gg = c.modo === 'gg', zb = c.modo === 'zumbi', rol = c.modo === 'roleta', es = c.modo === 'esconde';
   $('rowTempo').hidden = zb || es; $('rowKills').hidden = gg || zb; $('rowRInt').hidden = !rol; $('rowRIgual').hidden = !rol;
   $('rowBots').hidden = zb || es; $('rowDif').hidden = !(zb || c.bots > 0) || es;
@@ -5010,7 +5022,7 @@ function showSolo() {
   const set = (k, v) => { soloCfg[k] = v; save('pb-solo', soloCfg); if (k === 'mapa') loadMap(v); showSolo(); };
   choice($('soloModeSeg'), [{ v: 'ondas', t: 'Ondas de amigos', ic: '🎨', s: 'sobreviva às ondas atirando de volta' }, { v: 'zumbi', t: 'Zumbis', ic: '🧟', s: 'rodadas de hordas, quanto mais longe melhor' }], v => v === soloCfg.modo, v => set('modo', v), 'card2');
   choice($('mapSel'), Object.entries(MAPS).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === soloCfg.mapa, v => set('mapa', v), 'card2');
-  choice($('difSel'), [{ v: 0.7, t: 'Fácil' }, { v: 1, t: 'Normal' }, { v: 1.4, t: 'Difícil' }], v => v === +soloCfg.dif, v => set('dif', v));
+  choice($('difSel'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === +soloCfg.dif, v => set('dif', v));
   choice($('soloClima'), Object.entries(CLIMAS).map(([v, m]) => ({ v, t: `${m.ic} ${m.nome}` })), v => v === (soloCfg.clima || 'auto'), v => { soloCfg.clima = v; save('pb-solo', soloCfg); applyClima(); showSolo(); });
   if ($('soloScreen').style.display !== 'flex') { loadMap(soloCfg.mapa); showScreen('soloScreen'); }
 }
@@ -5275,13 +5287,23 @@ function zBegin() {
   sendRoster();
   broadcast({ t: 'zclear' });
 }
-const difHp = () => 0.75 + 0.25 * (net.cfg.dif || 1);
+// Dificuldade das hordas: cada nível mexe em tudo (vida, dano, velocidade, quantidade, ritmo do ataque,
+// quando os especiais aparecem, vida entre rodadas, dinheiro e o nível da pistola inicial)
+const ZDIF = {
+  0.5:  { nome: 'Muito fácil', ic: '😴', vida: 0.45, dano: 0.35, vel: 0.8,  qtd: 0.6,  atk: 1.6,  desde: 3,  cura: 50, grana: 1.5, nivel: 3 },
+  0.75: { nome: 'Fácil',       ic: '🙂', vida: 0.6,  dano: 0.5,  vel: 0.88, qtd: 0.75, atk: 1.35, desde: 2,  cura: 40, grana: 1.3, nivel: 2 },
+  1:    { nome: 'Normal',      ic: '😐', vida: 0.75, dano: 0.65, vel: 0.95, qtd: 0.85, atk: 1.2,  desde: 1,  cura: 35, grana: 1.15, nivel: 2 },
+  1.4:  { nome: 'Difícil',     ic: '😈', vida: 1.1,  dano: 1.1,  vel: 1.05, qtd: 1.1,  atk: 1,    desde: 0,  cura: 25, grana: 1,   nivel: 1 },
+  1.8:  { nome: 'Pesadelo',    ic: '💀', vida: 1.5,  dano: 1.5,  vel: 1.15, qtd: 1.35, atk: 0.85, desde: -1, cura: 15, grana: 0.9, nivel: 1 },
+};
+const zd = () => ZDIF[net.cfg.dif] || ZDIF[1];
+const difHp = () => zd().vida;
 const nJog = () => Math.max(1, Object.keys(net.players).length);
 const ZMAXV = () => Math.min(36, 24 + nJog() * 3);
 function zStartRound(r) {
   Z.round = r;
   const np = nJog();
-  Z.toSpawn = Math.round((6 + r * 4) * (1 + (np - 1) * 0.6));
+  Z.toSpawn = Math.max(3, Math.round((6 + r * 4) * (1 + (np - 1) * 0.6) * zd().qtd));
   Z.boss = r % 5 === 0 ? Math.min(3, r / 5) : 0; // rodada do chefão (fica mais forte a cada 5)
   if (Z.boss) Z.toSpawn = Math.round(Z.toSpawn * 0.55) + 1;
   Z.evento = !Z.boss && r >= 3 && r % 3 === 0 ? randomFrom(Object.keys(EVENTOS)) : null;
@@ -5290,7 +5312,7 @@ function zStartRound(r) {
   // quem morreu volta na nova rodada; quem estava caído levanta; quem sobreviveu ganha +25 de vida
   for (const [id, p] of Object.entries(net.players)) {
     if (p.dead || p.down) { Object.assign(p, { dead: false, down: false, hp: Math.round(hpMax(id) * 0.6) }); broadcast({ t: 'respawn', id }); broadcast({ t: 'hp', id, hp: p.hp }); }
-    else if (r > 1 && p.hp < hpMax(id)) { p.hp = Math.min(hpMax(id), p.hp + 25); broadcast({ t: 'hp', id, hp: p.hp }); }
+    else if (r > 1 && p.hp < hpMax(id)) { p.hp = Math.min(hpMax(id), p.hp + zd().cura); broadcast({ t: 'hp', id, hp: p.hp }); }
     // bônus por sobreviver e armas novas na lojinha
     if (!Array.isArray(p.inv)) zEcoInit(p, true);
     if (r > 1 && !p.dead) zPagar(id, 150 + 25 * r);
@@ -5306,7 +5328,7 @@ function zPickType(r) {
   if (Z.evento === 'bombas' && Math.random() < 0.45) return ZT.bomba;
   const limite = { mae: 1, gritador: 2, tanque: 2 + Math.floor(r / 6), bomba: 4 };
   const opcoes = ZTYPES.map((T, i) => {
-    if (r < T.desde || (limite[T.id] !== undefined && (conta[i] || 0) >= limite[T.id])) return 0;
+    if (r < T.desde + (T.id === 'comum' ? 0 : zd().desde) || (limite[T.id] !== undefined && (conta[i] || 0) >= limite[T.id])) return 0;
     if (T.id === 'comum') return Math.max(3, 10 - r * 0.6);
     return T.peso * Math.min(2.2, 1 + (r - T.desde) * 0.15);
   });
@@ -5331,14 +5353,14 @@ function zSpot(minD = 16, maxD = 35) {
 }
 function zAdd(type, x, y, z, extra = {}) {
   const r = Z.round, dif = net.cfg.dif || 1, T = ZTYPES[type], id = 'z' + (++Z.seq).toString(36);
-  const elite = r >= 8 && T.id !== 'mae' && Math.random() < Math.min(0.25, 0.04 * (r - 6));
+  const elite = r >= 8 + Math.max(0, zd().desde) * 2 && T.id !== 'mae' && Math.random() < Math.min(0.25, 0.04 * (r - 6));
   const hp = Math.round((70 + r * 28) * T.hp * difHp() * (1 + (nJog() - 1) * 0.3) * (elite ? 2.2 : 1));
   const cap = T.id === 'corredor' ? 9.5 : 6.2;
   const zz = {
     id, type, x, y, z, yaw: 0, kind: Math.floor(Math.random() * 997),
     hp, max: hp, elite, raiva: Z.evento === 'sangue' ? 999 : 0,
-    speed: Math.min(cap, (2.6 + r * 0.28) * T.spd) * (0.85 + Math.random() * 0.3) * (0.85 + 0.15 * dif),
-    dmg: Math.round((12 + r * 2) * T.dmg * dif * (elite ? 1.4 : 1)),
+    speed: Math.min(cap, (2.6 + r * 0.28) * T.spd) * (0.85 + Math.random() * 0.3) * zd().vel,
+    dmg: Math.round((12 + r * 2) * T.dmg * zd().dano * (elite ? 1.4 : 1)),
     atkCd: 0.6, side: Math.random() < 0.5 ? 1 : -1, sideT: 0, stuck: 0, atkFlag: false,
     abil: 2 + Math.random() * 2, fuse: -1, charge: 0, cx: 0, cz: 0, air: false, vx: 0, vy: 0, vz: 0, grito: 0, ...extra,
   };
@@ -5353,7 +5375,7 @@ function zSpawn() {
     // chefão: um amigo gigante com pancada no chão, investida e (depois) cuspe
     const nivel = Z.boss; Z.boss = 0;
     const hpB = Math.round((900 + r * 150) * difHp() * (1 + (nJog() - 1) * 0.6));
-    zAdd(0, best.x, 0, best.z, { boss: nivel, hp: hpB, max: hpB, speed: (2.4 + nivel * 0.25) * (0.85 + 0.15 * dif), dmg: Math.round((30 + nivel * 6) * dif), atkCd: 1, raiva: nivel >= 3 ? 999 : 0, abil: 3, abil2: 6, abil3: 4 });
+    zAdd(0, best.x, 0, best.z, { boss: nivel, hp: hpB, max: hpB, speed: (2.4 + nivel * 0.25) * zd().vel, dmg: Math.round((30 + nivel * 6) * zd().dano), atkCd: 1, raiva: nivel >= 3 ? 999 : 0, abil: 3, abil2: 6, abil3: 4 });
     return;
   }
   zAdd(zPickType(r), best.x, 0, best.z);
@@ -5412,7 +5434,7 @@ function zMove(z, alvos, dt) {
     z.abil3 = (z.abil3 ?? 4) - dt;
     if (z.abil3 <= 0 && alvo && best < 5.5) {
       z.abil3 = 6;
-      for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < 6) { zDamage(a.id, Math.round(26 * (net.cfg.dif || 1) * (1 - d / 9))); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), 12); } }
+      for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < 6) { zDamage(a.id, Math.round(26 * zd().dano * (1 - d / 9))); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), 12); } }
       broadcast({ t: 'zslam', x: r2(z.x), z: r2(z.z), s: 1 });
     }
   }
@@ -5459,7 +5481,7 @@ function zMove(z, alvos, dt) {
   z.atkCd -= dt;
   const alcance = z.boss ? 2.6 : T.id === 'tanque' || T.id === 'mae' ? 1.9 : 1.35;
   if (z.dmg > 0 && alvo && best < alcance && Math.abs(alvo.y - z.y) < (z.boss ? 3 : 1.7) && z.atkCd <= 0) {
-    z.atkCd = z.boss ? 1.5 : T.id === 'corredor' ? 0.7 : 0.9; z.atkFlag = true;
+    z.atkCd = (z.boss ? 1.5 : T.id === 'corredor' ? 0.7 : 0.9) * zd().atk; z.atkFlag = true;
     zDamage(alvo.id, Math.round(z.dmg * (z.raiva > 0 ? 1.25 : 1)));
     if (T.id === 'tanque' || z.boss) zPush(alvo.id, dx, dz, 7);
   }
@@ -5471,7 +5493,7 @@ function zSpit(z, alvo, volley = 1) {
     const ex = alvo.x + (k ? (Math.random() - 0.5) * 3 : 0), ez = alvo.z + (k ? (Math.random() - 0.5) * 3 : 0), ey = alvo.y + 1.1;
     const d = Math.hypot(ex - o[0], ez - o[2]), tv = THREE.MathUtils.clamp(d / 15, 0.5, 1.4);
     const v = [(ex - o[0]) / tv, (ey - o[1]) / tv + 0.5 * ZG * tv, (ez - o[2]) / tv];
-    Z.spits.push({ x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], t: 3, dmg: Math.round(14 * (net.cfg.dif || 1) * (z.boss ? 1.4 : 1)) });
+    Z.spits.push({ x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], t: 3, dmg: Math.round(14 * zd().dano * (z.boss ? 1.4 : 1)) });
     broadcast({ t: 'zspit', o: o.map(r2), v: v.map(r2) });
   }
 }
@@ -5652,7 +5674,7 @@ function zEventoLook(ev) {
   if (!ev || !baseLook) return applyClima();
   applyClima();
   if (ev === 'neblina') { scene.fog.near = 2; scene.fog.far = 20; scene.background.setHex(0x8a958f); scene.fog.color.setHex(0x8a958f); }
-  if (ev === 'apagao') { hemi.intensity *= 0.18; sun.intensity *= 0.1; scene.background.setHex(0x05060c); scene.fog.color.setHex(0x05060c); scene.fog.far = 45; lanterna.intensity = 45; }
+  if (ev === 'apagao') { hemi.intensity *= 0.18; sun.intensity *= 0.1; scene.background.setHex(0x05060c); scene.fog.color.setHex(0x05060c); scene.fog.far = 45; lanterna.intensity = LANTERNA_I; if (state === 'play') feed('🔦 Apagão: lanterna ligada'); }
   if (ev === 'sangue') { scene.background.setHex(0x3a0508); scene.fog.color.setHex(0x3a0508); sun.color.setHex(0xff5a4a); hemi.color.setHex(0xff8a7a); }
 }
 // --- do lado de cada jogador: monstros, efeitos, derrubado, reviver ---
@@ -6181,7 +6203,7 @@ placeObjectives();
 const WPRECO = { pistola: 250, rolo: 300, revolver: 450, smg: 500, marcador: 550, mangueira: 600, escopeta: 750, rajada: 800, metralha: 850, besta: 900, sniper: 950, balde: 1250 };
 const NIVEL_MAX = 5;
 const RECOMPENSA = { comum: 50, corredor: 60, rastejante: 40, cuspidor: 80, bomba: 70, saltador: 90, fantasma: 100, tanque: 140, gritador: 110, mae: 250 };
-const INV_INICIAL = () => [{ w: 'pistola', l: 1 }];
+const INV_INICIAL = () => [{ w: 'pistola', l: zd().nivel }]; // nos níveis fáceis a pistola já começa melhor
 const upPreco = (w, l) => Math.round((WPRECO[w] * 0.45 + 150) * l);
 // força da arma por nível nas hordas (nível 1 = 60% do normal)
 const zMult = l => 0.6 + 0.18 * (Math.max(1, l) - 1);
@@ -6194,7 +6216,7 @@ function zEcoInit(p, zerar) {
   if (zerar || !Array.isArray(p.inv)) { p.inv = INV_INICIAL(); p.cash = 0; }
   p.loja = lojaOfertas(p);
 }
-function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.cash = (p.cash | 0) + Math.round(v); return p.cash; }
+function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.cash = (p.cash | 0) + Math.round(v * zd().grana); return p.cash; }
 // compra (dono): op 0/1 = arma oferecida, op 2 = melhorar a arma da mão
 function zComprar(from, m) {
   const p = net.players[from]; if (!p || p.dead || p.down || !obj.loja) return;
