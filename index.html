@@ -264,7 +264,7 @@
   .slot.mao { border:2px solid var(--grn); background:rgba(61,255,176,.08); }
   .slot.alvo { border:2px solid var(--yel); background:rgba(255,210,61,.14); box-shadow:0 0 14px rgba(255,210,61,.35); }
   .slot.alvo small { color:var(--yel); }
-  .shopCards { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; max-height:min(52vh,460px); overflow-y:auto; padding:2px; }
+  .shopCards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   .shopCard.up { border-color:var(--grn); background:linear-gradient(160deg,rgba(61,255,176,.16),rgba(61,184,255,.08)); }
   .shopCard { font:inherit; color:#fff; text-align:left; background:linear-gradient(160deg,rgba(255,210,61,.14),rgba(255,61,127,.08)); border:2px solid rgba(255,210,61,.5); border-radius:16px; padding:12px; cursor:pointer; position:relative; display:flex; flex-direction:column; gap:4px; transition:transform .1s; }
   .shopCard:hover { transform:translateY(-2px); }
@@ -627,7 +627,7 @@
   <div class="shopHead"><div><span class="tag">Modo Zumbi</span><h2>💰 Lojinha</h2></div><b id="shopCash"></b></div>
   <div class="shopSlots" id="shopSlots"></div>
   <div class="shopCards" id="shopCards"></div>
-  <p class="hint center">Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai na troca (a que sai devolve 30% do que valeu). No intervalo entre as rodadas a loja abre de qualquer lugar. <span class="kbdHint">1–9 compra · U melhora · Q escolhe a arma · E/Esc fecha</span></p>
+  <p class="hint center">Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. <span class="kbdHint">1–2 compra · 3/U melhora · Q escolhe a arma · E/Esc fecha</span></p>
   <div class="row"><button class="btn ghost" id="shopClose">Fechar</button></div>
 </div></div>
 <div id="blind"><b>🔦 Olhos fechados!</b><span>Os escondidos estão virando objetos…</span><i></i></div>
@@ -2628,7 +2628,7 @@ addEventListener('keydown', e => {
   if ((e.code === 'KeyC' || e.code === 'ControlLeft') && !e.repeat) crouchPressed();
   if (/^Digit[1-9]$/.test(e.code)) {
     const n = +e.code.slice(5) - 1;
-    if (shopOpen) comprar(n); else if (quickOpen) sayQuick(n); else if (endOpen) voteMap(n); else if (n < WEAPON_ORDER.length) equip(allowedWeapons().length < WEAPON_ORDER.length ? allowedWeapons()[n] : WEAPON_ORDER[n]);
+    if (shopOpen) { if (n < 3) comprar(n); } else if (quickOpen) sayQuick(n); else if (endOpen) voteMap(n); else if (n < WEAPON_ORDER.length) equip(allowedWeapons().length < WEAPON_ORDER.length ? allowedWeapons()[n] : WEAPON_ORDER[n]);
   }
   if (shopOpen && e.code === 'KeyU' && !e.repeat) melhorarArma();
   if (e.code === 'KeyQ' && !e.repeat) { if (shopOpen) { const inv = zInv(); if (inv.length > 1) { shopSlot = 1 - shopSlot; renderShop(); } } else if (amProp()) cycleProp(); else cycleWeapon(1); }
@@ -3140,7 +3140,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 23;
+const VERSAO = 24;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -5322,6 +5322,7 @@ function zStartRound(r) {
     // bônus por sobreviver e armas novas na lojinha
     if (!Array.isArray(p.inv)) zEcoInit(p, true);
     if (r > 1 && !p.dead) zPagar(id, 150 + 25 * r);
+    p.loja = lojaOfertas(p);
   }
   sendRoster();
   broadcast({ t: 'zround', r, b: Z.boss, ev: Z.evento });
@@ -6219,19 +6220,20 @@ const zMult = l => 0.6 + 0.18 * (Math.max(1, l) - 1);
 // intervalo entre as rodadas (dá para comprar de qualquer lugar)
 const INTERVALO_S = 15;
 let zIntervaloAte = 0;
-// trocar uma arma por outra devolve parte do que ela valeu (preço + melhorias)
-const DEVOLVE = 0.3;
-function valorArma(s) { let v = WPRECO[s.w] || 0; for (let k = 1; k < s.l; k++) v += upPreco(s.w, k); return v; }
-const devolucao = s => s ? Math.round(valorArma(s) * DEVOLVE) : 0;
-// todas as armas à venda (menos as que a pessoa já tem), da mais barata para a mais cara
-const catalogo = inv => WEAPON_ORDER.filter(w => WPRECO[w] && !inv.some(x => x.w === w)).sort((a, b) => WPRECO[a] - WPRECO[b]);
+// 2 ofertas sorteadas por rodada (armas que a pessoa ainda não tem)
+function lojaOfertas(p) {
+  const tem = new Set((p.inv || []).map(s => s.w));
+  return WEAPON_ORDER.filter(w => WPRECO[w] && !tem.has(w)).sort(() => Math.random() - 0.5).slice(0, 2);
+}
 // dono: prepara dinheiro e armas de todo mundo (começo das hordas e quem entra)
 function zEcoInit(p, zerar) {
   if (zerar || !Array.isArray(p.inv)) { p.inv = INV_INICIAL(); p.cash = 0; }
+  p.loja = lojaOfertas(p);
 }
 function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.cash = (p.cash | 0) + Math.round(v * zd().grana); return p.cash; }
-// compra (dono): op 2 = melhorar a arma escolhida (cur); senão compra a arma w no espaço slot
-// (com os dois ocupados, troca a do espaço e devolve parte do valor dela)
+// compra (dono): op 0/1 = uma das 2 ofertas no espaço slot, op 2 = melhorar a arma escolhida (cur).
+// Com os dois espaços ocupados é uma TROCA: a nova entra no lugar da escolhida com o mesmo nível dela
+// (o que foi gasto melhorando não se perde; não tem dinheiro de volta)
 function zComprar(from, m) {
   const p = net.players[from]; if (!p || p.dead || p.down || !obj.loja) return;
   const q = hostPos(from), naLoja = q && Math.hypot(q.x - obj.loja.x, q.z - obj.loja.z) <= 4.5;
@@ -6244,14 +6246,15 @@ function zComprar(from, m) {
     p.cash -= preco; s.l++;
     broadcast({ t: 'bought', id: from, w: s.w, l: s.l, up: 1 });
   } else {
-    const w = m.w;
-    if (!WPRECO[w] || p.inv.some(x => x.w === w)) return;
+    const op = m.op | 0, w = p.loja?.[op];
+    if (!w || !WPRECO[w] || p.inv.some(x => x.w === w)) return;
     const slot = p.inv.length < 2 ? p.inv.length : (m.slot === 1 ? 1 : 0);
-    const velho = p.inv[slot], volta = devolucao(velho), preco = WPRECO[w];
-    if ((p.cash | 0) + volta < preco) return;
-    p.cash = (p.cash | 0) + volta - preco;
-    p.inv[slot] = { w, l: 1 };
-    broadcast({ t: 'bought', id: from, w, l: 1, tr: velho?.w || null, v: volta });
+    const velho = p.inv[slot], l = velho ? velho.l : 1, preco = WPRECO[w];
+    if ((p.cash | 0) < preco) return;
+    p.cash -= preco;
+    p.inv[slot] = { w, l };
+    p.loja[op] = null;
+    broadcast({ t: 'bought', id: from, w, l, tr: velho?.w || null });
   }
   sendRoster();
 }
@@ -6296,13 +6299,13 @@ function renderShop() {
   const me = net.players[net.myId]; if (!me) return;
   const cash = me.cash | 0, inv = zInv(), mao = player.weapon, cheio = inv.length >= 2;
   if (!inv[shopSlot]) shopSlot = Math.max(0, inv.findIndex(x => x.w === mao));
-  const sel = inv[shopSlot], volta = cheio ? devolucao(sel) : 0;
+  const sel = inv[shopSlot];
   $('shopCash').textContent = `💰 ${cash}`;
   $('shopSlots').replaceChildren(...[0, 1].map(i => {
     const d = document.createElement('button'); d.className = 'slot' + (inv[i]?.w === mao ? ' mao' : '') + (inv[i] && i === shopSlot ? ' alvo' : '');
     const t = document.createElement('b'); t.textContent = inv[i] ? `${WEAPONS[inv[i].w].ic} ${WEAPONS[inv[i].w].nome} ${estrelas(inv[i].l)}` : '— espaço vazio —';
     const sm = document.createElement('small');
-    sm.textContent = !inv[i] ? 'a próxima compra vem para cá' : i === shopSlot ? (cheio ? `escolhida · sai na troca (devolve 💰 ${devolucao(inv[i])})` : 'escolhida para melhorar') : 'toque para escolher';
+    sm.textContent = !inv[i] ? 'a próxima compra vem para cá' : i === shopSlot ? (cheio ? 'escolhida · é a que sai se você trocar' : 'escolhida para melhorar') : 'toque para escolher';
     d.append(t, sm);
     d.onclick = () => { if (inv[i]) { shopSlot = i; renderShop(); } };
     return d;
@@ -6319,24 +6322,23 @@ function renderShop() {
     b.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
     return b;
   };
-  const cards = [];
+  const cards = (me.loja || []).slice(0, 2).map((w, op) => {
+    if (!w) return card(op + 1, '✅', 'Vendido!', 'Outra arma aparece na próxima rodada', 'esgotado', false, () => {});
+    const W = WEAPONS[w];
+    const troca = cheio ? `troca pela ${WEAPONS[sel.w].nome} e já vem ${estrelas(sel.l)}` : 'vai para o espaço vazio';
+    return card(op + 1, W.ic, W.nome, `${W.desc} · ${troca}`, `💰 ${WPRECO[w]}`, cash >= WPRECO[w], () => comprarArma(op));
+  });
   if (sel && sel.l < NIVEL_MAX) {
     const W = WEAPONS[sel.w], preco = upPreco(sel.w, sel.l);
-    cards.push(card('U', '⬆️', `Melhorar ${W.nome}`, `nível ${sel.l} → ${sel.l + 1}: +${Math.round((zMult(sel.l + 1) / zMult(sel.l) - 1) * 100)}% dano, pente maior, recarga e tiro mais rápidos`, `💰 ${preco}`, cash >= preco, melhorarArma, 'up'));
-  } else if (sel) cards.push(card('U', '🏆', `${WEAPONS[sel.w].nome} no máximo`, 'Nível 5: não dá para melhorar mais', estrelas(NIVEL_MAX), false, () => {}, 'up'));
-  catalogo(inv).forEach((w, n) => {
-    const W = WEAPONS[w], preco = WPRECO[w];
-    const troca = cheio ? `troca pela ${WEAPONS[sel.w].nome} (+💰 ${volta})` : 'vai para o espaço vazio';
-    cards.push(card(n < 9 ? n + 1 : '', W.ic, W.nome, `${W.desc} · ${troca}`, cheio && volta ? `💰 ${preco} (paga ${Math.max(0, preco - volta)})` : `💰 ${preco}`, cash + volta >= preco, () => comprarArma(w)));
-  });
+    cards.push(card(3, '⬆️', `Melhorar ${W.nome}`, `nível ${sel.l} → ${sel.l + 1}: +${Math.round((zMult(sel.l + 1) / zMult(sel.l) - 1) * 100)}% dano, pente maior, recarga e tiro mais rápidos`, `💰 ${preco}`, cash >= preco, melhorarArma, 'up'));
+  } else if (sel) cards.push(card(3, '🏆', `${WEAPONS[sel.w].nome} no máximo`, 'Nível 5: não dá para melhorar mais', estrelas(NIVEL_MAX), false, () => {}, 'up'));
   $('shopCards').replaceChildren(...cards);
 }
-function comprarArma(w) {
+function comprarArma(op) {
   if (!shopOpen) return;
-  const me = net.players[net.myId]; if (!me || !w) return;
-  const inv = zInv(), cheio = inv.length >= 2, volta = cheio ? devolucao(inv[shopSlot]) : 0;
-  if ((me.cash | 0) + volta < WPRECO[w]) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
-  sendNet({ t: 'buy', w, slot: shopSlot });
+  const me = net.players[net.myId], w = me?.loja?.[op]; if (!w) return;
+  if ((me.cash | 0) < WPRECO[w]) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
+  sendNet({ t: 'buy', op, slot: shopSlot });
 }
 function melhorarArma() {
   if (!shopOpen) return;
@@ -6345,19 +6347,19 @@ function melhorarArma() {
   if ((me.cash | 0) < upPreco(s.w, s.l)) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
   sendNet({ t: 'buy', op: 2, cur: s.w });
 }
-// teclas: 1–9 compram do catálogo, U melhora, Q troca a arma escolhida
-function comprar(n) { comprarArma(catalogo(zInv())[n]); }
+// teclas: 1 e 2 compram as ofertas, 3 (ou U) melhora, Q troca qual arma está escolhida
+function comprar(n) { if (n < 2) comprarArma(n); else if (n === 2) melhorarArma(); }
 
 function onBought(m) {
   if (m.id !== net.myId) { if (!m.up) feed(`${nameOf(m.id)} comprou ${WEAPONS[m.w]?.ic} ${WEAPONS[m.w]?.nome}`); return; }
-  if (m.tr && WEAPONS[m.tr]) feed(`🔁 Trocou ${WEAPONS[m.tr].nome} por ${WEAPONS[m.w].nome}${m.v ? ` (+💰 ${m.v} de volta)` : ''}`);
+  if (m.tr && WEAPONS[m.tr]) feed(`🔁 Trocou ${WEAPONS[m.tr].nome} por ${WEAPONS[m.w].nome} (nível ${m.l} mantido)`);
   // caixa registradora
   [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.045, delay: i * 0.05 }));
   noise(0.15, { type: 'highpass', f: 5000, vol: 0.03, delay: 0.2 });
   setTimeout(() => {
     effCache.clear(); delete player.ammoBy[m.w];
     if (m.up) { banner(`⬆️ ${WEAPONS[m.w].nome} nível ${m.l}! ${estrelas(m.l)}`, 1.8); if (player.weapon === m.w) { player.ammoBy[m.w] = effW(m.w).mag; buildViewmodel(m.w); tingeArma(m.l); } }
-    else { syncWeapon(false); equip(m.w, true); banner(`${WEAPONS[m.w].ic} Comprou ${WEAPONS[m.w].nome}!`, 1.8); }
+    else { syncWeapon(false); equip(m.w, true); banner(`${WEAPONS[m.w].ic} Comprou ${WEAPONS[m.w].nome}!${m.l > 1 ? ' ' + estrelas(m.l) : ''}`, 1.8); }
     updateHud(); if (shopOpen) renderShop();
   }, 60);
 }
