@@ -268,7 +268,10 @@
   body.raiz #setaObj { display:none !important; }
   #portaPrompt { position:absolute; left:50%; top:58%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; text-align:center; max-width:90vw; }
   #shopPrompt { position:absolute; left:50%; top:66%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; }
-  #shopBtn { left:50%; transform:translateX(-50%); bottom:calc(80px + var(--sb)); width:130px; height:48px; border-radius:14px; font-size:14px; background:rgba(255,210,61,.5); display:none; }
+  #shopBtn { right:calc(210px + var(--sr)); width:50px; font-size:9px; background:rgba(255,210,61,.5); border-color:var(--yel); display:none; } /* loja longe do botão de interagir (PORTA/PREGAR) */
+  #shopBtn i { font-size:17px; }
+  body.touch #portaPrompt { top:auto; bottom:calc(130px + var(--sb)); max-width:min(420px,60vw); font-size:13px; padding:7px 12px; }
+  @media (max-width:720px) { #shopBtn { right:calc(10px + var(--sr)); top:calc(60px + var(--st)); } } /* tela estreita: embaixo do ❚❚ para não cobrir o relógio */
   #cashPop { position:absolute; right:calc(24px + var(--sr)); bottom:calc(104px + var(--sb)); font-family:var(--disp); font-size:22px; color:var(--yel); text-shadow:0 2px 0 #000; opacity:0; }
   #cashPop.on { animation:cashUp 1.1s ease-out; }
   @keyframes cashUp { 0% { opacity:0; transform:translateY(10px) scale(.8); } 15% { opacity:1; transform:translateY(0) scale(1.15); } 100% { opacity:0; transform:translateY(-30px) scale(1); } }
@@ -626,7 +629,7 @@
   <div id="downBox"><b id="downTitle">VOCÊ CAIU!</b><span id="downText"></span><div class="bar"><div id="downFill"></div></div></div>
   <div id="portaPrompt"></div>
   <div id="setaObj"><b>⬆</b><span></span></div>
-  <div id="shopPrompt">🛒 Aperte <kbd>E</kbd> para abrir a lojinha</div>
+  <div id="shopPrompt">🛒 Aperte <kbd>B</kbd> para abrir a lojinha</div>
   <div id="cashPop"></div>
   <div id="revivePrompt"><span id="reviveText"></span><div class="bar"><div id="reviveFill"></div></div></div>
   <div id="fps"></div>
@@ -657,7 +660,7 @@
   <div class="tbtn" id="shieldBtn"><span><i>🛡</i>ESCUDO</span></div>
   <div class="tbtn tsm" id="emoBtn">😀</div>
   <div class="tbtn" id="doorBtn">🚪 PORTA</div>
-  <div class="tbtn" id="shopBtn">🛒 LOJA</div>
+  <div class="tbtn tsm" id="shopBtn"><span><i>🛒</i>LOJA</span></div>
   <div class="tbtn" id="propBtn"><span><i>📦</i>VIRAR</span></div>
 </div>
 <div id="quick"></div>
@@ -667,7 +670,7 @@
   <div class="shopTabs" id="shopTabs"></div>
   <div class="shopSlots" id="shopSlots"></div>
   <div class="shopCards" id="shopCards"></div>
-  <p class="hint center" id="shopDica">Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. <span class="kbdHint">1–2 compra · 3/U melhora · Q escolhe a arma · ←/→ troca de aba · E/Esc fecha</span></p>
+  <p class="hint center" id="shopDica">Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. <span class="kbdHint">1–2 compra · 3/U melhora · Q escolhe a arma · ←/→ troca de aba · B/Esc fecha</span></p>
   <div class="row"><button class="btn ghost" id="shopClose">Fechar</button></div>
 </div></div>
 <div id="blind"><b>🔦 Olhos fechados!</b><span>Os escondidos estão virando objetos…</span><i></i></div>
@@ -912,7 +915,8 @@
             <kbd>G</kbd><span>joga granada de tinta</span>
             <kbd>F</kbd><span>levanta um escudo de madeira (15 s)</span>
             <kbd>V</kbd><span>frases rápidas (depois 1–8)</span>
-            <kbd>E</kbd><span>abre portas · segure perto de um amigo caído para levantar</span>
+            <kbd>E</kbd><span>interage: abre portas, prega tábuas, conserta… · segure perto de um amigo caído para levantar</span>
+            <kbd>B</kbd><span>lojinha (nas hordas)</span>
             <kbd>Tab</kbd><span>placar (segure)</span>
             <kbd>T</kbd><span>chat da sala</span>
             <kbd>Q</kbd><span>no esconde-esconde, troca o objeto que você virou</span>
@@ -921,7 +925,7 @@
           <section id="helpTouch"><h4>📱 Celular</h4>
             Toque em qualquer lugar da metade esquerda: o joystick aparece embaixo do dedo. Empurre até o fim para frente para correr.<br>
             Arraste a metade direita para mirar · segure 🎯 e arraste para mirar atirando.<br>
-            Correndo + AGACHAR = deslizar · 💣 granada · 🛡 escudo · 😀 frases rápidas · 📋 placar · 💬 chat · PORTA e LEVANTAR aparecem quando você chega perto.</section>
+            Correndo + AGACHAR = deslizar · 💣 granada · 🛡 escudo · 😀 frases rápidas · 📋 placar · 💬 chat · PORTA, PREGAR e LEVANTAR aparecem embaixo quando você chega perto; a 🛒 LOJA aparece separada, em cima.</section>
           <section><h4>🎮 Modos</h4>
             <b>Mata-mata</b>: todos contra todos. <b>Times</b>: Vermelho × Azul. <b>Gun Game</b>: cada abate troca sua arma.
             <b>Roleta de Armas</b>: de tempos em tempos a arma de todo mundo muda sozinha.
@@ -930,7 +934,7 @@
             <b>Zumbis</b>: todos juntos contra hordas, com chefão gigante a cada 5 rodadas.</section>
           <section><h4>🧟 Hordas e lojinha</h4>
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
-            Na <b>💰 Lojinha</b> (E perto do quiosque) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
+            Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…).</section>
           <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
             1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante.</section>
@@ -3109,7 +3113,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG' && !e.repeat) throwGrenade();
   if (e.code === 'KeyF' && !e.repeat) placeShield();
   if (e.code === 'KeyV' && !e.repeat) toggleQuick();
-  if (e.code === 'KeyE' && !e.repeat) { if (shopOpen) toggleShop(); else if (janelaPerto() >= 0 || geradorPerto() >= 0 || radioPerto() || fogueiraPerto()) { /* segurar E prega/conserta/chama (missaoTick) */ } else if (pertoLoja()) toggleShop(); else useDoor(); }
+  if (e.code === 'KeyB' && !e.repeat) toggleShop(); // a loja tem tecla própria: o E fica só para interagir
+  if (e.code === 'KeyE' && !e.repeat && !shopOpen) { if (janelaPerto() >= 0 || geradorPerto() >= 0 || radioPerto() || fogueiraPerto()) { /* segurar E prega/conserta/chama (missaoTick) */ } else useDoor(); }
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) jumpPressed(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') renderBoard(); });
@@ -6722,7 +6727,7 @@ function zOnNet(m) {
     case 'zbreak':
       zIntervaloAte = performance.now() + (+m.s || 8) * 1000;
       banner(`Rodada ${m.r} concluída! 🎉 ${m.s ? `${m.s} s para comprar 🛒` : ''}`, 3); sfx.power(); if (Z.eventoView) zEventoLook(null);
-      if (m.s) feed('🛒 Intervalo: dá para abrir a lojinha de qualquer lugar até a próxima rodada');
+      if (m.s) feed(`🛒 Intervalo: dá para abrir a lojinha (${isTouch ? '🛒 LOJA' : 'B'}) de qualquer lugar até a próxima rodada`);
       return true;
     case 'znovo': {
       const T = ZTYPES[m.ty | 0]; if (!T) return true;
