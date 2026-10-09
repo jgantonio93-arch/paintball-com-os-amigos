@@ -177,6 +177,27 @@
   #bossBar b { font-family:var(--disp); font-weight:400; font-size:16px; color:#ff6b5e; text-shadow:0 2px 0 #000; }
   #bossBar .bar { width:100%; height:12px; margin-top:4px; border:1px solid rgba(255,107,94,.6); }
   #bossFill { height:100%; width:100%; background:linear-gradient(90deg,#ff3b3b,#ff9a3d); transition:width .2s; }
+  #criarBox { position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; padding:16px; background:radial-gradient(ellipse at center, rgba(40,10,60,.82), rgba(8,10,24,.94)); overflow:auto; }
+  #criarBox.on { display:flex; animation:fadein .3s ease-out; }
+  .cvIn { max-width:420px; width:100%; text-align:center; display:flex; flex-direction:column; gap:12px; align-items:stretch; padding:24px 20px; border-radius:24px; background:linear-gradient(160deg,rgba(255,61,127,.22),rgba(61,184,255,.18)); border:2px solid rgba(255,210,61,.55); box-shadow:0 0 50px rgba(255,61,127,.35); animation:pop .35s ease-out; }
+  .cvIn h2 { font-family:var(--disp); font-weight:400; font-size:32px; margin:0; }
+  .cvIn p { margin:0; color:#e6e1ff; font-weight:700; line-height:1.4; }
+  .cvFace { font-size:64px; line-height:1; animation:cvBob 1.2s ease-in-out infinite alternate; }
+  @keyframes cvBob { from { transform:translateY(0) rotate(-6deg); } to { transform:translateY(-8px) rotate(6deg); } }
+  .cvIn #cvCriar { animation:cvPulse 1s ease-in-out infinite alternate; }
+  @keyframes cvPulse { from { transform:scale(1); box-shadow:0 0 0 rgba(255,210,61,0); } to { transform:scale(1.04); box-shadow:0 0 26px rgba(255,210,61,.7); } }
+  #cvNome { display:flex; flex-direction:column; gap:10px; } #cvNome[hidden] { display:none; }
+  #cvNick { font-size:20px; text-align:center; }
+  #nick.falta { border-color:var(--yel); box-shadow:0 0 0 3px rgba(255,210,61,.45); animation:pulse .5s ease-in-out 4 alternate; }
+  .cvSkip { background:none; border:0; color:var(--muted); font:inherit; font-size:13px; font-weight:800; text-decoration:underline; cursor:pointer; padding:4px; }
+  .ch.new.criar { border:2px solid var(--yel); background:linear-gradient(160deg,rgba(255,210,61,.22),rgba(255,61,127,.18)); }
+  .ch.new.criar .plus { border:3px solid var(--yel); background:rgba(255,210,61,.12); font-size:32px; }
+  .ch.new.criar span { color:var(--yel); }
+  .ch.new.criar.urge { animation:cvPulse .9s ease-in-out infinite alternate; }
+  .semChar { display:flex; align-items:center; gap:12px; margin:0 0 10px; padding:10px 14px; border-radius:14px; background:rgba(255,210,61,.14); border:1px solid rgba(255,210,61,.55); }
+  .semChar i { font-style:normal; font-size:30px; }
+  .semChar div { flex:1; min-width:0; } .semChar b { display:block; } .semChar span { font-size:12px; color:var(--muted); font-weight:700; }
+  .chars.flash { animation:pulse .4s ease-in-out 4 alternate; }
   #endBox { position:fixed; inset:0; z-index:6; display:none; align-items:center; justify-content:center; padding:16px; background:radial-gradient(ellipse at center, rgba(10,12,30,.72), rgba(10,12,30,.92)); overflow:auto; }
   #endBox.on { display:flex; animation:fadein .3s ease-out; }
   .endIn { width:min(760px,100%); text-align:center; }
@@ -583,6 +604,19 @@
   <div class="row"><button class="btn ghost" id="shopClose">Fechar</button></div>
 </div></div>
 <div id="blind"><b>🔦 Olhos fechados!</b><span>Os escondidos estão virando objetos…</span><i></i></div>
+<div id="criarBox"><div class="cvIn">
+  <div class="cvFace">📸</div>
+  <h2>Crie seu personagem!</h2>
+  <p>Aqui todo mundo joga com a <b>própria cara</b>. Tire uma selfie ou escolha uma foto: em 10 segundos você vira um boneco de paintball, e seus amigos te veem no jogo.</p>
+  <button class="btn big" id="cvCriar">📸 CRIAR MEU PERSONAGEM</button>
+  <button class="btn ghost" id="cvGal" hidden></button>
+  <div id="cvNome" hidden>
+    <input class="field" id="cvNick" maxlength="14" placeholder="Seu nome no jogo" autocomplete="off">
+    <button class="btn big" id="cvNomeOk">PRONTO!</button>
+    <p class="contaMsg" id="cvMsg"></p>
+  </div>
+  <button class="cvSkip" id="cvDepois">agora não</button>
+</div></div>
 <div id="endBox"><div class="endIn">
   <span class="tag" id="endTag">Fim da partida</span>
   <h2 class="bigTitle" id="endTitle"></h2>
@@ -629,6 +663,7 @@
     <section class="panel tabPane" id="tab-controles" hidden><div id="controlsSlot"></div></section>
     <section class="panel playerPanel">
       <div class="pHead"><h3>👤 Seu jogador</h3><div class="row" style="flex-wrap:nowrap"><input class="field" id="nick" maxlength="14" placeholder="Seu nome" autocomplete="off"><button class="btn sm alt" id="lookBtn">🎨 Visual</button><button class="btn sm ghost" id="contaBtn">👤 Entrar</button><button class="btn sm" id="admBtn" hidden>🛡️ Admin</button></div></div>
+      <div class="semChar" id="semChar" hidden><i>📸</i><div><b>Você ainda não tem personagem!</b><span>Para jogar, crie o seu com uma foto (leva 10 segundos) ou escolha um que já foi criado.</span></div><button class="btn sm" id="semCharBtn">Criar agora</button></div>
       <div class="chars" id="pickList"></div>
     </section>
     <div class="footer" id="verMain"></div>
@@ -2978,7 +3013,7 @@ function updateFx() {
 // Todos se conectam a servidores MQTT públicos (passa por 4G, Wi-Fi e firewall).
 // Quem cria a sala vira o "host": recebe as mensagens de todos no tópico /h,
 // decide vida, abates, tempo, trocas da roleta e quem venceu, e repassa tudo no tópico /a.
-let mode = 'solo', meDead = false, myChar = '0', myName = '';
+let mode = 'solo', meDead = false, myChar = '', myName = '';
 const MODOS = {
   dm:     { nome: 'Mata-mata', icone: '🎯', desc: 'todos contra todos, cada um por si' },
   tdm:    { nome: 'Times', icone: '⚔️', desc: 'Vermelho × Azul, soma os abates do time' },
@@ -3666,7 +3701,14 @@ function resetNet() {
 }
 
 // nome e personagem escolhidos no menu
-function myCharDef() { return charList().find(c => c.key === myChar) || charList()[0]; }
+// personagens que dá para escolher (sem os bonecos desenhados) e o escolhido (null = ainda não tem)
+const pickList = () => charList().filter(c => !/^\d+$/.test(c.key));
+function escolhido() {
+  const l = pickList();
+  return l.find(c => c.key === myChar) || l.find(c => c.key.startsWith('c:')) || null;
+}
+// para desenhar (prévia, nome…): sem personagem usa um boneco
+function myCharDef() { return escolhido() || { ...AMIGOS[0], key: '0' }; }
 function readSetup() {
   const d = myCharDef();
   myName = $('nick').value.trim() || d.nome;
@@ -3897,7 +3939,7 @@ function renderLobby() {
     const n = document.createElement('span'); n.className = 'rn'; n.textContent = `👥 ${r.n}/12` + (r.b ? ` +🤖${r.b}` : '');
     const go = document.createElement('span'); go.className = 'go'; go.textContent = 'ENTRAR';
     b.append(ic, info, n, go);
-    b.onclick = () => { if ($('joinBtn').disabled) return; initAudio(); goFullscreen(); joinRoom(r.code); };
+    b.onclick = () => { if ($('joinBtn').disabled || !exigirPersonagem()) return; initAudio(); goFullscreen(); joinRoom(r.code); };
     return b;
   }));
 }
@@ -4158,13 +4200,27 @@ function openHome() {
   $('controlsSlot').appendChild($('controlsPanel'));
   lk.open = false;
   showScreen('startScreen'); setTab(tab); renderChars(); openLobby(); setBusy(false); renderWeekStar(); checkUnlocks();
+  if (!conviteVisto && !escolhido()) setTimeout(() => { if (!escolhido() && $('startScreen').style.display !== 'none' && !conviteVisto) abrirConvite(); }, 1200);
 }
-// escolha de personagem (fica embaixo de todas as abas)
+// escolha de personagem (fica embaixo de todas as abas): só personagens com foto (criados, galeria,
+// amigos secretos). Os bonecos desenhados ficam para bots e zumbis. Criar o seu vem primeiro e chama atenção.
 function renderChars() {
-  const list = charList();
-  // o escolhido pode ainda não ter chegado (galeria / amigos secretos carregando): não perde a escolha
-  const atual = myCharDef().key;
-  $('pickList').replaceChildren(...list.map(c => {
+  const list = pickList(), atual = escolhido()?.key;
+  $('semChar').hidden = !!atual;
+  $('nick').classList.toggle('falta', !!atual && !nomeOk());
+  const criar = (() => {
+    const b = document.createElement('button'); b.className = 'ch new criar' + (atual ? '' : ' urge');
+    const p = document.createElement('div'); p.className = 'plus'; p.textContent = '📸';
+    const n = document.createElement('span'); n.textContent = CUSTOM.length ? 'Criar outro' : 'CRIAR O MEU';
+    b.append(p, n); b.onclick = () => openCreator(); return b;
+  })();
+  const codigo = SECRETOS.length || !window.PB_SEGREDO ? [] : [(() => {
+    const b = document.createElement('button'); b.className = 'ch new lock';
+    const p = document.createElement('div'); p.className = 'plus'; p.textContent = '🔒';
+    const n = document.createElement('span'); n.textContent = 'Código secreto';
+    b.append(p, n); b.onclick = () => pedirCodigo(); return b;
+  })()];
+  $('pickList').replaceChildren(criar, ...list.map(c => {
     const b = document.createElement('button'); b.className = 'ch' + (c.key === atual ? ' sel' : '');
     const img = document.createElement('img'); img.src = c.foto; img.alt = '';
     const n = document.createElement('span'); n.textContent = c.nome;
@@ -4180,24 +4236,36 @@ function renderChars() {
         const meu = CUSTOM.find(x => 'c:' + x.id === c.key);
         if (meu?.pub) tirarDaGaleria(meu.id); // some da galeria também
         CUSTOM = CUSTOM.filter(x => 'c:' + x.id !== c.key); save('pb-custom', CUSTOM);
-        if (myChar === c.key) myChar = '0';
+        if (myChar === c.key) myChar = '';
         renderChars();
       };
       b.append(del);
     }
     return b;
-  }), (() => {
-    const b = document.createElement('button'); b.className = 'ch new';
-    const p = document.createElement('div'); p.className = 'plus'; p.textContent = '+';
-    const n = document.createElement('span'); n.textContent = 'Criar personagem';
-    b.append(p, n); b.onclick = () => openCreator(); return b;
-  })(), ...(SECRETOS.length || !window.PB_SEGREDO ? [] : [(() => {
-    const b = document.createElement('button'); b.className = 'ch new lock';
-    const p = document.createElement('div'); p.className = 'plus'; p.textContent = '🔒';
-    const n = document.createElement('span'); n.textContent = 'Código secreto';
-    b.append(p, n); b.onclick = () => pedirCodigo(); return b;
-  })()]));
+  }), ...codigo);
 }
+// sem personagem ou sem nome não dá para jogar: aparece o convite para criar (ou escolher um da galeria)
+// o nome tem que ser digitado pela pessoa (o nome do personagem da foto não vale)
+const nomeOk = () => $('nick').value.trim().length >= 2;
+function exigirPersonagem() {
+  if (!escolhido()) { abrirConvite(); return false; }
+  if (!nomeOk()) { abrirConvite(true); return false; }
+  return true;
+}
+let conviteVisto = false;
+function abrirConvite(soNome) {
+  conviteVisto = true;
+  const outros = pickList().length;
+  $('cvNome').hidden = !soNome; $('cvCriar').hidden = !!soNome; $('cvDepois').hidden = false;
+  $('criarBox').querySelector('h2').textContent = soNome ? 'Como você se chama?' : 'Crie seu personagem!';
+  $('criarBox').querySelector('p').innerHTML = soNome ? 'Escolha o <b>seu nome</b> no jogo. É ele que aparece em cima do seu boneco, no placar e no ranking.' : 'Aqui todo mundo joga com a <b>própria cara</b>. Tire uma selfie ou escolha uma foto: em 10 segundos você vira um boneco de paintball, e seus amigos te veem no jogo.';
+  $('criarBox').querySelector('.cvFace').textContent = soNome ? '✏️' : '📸';
+  if (soNome) { $('cvGal').hidden = true; $('cvNick').value = ''; $('cvMsg').textContent = ''; $('criarBox').classList.add('on'); setTimeout(() => $('cvNick').focus(), 50); return; }
+  $('cvGal').hidden = !outros;
+  $('cvGal').textContent = SECRETOS.length ? '⭐ Escolher um que já existe' : `🌎 Escolher um da galeria (${outros})`;
+  $('criarBox').classList.add('on'); ui.open?.();
+}
+const fecharConvite = () => $('criarBox').classList.remove('on');
 
 // ===== Criar personagem (foto do aparelho) =====
 const CR_CORES = [0xe74c3c, 0xff7a1a, 0xffd23d, 0x27ae60, 0x3db8ff, 0x2e4f8c, 0xb83dff, 0xff3d7f, 0x1b1d26, 0xf2f2f2];
@@ -4262,8 +4330,8 @@ $('crSave').onclick = () => {
   const lista = [...CUSTOM, novo].slice(-8);
   if (!save('pb-custom', lista)) { $('crMsg').textContent = 'Sem espaço no aparelho: apague um personagem antigo.'; return; }
   CUSTOM = lista; myChar = 'c:' + novo.id; save('pb-char', myChar);
-  if (!$('nick').value.trim()) { $('nick').value = nome; save('pb-nick', nome); }
   sfx.power(); openHome();
+  if (!nomeOk()) { conviteVisto = true; setTimeout(() => abrirConvite(true), 300); }
   if (novo.pub) for (const c of lobby.clients) publicarGaleria(c);
 };
 
@@ -4513,7 +4581,7 @@ async function segredoAuto() {
 }
 function esconderSegredo() {
   SECRETOS = []; try { localStorage.removeItem('pb-segredo'); } catch {}
-  if (myChar.startsWith('s:')) { myChar = '0'; save('pb-char', myChar); }
+  if (myChar.startsWith('s:')) { myChar = ''; save('pb-char', myChar); }
   renderChars();
 }
 
@@ -4695,15 +4763,28 @@ function renderLockerFrame(dt) {
 }
 
 // ===== Navegação =====
-myChar = String(load('pb-char', '0') ?? '0');
+myChar = String(load('pb-char', '') ?? '');
 $('nick').value = String(load('pb-nick', '') || '');
 if (params.get('sala')) $('roomCode').value = params.get('sala').toUpperCase().slice(0, 4);
 $('nick').addEventListener('change', () => { save('pb-nick', $('nick').value.trim()); publishRank(); });
+$('nick').addEventListener('input', () => $('nick').classList.toggle('falta', !!escolhido() && !nomeOk()));
 $('tabs').onclick = e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.tab); };
-$('createBtn').onclick = () => { initAudio(); readSetup(); showRoomScreen('startScreen'); };
-$('quickBtn').onclick = () => { readSetup(); quickPlay(); };
-$('soloBtn').onclick = () => { initAudio(); showSolo(); };
-$('joinBtn').onclick = () => { initAudio(); goFullscreen(); joinRoom($('roomCode').value); };
+$('createBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; readSetup(); showRoomScreen('startScreen'); };
+$('quickBtn').onclick = () => { if (!exigirPersonagem()) return; readSetup(); quickPlay(); };
+$('soloBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; showSolo(); };
+$('joinBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; goFullscreen(); joinRoom($('roomCode').value); };
+$('cvCriar').onclick = () => { fecharConvite(); openCreator(); };
+$('cvGal').onclick = () => { fecharConvite(); $('pickList').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('pickList').classList.add('flash'); setTimeout(() => $('pickList').classList.remove('flash'), 1600); };
+$('cvDepois').onclick = fecharConvite;
+function confirmarNome() {
+  const n = $('cvNick').value.trim();
+  if (n.length < 2) { $('cvMsg').textContent = 'Digite um nome com pelo menos 2 letras.'; return; }
+  $('nick').value = n.slice(0, 14); save('pb-nick', $('nick').value); $('nick').classList.remove('falta');
+  fecharConvite(); renderChars(); ui.confirm?.();
+}
+$('cvNomeOk').onclick = confirmarNome;
+$('cvNick').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarNome(); });
+$('semCharBtn').onclick = () => openCreator();
 $('roomCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinBtn').click(); });
 $('createRoomBtn').onclick = () => { initAudio(); hostRoom(draftCfg, false); };
 $('roomBackBtn').onclick = () => {
