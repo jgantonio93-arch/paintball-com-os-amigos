@@ -732,8 +732,7 @@
       <div id="admRank"></div>
     </section>
     <section class="panel">
-      <h3>⭐ Extras do admin</h3>
-      <p class="hint" style="margin-top:0">Todos os itens do 🎨 Visual ficam liberados para você.</p>
+      <h3>⭐ Outras opções</h3>
       <div class="row" style="justify-content:flex-start"><button class="btn sm ghost" id="admEsconder">🔒 Esconder os amigos secretos neste aparelho</button><button class="btn sm ghost" id="admDesban">↩️ Desfazer todas as remoções</button></div>
       <p id="admMsg" class="contaMsg"></p>
     </section>
@@ -1949,7 +1948,7 @@ function reqValue(k) {
   if (k === 'rodada') return +load('pb-recorde-zumbi', 0) || 0;
   return +(stats?.[k] || 0);
 }
-const unlocked = item => adm.on || !item.req || reqValue(item.req[0]) >= item.req[1];
+const unlocked = item => !item.req || reqValue(item.req[0]) >= item.req[1];
 const TODOS_ITENS = () => [...HATS, ...ACCS, ...BACKS, ...FXS];
 const unlockedIds = () => TODOS_ITENS().filter(unlocked).map(i => i.id).join(',');
 // cor da tinta dos meus tiros
