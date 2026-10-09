@@ -2075,16 +2075,16 @@ function groundHeight(p, r) {
 const WEAPONS = {
   marcador: { nome: 'Marcador',     ic: '🎨', dmg: 20, cd: 0.14, mag: 24, reload: 1.2, speed: 58,  spread: 0.007, auto: true,  cor: 0xff7a1a, len: 1,   hs: 1.5, desc: 'automático e certeiro, bom em tudo' },
   metralha: { nome: 'Metralhadora', ic: '🔥', dmg: 11, cd: 0.07, mag: 48, reload: 1.9, speed: 62,  spread: 0.032, auto: true,  cor: 0x4a5a3a, len: 1.1, hs: 1.4, desc: 'chuva de tinta, espalha mais' },
-  pistola:  { nome: 'Pistola',      ic: '🔫', dmg: 30, cd: 0.24, mag: 12, reload: 0.9, speed: 72,  spread: 0.002, auto: false, cor: 0x444444, len: 0.5, hs: 1.8, desc: 'precisa; recompensa a mira na cabeça' },
+  pistola:  { nome: 'Pistola',      ic: '🔫', dmg: 30, cd: 0.22, mag: 12, reload: 0.9, speed: 72,  spread: 0.002, auto: false, cor: 0x444444, len: 0.5, hs: 1.6, desc: 'precisa; recompensa a mira na cabeça' },
   escopeta: { nome: 'Escopeta',     ic: '💥', dmg: 12, cd: 0.85, mag: 6,  reload: 1.9, speed: 50,  spread: 0.07,  auto: false, cor: 0x6b3f1f, len: 1.2, hs: 1.25, pellets: 9, life: 0.42, desc: 'rainha de perto, fraca de longe' },
   sniper:   { nome: 'Sniper',       ic: '🎯', dmg: 75, cd: 1.25, mag: 5,  reload: 2.0, speed: 160, spread: 0,     auto: false, cor: 0x2f3b2f, len: 1.6, hs: 2,   zoom: true, desc: 'na cabeça derruba de uma vez' },
   balde:    { nome: 'Lança-balde',  ic: '🪣', dmg: 85, cd: 1.4,  mag: 2,  reload: 2.3, speed: 30,  spread: 0,     auto: false, cor: 0x3db8ff, len: 1.3, hs: 1,   splash: 3.6, grav: 9, size: 3, desc: 'explode e pinta todo mundo em volta' },
-  revolver: { nome: 'Revólver',     ic: '🤠', dmg: 45, cd: 0.55, mag: 6,  reload: 1.6, speed: 95,  spread: 0.001, auto: false, cor: 0x8a6a3a, len: 0.6, hs: 2,   desc: 'lento e pesado: dois na cabeça e já era' },
-  smg:      { nome: 'Submetralhadora', ic: '💨', dmg: 12, cd: 0.06, mag: 32, reload: 1.3, speed: 58, spread: 0.022, auto: true,  cor: 0x5a3d8a, len: 0.7, hs: 1.3, life: 0.75, desc: 'cospe tinta muito rápido, mas alcança pouco' },
-  rajada:   { nome: 'Fuzil de rajada', ic: '🎖️', dmg: 21, cd: 0.42, mag: 30, reload: 1.6, speed: 85, spread: 0.004, auto: false, cor: 0x2e4f8c, len: 1.2, hs: 1.6, rafaga: 3, rcd: 0.075, desc: 'cada clique solta 3 tiros certeiros' },
+  revolver: { nome: 'Revólver',     ic: '🤠', dmg: 48, cd: 0.55, mag: 6,  reload: 1.6, speed: 95,  spread: 0.001, auto: false, cor: 0x8a6a3a, len: 0.6, hs: 2.1, desc: 'lento e pesado: um tiro na cabeça e já era' },
+  smg:      { nome: 'Submetralhadora', ic: '💨', dmg: 10, cd: 0.06, mag: 32, reload: 1.3, speed: 58, spread: 0.022, auto: true,  cor: 0x5a3d8a, len: 0.7, hs: 1.3, life: 0.45, desc: 'cospe tinta muito rápido, mas alcança pouco' },
+  rajada:   { nome: 'Fuzil de rajada', ic: '🎖️', dmg: 22, cd: 0.42, mag: 30, reload: 1.6, speed: 85, spread: 0.004, auto: false, cor: 0x2e4f8c, len: 1.2, hs: 1.35, rafaga: 3, rcd: 0.075, desc: 'cada clique solta 3 tiros certeiros' },
   besta:    { nome: 'Besta de tinta', ic: '🏹', dmg: 62, cd: 0.9, mag: 4,  reload: 1.8, speed: 55,  spread: 0,     auto: false, cor: 0x6b3f1f, len: 1,   hs: 2.2, grav: 14, size: 1.4, desc: 'flecha em arco, silenciosa e fortíssima' },
-  mangueira:{ nome: 'Mangueira arco-íris', ic: '🌈', dmg: 6, cd: 0.045, mag: 90, reload: 2.2, speed: 34, spread: 0.05, auto: true, cor: 0xff3d7f, len: 1.1, hs: 1, life: 0.38, grav: 10, arcoiris: true, desc: 'jato colorido sem parar, só de pertinho' },
-  rolo:     { nome: 'Rolo de pintura', ic: '🖌️', dmg: 28, cd: 0.6, mag: 1, reload: 0.5, speed: 40, spread: 0.06, auto: true, cor: 0xffd23d, len: 0.9, hs: 1.2, pellets: 3, life: 0.09, grav: 0, size: 2.2, semMuni: true, perto: true, desc: 'corpo a corpo, nunca acaba: chegue perto e passe o rolo' },
+  mangueira:{ nome: 'Mangueira arco-íris', ic: '🌈', dmg: 7, cd: 0.045, mag: 90, reload: 2.2, speed: 34, spread: 0.05, auto: true, cor: 0xff3d7f, len: 1.1, hs: 1, life: 0.38, grav: 10, arcoiris: true, desc: 'jato colorido sem parar, só de pertinho' },
+  rolo:     { nome: 'Rolo de pintura', ic: '🖌️', dmg: 28, cd: 0.55, mag: 1, reload: 0.5, speed: 40, spread: 0.06, auto: true, cor: 0xffd23d, len: 0.9, hs: 1, pellets: 3, life: 0.09, grav: 0, size: 2.2, semMuni: true, perto: true, desc: 'corpo a corpo, nunca acaba: chegue perto e passe o rolo' },
 };
 const WEAPON_ORDER = Object.keys(WEAPONS);
 // granada de tinta: arma especial (tecla G), fora da lista de armas da sala
@@ -3051,7 +3051,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 18;
+const VERSAO = 19;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
