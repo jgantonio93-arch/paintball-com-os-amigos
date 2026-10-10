@@ -1918,6 +1918,84 @@ function armadilha(tipo, ic, nome, rect, alav) {
   }
   return A;
 }
+// ===== peças comuns a todo mapa de Missão =====
+// ⚡ geradores: [x, z, zona, lâmpadas [[x, z, altura?]…]]; cada um acende a sua área, os 3 = energia
+function montarGeradores(lista) {
+  const geraMat = mat('gerador', () => lam(0xd8a520)), motorMat = mat('motorG', () => lam(0x45484d)), bulbOff = mat('bulbOff', () => lam(0x3a3a30)), poste = mat('madEsc', () => lam(0x3d2a18));
+  FAZ.gens = lista.map(([x, z, zona, lamps], g) => {
+    const base = deco(meshAt(new THREE.BoxGeometry(1.7, 1.1, 1.1), geraMat, x, 0.55, z)); collider(x, z, 1.8, 1.2, 0, 1.1, base);
+    const motor = deco(meshAt(new THREE.CylinderGeometry(0.36, 0.36, 0.9, 12), motorMat, x, 1.32, z)); motor.rotation.z = Math.PI / 2;
+    const led = deco(meshAt(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b }), x + 0.7, 1.25, z + 0.45), false);
+    const placa = signText(`⚡ GERADOR ${g + 1}`, 1.4, 0.32, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); placa.position.set(x, 1.95, z + 0.56); mapGroup.add(placa);
+    const bulbs = lamps.map(([lx, lz, ly = 3.6]) => {
+      if (ly > 4) return deco(meshAt(new THREE.BoxGeometry(1.4, 0.14, 0.4), bulbOff, lx, ly, lz), false); // luminária no teto
+      addBox(lx, lz, 0.25, ly, 0.25, poste);
+      return deco(meshAt(new THREE.BoxGeometry(0.5, 0.3, 0.5), bulbOff, lx, ly + 0.15, lz), false);
+    });
+    const luz = new THREE.PointLight(0xfff0c0, 0, 30, 1.2); luz.position.set(lamps[0][0], (lamps[0][2] || 3.6) - 0.4, lamps[0][1]); mapGroup.add(luz);
+    return { x, z, zona, prog: 0, ok: false, motor, led, bulbs, luz };
+  });
+  FAZ.energia = false;
+}
+// 🔥 fogueira de sinal [x, z], 📻 rádio [x, z, ry, altura da mesa], 🚁 helicóptero + heliponto [x, z] e as tábuas das janelas
+// (janela: a = lado de dentro, b = lado de fora)
+function montarMissao({ fogueira, radio, heli }) {
+  const madeiraEsc = mat('madEsc', () => lam(0x3d2a18));
+  const [fx, fz] = FAZ.fogueira = fogueira;
+  for (let k = 0; k < 6; k++) { const tr = deco(meshAt(new THREE.CylinderGeometry(0.16, 0.16, 2, 6), madeiraEsc, fx, 0.5, fz), false); tr.rotation.set(0.9, k * Math.PI / 3, 0); }
+  collider(fx, fz, 1.6, 1.6, 0, 1);
+  FAZ.fogoMesh = deco(meshAt(new THREE.ConeGeometry(0.9, 2.4, 10), new THREE.MeshLambertMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1 }), fx, 1.9, fz), false); FAZ.fogoMesh.visible = false;
+  FAZ.fogoLuz = new THREE.PointLight(0xff8a3d, 0, 40, 1.2); FAZ.fogoLuz.position.set(fx, 3, fz); mapGroup.add(FAZ.fogoLuz);
+  const plFogo = signText('🔥 FOGUEIRA DE SINAL', 2.2, 0.4, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); plFogo.position.set(fx, 2.2, fz + 1.4); mapGroup.add(plFogo);
+  const [rx, rz, rry = 0, ry = 1.0] = radio; FAZ.radio = [rx, rz];
+  const rg = new THREE.Group(); rg.position.set(rx, ry, rz); rg.rotation.y = rry; mapGroup.add(rg);
+  const rcx = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.4), mat('radioCx', () => lam(0x3a3a2a)));
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), mat('metal', () => lam(0x55595f))); ant.position.set(0.25, 0.55, 0);
+  FAZ.radioLed = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x552222 })); FAZ.radioLed.position.set(-0.2, 0.1, -0.2);
+  const plRadio = signText('📻 RÁDIO', 1, 0.26, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); plRadio.position.set(0, 0.55, -0.56); plRadio.rotation.y = Math.PI;
+  rg.add(rcx, ant, FAZ.radioLed, plRadio);
+  // 🚁 helicóptero do resgate (fica escondido até ser chamado) e o H
+  const [hx, hz] = FAZ.heliPos = heli; FAZ.heliR = 5.5;
+  const hm = new THREE.Mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshLambertMaterial({ map: canvasTex(256, 256, g => { g.fillStyle = '#5c5f63'; g.fillRect(0, 0, 256, 256); g.strokeStyle = '#ffd23d'; g.lineWidth = 14; g.beginPath(); g.arc(128, 128, 110, 0, Math.PI * 2); g.stroke(); g.fillStyle = '#fff'; g.font = 'bold 150px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('H', 128, 136); }) }));
+  hm.rotation.x = -Math.PI / 2; hm.position.set(hx, 0.03, hz); mapGroup.add(hm);
+  const heliG = new THREE.Group(), verdeH = mat('heliC', () => lam(0x2f4a3a)), vidro = mat('heliV', () => lam(0x2a4a6a, { emissive: 0x0a1a2a }));
+  const corpo = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 12), verdeH); corpo.scale.set(1, 0.85, 1.6);
+  const cabine = new THREE.Mesh(new THREE.SphereGeometry(1.25, 14, 10), vidro); cabine.position.set(0, 0.25, 1.25); cabine.scale.set(1, 0.8, 1);
+  const cauda = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 5), verdeH); cauda.position.set(0, 0.4, -4.2);
+  const rotor = new THREE.Group(); rotor.position.y = 1.7;
+  for (let k = 0; k < 4; k++) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 6), mat('rotor', () => lam(0x1d1d1d))); pa.rotation.y = k * Math.PI / 2; rotor.add(pa); }
+  const rotorT = new THREE.Group(); rotorT.position.set(0.3, 0.6, -6.6);
+  for (let k = 0; k < 2; k++) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.18), mat('rotor', () => lam(0x1d1d1d))); pa.rotation.x = k * Math.PI / 2; rotorT.add(pa); }
+  for (const x of [-1, 1]) { const esqui = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 3.6), mat('metal', () => lam(0x55595f))); esqui.position.set(x, -1.45, 0.2); heliG.add(esqui); }
+  const farol = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b })); farol.position.set(0, -0.6, -6.3);
+  const holofote = new THREE.SpotLight(0xffffff, 0, 60, 0.45, 0.5, 1); holofote.position.set(0, -1.2, 1); holofote.target.position.set(0, -20, 4); heliG.add(holofote, holofote.target);
+  heliG.add(corpo, cabine, cauda, rotor, rotorT, farol); heliG.visible = false; mapGroup.add(heliG);
+  FAZ.heli = { g: heliG, rotor, rotorT, farol, holofote };
+  FAZ.heliFeixe = deco(meshAt(new THREE.CylinderGeometry(FAZ.heliR, FAZ.heliR, 30, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0x3dff8b, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false }), hx, 15, hz), false);
+  FAZ.heliFeixe.visible = false;
+  // 🪵 barricadas: 5 tábuas em cada janela (FAZ.tab = quantas ainda estão pregadas), do lado de fora
+  FAZ.janelas = FAZ.passagens.filter(P => P.tipo === 'janela');
+  FAZ.janelas.forEach((P, j) => { P.j = j; });
+  FAZ.tab = FAZ.janelas.map(() => TABUAS);
+  const tabMat = mat('tabua', () => lam(0x8a6236)), rt = seeded(99);
+  FAZ.tabMesh = FAZ.janelas.map(P => {
+    const cx = (P.pa[0] + P.pb[0]) / 2, cz = (P.pa[1] + P.pb[1]) / 2, aoLongoX = Math.abs(P.pa[0] - P.pb[0]) < 0.01;
+    const fora = P.pb, ox = Math.sign(fora[0] - cx) * 0.22, oz = Math.sign(fora[1] - cz) * 0.22;
+    return Array.from({ length: TABUAS }, (_, k) => {
+      const t = deco(meshAt(new THREE.BoxGeometry(aoLongoX ? 1.75 : 0.07, 0.2, aoLongoX ? 0.07 : 1.75), tabMat, cx + ox, 1.12 + k * 0.2, cz + oz), false);
+      t.rotation[aoLongoX ? 'z' : 'x'] = (rt() - 0.5) * 0.5;
+      return t;
+    });
+  });
+  FAZ.look0 = { ...baseLook };
+}
+// todo quadro: fogueira, motores dos geradores e portas pagas abrindo
+function missaoAnim(dt) {
+  const k = performance.now();
+  if (FAZ.fogoOk) { FAZ.fogoMesh.scale.set(1 + Math.sin(k / 80) * 0.15, 1 + Math.sin(k / 60) * 0.25, 1); FAZ.fogoLuz.intensity = 26 + Math.sin(k / 50) * 5; }
+  for (const G of FAZ.gens) if (G.ok) { G.motor.position.y = 1.32 + Math.sin(k / 25) * 0.015; } else if (G.prog > 0 && Math.random() < 0.08) burst(new THREE.Vector3(G.x, 1.6, G.z), 0xffd23d, 2, 2.5);
+  for (const P of FAZ.portas) { const alvo = P.aberta ? P.abre : 0; P.ang += (alvo - P.ang) * Math.min(1, dt * 4); P.pivot.rotation.y = P.ang; }
+}
 function buildFazenda() {
   ARENA = 50;
   setLook({ sky: 0x060914, fogNear: 10, fogFar: 62, hemiSky: 0x5a6a9a, hemiGround: 0x141a10, hemiI: 0.42, sunColor: 0x9fb4ff, sunI: 0.38 });
@@ -2030,8 +2108,6 @@ function buildFazenda() {
 
   // ===== 🐄 Pasto (z -50..-22): campo aberto, cata-vento, rolos de feno e o heliponto
   floorPatch(grama, 0, -36, 100, 28, 0.012);
-  const heli = new THREE.Mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshLambertMaterial({ map: canvasTex(256, 256, g => { g.fillStyle = '#5c5f63'; g.fillRect(0, 0, 256, 256); g.strokeStyle = '#ffd23d'; g.lineWidth = 14; g.beginPath(); g.arc(128, 128, 110, 0, Math.PI * 2); g.stroke(); g.fillStyle = '#fff'; g.font = 'bold 150px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('H', 128, 136); }) }));
-  heli.rotation.x = -Math.PI / 2; heli.position.set(0, 0.03, -40); mapGroup.add(heli);
   addBox(-24, -40, 0.6, 9, 0.6, mat('metal', () => lam(0x55595f)));
   const helice = new THREE.Group(); helice.position.set(-24, 9, -39.6); mapGroup.add(helice);
   for (let k = 0; k < 6; k++) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 0.05), mat('metal', () => lam(0x55595f))); pa.position.y = 1.2; const g = new THREE.Group(); g.rotation.z = k * Math.PI / 3; g.add(pa); helice.add(g); }
@@ -2123,22 +2199,8 @@ function buildFazenda() {
     { get x() { return FAZ.trator.x; }, get z() { return FAZ.trator.z; }, r: 3.3, btn: '🚜 DIRIGIR', oculto: () => !!FAZ.trator.piloto, texto: tecla => !FAZ.energia ? '🚜 Trator sem bateria: liguem os 3 geradores' : `🚜 ${tecla} para dirigir o trator (atropela zumbis!)`, usar: () => FAZ.energia ? sendNet({ t: 'trator', on: 1 }) : ui.erro() },
     { x: FAZ.silo.x, z: FAZ.silo.z, r: 2.4, btn: '🗝️ ABRIR', oculto: () => !!FAZ.npcSolto, texto: tecla => temPecaView('chave') ? `🆘 ${tecla} para abrir o silo e soltar o fazendeiro` : '🆘 Tem alguém preso no silo! Achem a 🗝️ chave', usar: () => temPecaView('chave') ? sendNet({ t: 'silo' }) : ui.erro() },
   ];
-  FAZ.look0 = { ...baseLook };
   // ⚡ geradores quebrados (quintal, celeiro, galpão): cada um acende a sua área; os 3 = energia
-  const geraMat = mat('gerador', () => lam(0xd8a520)), motorMat = mat('motorG', () => lam(0x45484d)), bulbOff = mat('bulbOff', () => lam(0x3a3a30));
-  FAZ.gens = [[6, -17, 'quintal', [[-16, 18], [12, 18], [-4, -18], [8, -2]]], [-41, 4, 'celeiroD', [[-35, -8, 5.6], [-35, 3, 5.6], [-30, 15], [-46, -18]]], [25, 36, 'galpaoD', [[28, 39, 4.6], [38, 39, 4.6], [36, 26], [46, 20]]]].map(([x, z, zona, lamps], g) => {
-    const base = deco(meshAt(new THREE.BoxGeometry(1.7, 1.1, 1.1), geraMat, x, 0.55, z)); collider(x, z, 1.8, 1.2, 0, 1.1, base);
-    const motor = deco(meshAt(new THREE.CylinderGeometry(0.36, 0.36, 0.9, 12), motorMat, x, 1.32, z)); motor.rotation.z = Math.PI / 2;
-    const led = deco(meshAt(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b }), x + 0.7, 1.25, z + 0.45), false);
-    const placa = signText(`⚡ GERADOR ${g + 1}`, 1.4, 0.32, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); placa.position.set(x, 1.95, z + 0.56); mapGroup.add(placa);
-    const bulbs = lamps.map(([lx, lz, ly = 3.6]) => {
-      if (ly > 4) return deco(meshAt(new THREE.BoxGeometry(1.4, 0.14, 0.4), bulbOff, lx, ly, lz), false); // luminária no teto
-      addBox(lx, lz, 0.25, ly, 0.25, madeiraEsc);
-      return deco(meshAt(new THREE.BoxGeometry(0.5, 0.3, 0.5), bulbOff, lx, ly + 0.15, lz), false);
-    });
-    const luz = new THREE.PointLight(0xfff0c0, 0, 30, 1.2); luz.position.set(lamps[0][0], (lamps[0][2] || 3.6) - 0.4, lamps[0][1]); mapGroup.add(luz);
-    return { x, z, zona, prog: 0, ok: false, motor, led, bulbs, luz };
-  });
+  montarGeradores([[6, -17, 'quintal', [[-16, 18], [12, 18], [-4, -18], [8, -2]]], [-41, 4, 'celeiroD', [[-35, -8, 5.6], [-35, 3, 5.6], [-30, 15], [-46, -18]]], [25, 36, 'galpaoD', [[28, 39, 4.6], [38, 39, 4.6], [36, 26], [46, 20]]]]);
   FAZ.energia = false;
   // 🥤 máquinas de vantagem espalhadas (só com energia), 🔫 armas na parede e ⚡🌀 armadilhas
   FAZ.maquinas = [
@@ -2174,59 +2236,13 @@ function buildFazenda() {
     ovo2: [[47.5, 0, 48], [16.5, 0, -20.5], [-13, 2.45, -14]],
     ovo3: [[-24, 0, -42], [31.2, 0, 5.2], [-9, 2.6, 10]],
   };
-  // 🔥 fogueira de sinal ao lado do heliponto (sem ela acesa o piloto não acha vocês)
-  FAZ.fogueira = [8.5, -40];
-  for (let k = 0; k < 6; k++) { const tr = deco(meshAt(new THREE.CylinderGeometry(0.16, 0.16, 2, 6), madeiraEsc, 8.5, 0.5, -40), false); tr.rotation.set(0.9, k * Math.PI / 3, 0); }
-  collider(8.5, -40, 1.6, 1.6, 0, 1);
-  FAZ.fogoMesh = deco(meshAt(new THREE.ConeGeometry(0.9, 2.4, 10), new THREE.MeshLambertMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1 }), 8.5, 1.9, -40), false); FAZ.fogoMesh.visible = false;
-  FAZ.fogoLuz = new THREE.PointLight(0xff8a3d, 0, 40, 1.2); FAZ.fogoLuz.position.set(8.5, 3, -40); mapGroup.add(FAZ.fogoLuz);
-  const plFogo = signText('🔥 FOGUEIRA DE SINAL', 2.2, 0.4, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); plFogo.position.set(8.5, 2.2, -38.6); mapGroup.add(plFogo);
-  FAZ.radio = [4, 28.6];
-  const caixaRadio = deco(meshAt(new THREE.BoxGeometry(0.7, 0.4, 0.4), mat('radioCx', () => lam(0x3a3a2a)), 4, 1.0, 28.6), false);
-  deco(meshAt(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), mat('metal', () => lam(0x55595f)), 4.25, 1.55, 28.6), false);
-  FAZ.radioLed = deco(meshAt(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x552222 }), 3.8, 1.1, 28.4), false);
-  const plRadio = signText('📻 RÁDIO', 1, 0.26, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); plRadio.position.set(4, 1.55, 28.04); plRadio.rotation.y = Math.PI; mapGroup.add(plRadio);
-  // 🚁 helicóptero do resgate (fica escondido até ser chamado)
-  FAZ.heliPos = [0, -40]; FAZ.heliR = 5.5;
-  const heliG = new THREE.Group(), verdeH = mat('heliC', () => lam(0x2f4a3a)), vidro = mat('heliV', () => lam(0x2a4a6a, { emissive: 0x0a1a2a }));
-  const corpo = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 12), verdeH); corpo.scale.set(1, 0.85, 1.6);
-  const cabine = new THREE.Mesh(new THREE.SphereGeometry(1.25, 14, 10), vidro); cabine.position.set(0, 0.25, 1.25); cabine.scale.set(1, 0.8, 1);
-  const cauda = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 5), verdeH); cauda.position.set(0, 0.4, -4.2);
-  const rotor = new THREE.Group(); rotor.position.y = 1.7;
-  for (let k = 0; k < 4; k++) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 6), mat('rotor', () => lam(0x1d1d1d))); pa.rotation.y = k * Math.PI / 2; rotor.add(pa); }
-  const rotorT = new THREE.Group(); rotorT.position.set(0.3, 0.6, -6.6);
-  for (let k = 0; k < 2; k++) { const pa = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.18), mat('rotor', () => lam(0x1d1d1d))); pa.rotation.x = k * Math.PI / 2; rotorT.add(pa); }
-  for (const x of [-1, 1]) { const esqui = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 3.6), mat('metal', () => lam(0x55595f))); esqui.position.set(x, -1.45, 0.2); heliG.add(esqui); }
-  const farol = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b })); farol.position.set(0, -0.6, -6.3);
-  const holofote = new THREE.SpotLight(0xffffff, 0, 60, 0.45, 0.5, 1); holofote.position.set(0, -1.2, 1); holofote.target.position.set(0, -20, 4); heliG.add(holofote, holofote.target);
-  heliG.add(corpo, cabine, cauda, rotor, rotorT, farol); heliG.visible = false; mapGroup.add(heliG);
-  FAZ.heli = { g: heliG, rotor, rotorT, farol, holofote };
-  // feixe verde no H quando ele pousa
-  FAZ.heliFeixe = deco(meshAt(new THREE.CylinderGeometry(FAZ.heliR, FAZ.heliR, 30, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0x3dff8b, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false }), 0, 15, -40), false);
-  FAZ.heliFeixe.visible = false;
-  // 🪵 barricadas: 5 tábuas em cada janela (FAZ.tab = quantas ainda estão pregadas)
-  FAZ.janelas = FAZ.passagens.filter(P => P.tipo === 'janela');
-  FAZ.janelas.forEach((P, j) => { P.j = j; });
-  FAZ.tab = FAZ.janelas.map(() => TABUAS);
-  const tabMat = mat('tabua', () => lam(0x8a6236)), rt = seeded(99);
-  FAZ.tabMesh = FAZ.janelas.map(P => {
-    const cx = (P.pa[0] + P.pb[0]) / 2, cz = (P.pa[1] + P.pb[1]) / 2, aoLongoX = Math.abs(P.pa[0] - P.pb[0]) < 0.01;
-    // do lado de fora (o lado que não é a casa)
-    const fora = P.a === 'casa' ? P.pb : P.pa, ox = Math.sign(fora[0] - cx) * 0.22, oz = Math.sign(fora[1] - cz) * 0.22;
-    return Array.from({ length: TABUAS }, (_, k) => {
-      const t = deco(meshAt(new THREE.BoxGeometry(aoLongoX ? 1.75 : 0.07, 0.2, aoLongoX ? 0.07 : 1.75), tabMat, cx + ox, 1.12 + k * 0.2, cz + oz), false);
-      t.rotation[aoLongoX ? 'z' : 'x'] = (rt() - 0.5) * 0.5;
-      return t;
-    });
-  });
+  montarMissao({ fogueira: [8.5, -40], radio: [4, 28.6, 0], heli: [0, -40] });
   mapTick = dt => {
     const k = performance.now();
     fogo.scale.set(1 + Math.sin(k / 90) * 0.12, 1 + Math.sin(k / 70) * 0.2, 1); fl.intensity = 6 + Math.sin(k / 60) * 1.4;
     varanda.intensity = Math.random() < 0.015 ? 0.4 : 6; // a luz da varanda falha de vez em quando
     helice.rotation.z += dt * 0.6;
-    if (FAZ.fogoOk) { FAZ.fogoMesh.scale.set(1 + Math.sin(k / 80) * 0.15, 1 + Math.sin(k / 60) * 0.25, 1); FAZ.fogoLuz.intensity = 26 + Math.sin(k / 50) * 5; }
-    for (const G of FAZ.gens) if (G.ok) { G.motor.position.y = 1.32 + Math.sin(k / 25) * 0.015; } else if (G.prog > 0 && Math.random() < 0.08) burst(new THREE.Vector3(G.x, 1.6, G.z), 0xffd23d, 2, 2.5);
-    for (const P of FAZ.portas) { const alvo = P.aberta ? P.abre : 0; P.ang += (alvo - P.ang) * Math.min(1, dt * 4); P.pivot.rotation.y = P.ang; }
+    missaoAnim(dt);
   };
 }
 // pinheiro (floresta)
@@ -7585,7 +7601,7 @@ function fazConsertar(from, g) {
 const PREGA_GRANA = 10, PREGA_MAX = 30; // dinheiro por tábua e quantas pagam por rodada
 function fazPregar(from, j) {
   const P = FAZ?.janelas[j], p = net.players[from], now = performance.now(); if (!P || !p || p.dead || p.down) return;
-  const dentro = P.a === 'casa' ? P.pa : P.pb, q = hostPos(from);
+  const dentro = P.pa, q = hostPos(from);
   if (!q || Math.hypot(q.x - dentro[0], q.z - dentro[1]) > 2.6 || FAZ.tab[j] >= TABUAS || now - (p.pregaT || 0) < 650) return;
   p.pregaT = now; FAZ.tab[j]++;
   let c;
@@ -7713,7 +7729,7 @@ const fazAbertas = () => FAZ ? FAZ.portas.map((P, i) => P.aberta ? i : -1).filte
 function janelaPerto() {
   if (!FAZ || !isMissao() || meDead || meDown) return -1;
   let best = 2.1, idx = -1;
-  FAZ.janelas.forEach((P, j) => { if (FAZ.tab[j] >= TABUAS) return; const d0 = P.a === 'casa' ? P.pa : P.pb, d = Math.hypot(d0[0] - player.pos.x, d0[1] - player.pos.z); if (d < best) { best = d; idx = j; } });
+  FAZ.janelas.forEach((P, j) => { if (FAZ.tab[j] >= TABUAS) return; const d0 = P.pa, d = Math.hypot(d0[0] - player.pos.x, d0[1] - player.pos.z); if (d < best) { best = d; idx = j; } });
   return idx;
 }
 function radioPerto() { return FAZ && isMissao() && !meDead && !meDown && Math.hypot(FAZ.radio[0] - player.pos.x, FAZ.radio[1] - player.pos.z) < 2.2 && !FAZ.extr; }
