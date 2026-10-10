@@ -937,7 +937,7 @@
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…). 💾 Na rodada 5, 10, 15… o jogo salva um checkpoint: se todo mundo cair, vocês voltam para essa rodada (com o dinheiro e as armas, e na Missão sem perder o progresso) em vez de recomeçar do zero.</section>
           <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
-            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. As <b>vantagens</b> ficam em 🥤 máquinas espalhadas pela fazenda (só com energia); há 🔫 <b>armas desenhadas nas paredes</b> (mais baratas que a loja, entram no lugar da arma da mão) e ⚡🌀 <b>armadilhas</b> (cerca elétrica na frente da casa e trilhadeira no milharal: alavanca + 💰 1000, 20 s ligada). Tudo isso no E (ou no botão de interagir).</section>
+            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. As <b>vantagens</b> ficam em 🥤 máquinas espalhadas pela fazenda (só com energia); há 🔫 <b>armas desenhadas nas paredes</b> (mais baratas que a loja, entram no lugar da arma da mão) e ⚡🌀 <b>armadilhas</b> (cerca elétrica na frente da casa e trilhadeira no milharal: alavanca + 💰 1000, 20 s ligada). Tudo isso no E (ou no botão de interagir). A noite passa com as rodadas (🌙 22:00 na 1ª): quem aguentar até o fim da rodada 20 vê o 🌅 amanhecer e também vence. Rodadas especiais da fazenda: 🔧 Sabotagem (um gerador quebra), 🐦‍⬛ Revoada de Corvos (fiquem dentro dos prédios) e 🌽 Milharal Vivo.</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
@@ -2104,7 +2104,9 @@ function buildFazenda() {
     },
     inicio: [[-5, 26], [-3, 30], [3.5, 25.5], [5, 31]],
     loja: [-3.5, 31.3],
+    dentro: ['casa', 'celeiroD', 'galpaoD'], // onde os corvos não pegam
   };
+  FAZ.look0 = { ...baseLook };
   // ⚡ geradores quebrados (quintal, celeiro, galpão): cada um acende a sua área; os 3 = energia
   const geraMat = mat('gerador', () => lam(0xd8a520)), motorMat = mat('motorG', () => lam(0x45484d)), bulbOff = mat('bulbOff', () => lam(0x3a3a30));
   FAZ.gens = [[6, -17, 'quintal', [[-16, 18], [12, 18], [-4, -18], [8, -2]]], [-41, 4, 'celeiroD', [[-35, -8, 5.6], [-35, 3, 5.6], [-30, 15], [-46, -18]]], [25, 36, 'galpaoD', [[28, 39, 4.6], [38, 39, 4.6], [36, 26], [46, 20]]]].map(([x, z, zona, lamps], g) => {
@@ -2997,7 +2999,7 @@ function updateHud() {
       if (O) linhas.push(O.k === 'gen' ? (O.f ? '💥 Gerador quebrado' : `⚡ Proteja o gerador: ${O.max ? Math.round(O.hp / O.max * 100) : 0}%`) : O.ok ? '📍 Área segura!' : `📍 Segure a área: ${Math.floor(O.t)}/${O.meta} s`);
       if (FAZ && isMissao()) { const zn = zonaInfo(fazZonaVista), ng = FAZ.gens.filter(G => G.ok).length; const E = FAZ.extr, resta = E ? Math.max(0, Math.ceil((E.ate - performance.now()) / 1000)) : 0, mmss = `${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, '0')}`, faltam = fazPecasFaltam();
         const nf = fusLivresView(), pecasRadio = pecasDoTipo('radio');
-        linhas.unshift(`${zn ? zn.nome : '🌾 Fazenda'} · ${E?.f === 'procurando' ? `🔥 Acendam a fogueira de sinal ao lado do H${temPecaView('gasolina') ? '' : ' (achem o ⛽ galão)'}!` : E?.f === 'vindo' ? `🚁 Helicóptero chega em ${mmss}${FAZ.fogoOk ? '' : ' · 🔥 fogueira apagada!'}` : E?.f === 'pousado' ? `🚁 EMBARQUE NO 🅷 DO PASTO! Decola em ${mmss}` : !FAZ.portas[0].aberta ? '🎯 Abra a porta da frente (💰 750)' : !FAZ.energia ? `🎯 Liguem os geradores ⚡ ${ng}/3 · 🔌 ${nf > 0 ? nf + ' na mão' : 'achem fusíveis'}` : faltam.length ? `🎯 Achem as peças do rádio: ${pecasRadio.map(k => (faltam.includes(k) ? '⬜' : '✅') + PECAS[k].ic).join(' ')}` : '🎯 Chamem o socorro no 📻 rádio da casa'}`); }
+        linhas.unshift(`${fazHora()} · ${zn ? zn.nome : '🌾 Fazenda'} · ${E?.f === 'procurando' ? `🔥 Acendam a fogueira de sinal ao lado do H${temPecaView('gasolina') ? '' : ' (achem o ⛽ galão)'}!` : E?.f === 'vindo' ? `🚁 Helicóptero chega em ${mmss}${FAZ.fogoOk ? '' : ' · 🔥 fogueira apagada!'}` : E?.f === 'pousado' ? `🚁 EMBARQUE NO 🅷 DO PASTO! Decola em ${mmss}` : !FAZ.portas[0].aberta ? '🎯 Abra a porta da frente (💰 750)' : !FAZ.energia ? `🎯 Liguem os geradores ⚡ ${ng}/3 · 🔌 ${nf > 0 ? nf + ' na mão' : 'achem fusíveis'}` : faltam.length ? `🎯 Achem as peças do rádio: ${pecasRadio.map(k => (faltam.includes(k) ? '⬜' : '✅') + PECAS[k].ic).join(' ')}` : '🎯 Chamem o socorro no 📻 rádio da casa'}`); }
       if (D) linhas.push(D.ok ? '🏅 Desafio cumprido!' : `${DESAFIOS[D.k].ic} ${DESAFIOS[D.k].txt(D.n)} (${Math.min(D.p, D.n)}/${D.n})`);
       obj = linhas.join(' · ');
     } else if (isTdm()) {
@@ -5755,6 +5757,10 @@ const EVENTOS = {
   apagao: { nome: 'Apagão', ic: '🔦', desc: 'luzes apagadas: só a lanterna' },
   bombas: { nome: 'Chuva de Bombas', ic: '💣', desc: 'muitos Bombas de Tinta' },
   sangue: { nome: 'Lua de Sangue', ic: '🩸', desc: 'todos os zumbis estão furiosos' },
+  // só na Missão
+  sabotagem: { nome: 'Sabotagem', ic: '🔧', desc: 'um zumbi quebrou um gerador: consertem de novo para voltar a energia!', so: 'missao' },
+  corvos: { nome: 'Revoada de Corvos', ic: '🐦‍⬛', desc: 'os corvos bicam quem está ao ar livre: fiquem dentro de casa, do celeiro ou do galpão!', so: 'missao' },
+  milharal: { nome: 'Milharal Vivo', ic: '🌽', desc: 'neblina do milharal e rastejantes escondidos no meio do milho', so: 'missao' },
 };
 
 // rosto "zumbificado": a foto do amigo esverdeada, com olheiras e manchas
@@ -6069,7 +6075,10 @@ function zStartRound(r) {
   Z.boss = r % 5 === 0 ? Math.min(3, Math.ceil(r / 20)) : 0; // rodada do chefão (nível sobe a cada volta do rodízio)
   Z.chefeI = r % 5 === 0 ? (FAZ ? CHEFES_MISSAO[(r / 5 - 1) % CHEFES_MISSAO.length] : (r / 5 - 1) % 4) : 0;
   if (Z.boss) Z.toSpawn = Math.round(Z.toSpawn * 0.55) + 1;
-  Z.evento = !Z.boss && !Z.obj && r >= 3 && r % 3 === 0 ? randomFrom(Object.keys(EVENTOS)) : null;
+  const evs = Object.keys(EVENTOS).filter(k => !EVENTOS[k].so || (isMissao() && FAZ && (k !== 'sabotagem' || FAZ.gens.some(G => G.ok))));
+  Z.evento = !Z.boss && !Z.obj && r >= 3 && r % 3 === 0 ? randomFrom(evs) : null;
+  if (Z.evento === 'sabotagem') { const g = FAZ.gens.findIndex(G => G.ok && Math.random() < 0.6); const gi = g >= 0 ? g : FAZ.gens.findIndex(G => G.ok); const G = FAZ.gens[gi]; G.ok = false; G.prog = 0.5; FAZ.energia = false; broadcast({ t: 'gerador', g: gi, p: 0.5, sab: 1 }); }
+  Z.corvoT = 4;
   if (Z.evento === 'corredores' || Z.evento === 'bombas') Z.toSpawn = Math.round(Z.toSpawn * 1.2);
   Z.spawnT = 1.2;
   // quem morreu volta na nova rodada; quem estava caído levanta; quem sobreviveu ganha +25 de vida
@@ -6089,6 +6098,7 @@ function zPickType(r) {
   const conta = {}; for (const z of Z.sim.values()) conta[z.type] = (conta[z.type] || 0) + 1;
   if (Z.evento === 'corredores') return Math.random() < 0.7 ? ZT.corredor : ZT.rastejante;
   if (Z.evento === 'bombas' && Math.random() < 0.45) return ZT.bomba;
+  if (Z.evento === 'milharal' && Math.random() < 0.5) return ZT.rastejante;
   const ex = zj().extra, limite = { mae: 1 + (ex > 1 ? 1 : 0), gritador: 2 + ex, tanque: 2 + Math.floor(r / 6) + ex, bomba: 4 + ex * 2 };
   const opcoes = ZTYPES.map((T, i) => {
     if (r < T.desde + (T.id === 'comum' ? 0 : zd().desde + (zMis()?.desde ?? 0)) || (limite[T.id] !== undefined && (conta[i] || 0) >= limite[T.id])) return 0;
@@ -6582,6 +6592,7 @@ function zHostTick(dt) {
   if (Z.round > 0 && ps.length && ps.every(p => (p.down && !p.autoUp) || p.dead)) { zGameOver(); return; }
   // rodadas
   if (Z.breakT > 0) { Z.breakT -= dt; if (Z.breakT <= 0) zStartRound(Z.round + 1); }
+  else if (Z.toSpawn === 0 && Z.sim.size === 0 && FAZ && isMissao() && Z.round >= AMANHECER_R && !Z.extr) zAmanhecer();
   else if (Z.toSpawn === 0 && Z.sim.size === 0) { zObjFim(); Z.breakT = zMis()?.intervalo ?? INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: Z.breakT }); }
   Z.spawnT -= dt;
   if (Z.toSpawn > 0 && Z.spawnT <= 0 && Z.sim.size < ZMAXV()) { zSpawn(); Z.toSpawn--; Z.spawnT = Math.max(0.28, 1.25 - Z.round * 0.07) * (Z.evento === 'corredores' ? 0.6 : 1) / zj().qtd * (zMis()?.ritmo ?? 1); }
@@ -6602,7 +6613,7 @@ function zHostTick(dt) {
   zSpitTick(dt, alvos);
   zQueima(dt);
   zCaesTick(dt);
-  if (FAZ) { zExtrTick(dt); zArmTick(dt); }
+  if (FAZ) { zExtrTick(dt); zArmTick(dt); zCorvosTick(dt); }
   // um não entra no outro (fantasma passa por todos)
   const vivos = [...Z.sim.values()];
   for (let i = 0; i < vivos.length; i++) for (let j = i + 1; j < vivos.length; j++) {
@@ -6758,6 +6769,7 @@ function zEventoLook(ev) {
   applyClima();
   if (ev === 'neblina') { scene.fog.near = 2; scene.fog.far = 20; scene.background.setHex(0x8a958f); scene.fog.color.setHex(0x8a958f); }
   if (ev === 'apagao') { hemi.intensity *= 0.18; sun.intensity *= 0.1; scene.background.setHex(0x05060c); scene.fog.color.setHex(0x05060c); scene.fog.far = 45; lanterna.intensity = lantBase = LANTERNA_I; if (state === 'play') feed('🔦 Apagão: lanterna ligada'); }
+  if (ev === 'milharal') { scene.fog.near = 3; scene.fog.far = 26; scene.background.setHex(0x3a3a1e); scene.fog.color.setHex(0x3a3a1e); }
   if (ev === 'sangue') { scene.background.setHex(0x3a0508); scene.fog.color.setHex(0x3a0508); sun.color.setHex(0xff5a4a); hemi.color.setHex(0xff8a7a); }
 }
 // --- do lado de cada jogador: monstros, efeitos, derrubado, reviver ---
@@ -6790,7 +6802,7 @@ function zOnNet(m) {
     case 'zcont': {
       clearZombies(); if (Z.eventoView) zEventoLook(null); zObjView(null);
       if (FAZ) { FAZ.extr = null; FAZ.radioProg = 0; FAZ.heli.g.visible = false; FAZ.heliFeixe.visible = false; FAZ.radioLed.material.color.setHex(0x552222); }
-      Z.roundView = m.r - 1; zIntervaloAte = performance.now() + (+m.s || 15) * 1000;
+      Z.roundView = m.r - 1; if (FAZ) fazLuz(); zIntervaloAte = performance.now() + (+m.s || 15) * 1000;
       banner(`💾 De volta do checkpoint! Rodada ${m.r} em ${m.s} s`, 4); feed(FAZ ? '💾 Portas, geradores, peças, fogueira, dinheiro e armas continuam como estavam. Se chamaram o helicóptero, chamem de novo.' : '💾 Dinheiro e armas continuam como estavam.'); sfx.power(); updateHud();
       return true;
     }
@@ -6810,6 +6822,7 @@ function zOnNet(m) {
       if (m.o) { const gen = m.o.k === 'gen'; banner(gen ? `⚡ Rodada ${m.r}: PROTEJAM O GERADOR!` : `📍 Rodada ${m.r}: SEGUREM A ÁREA!`, 3.5); feed(gen ? '⚡ Os zumbis vão atrás do gerador. Se ele quebrar, explode em todo mundo; inteiro no fim, todos ganham dinheiro.' : `📍 Fiquem dentro do círculo por ${m.o.meta} s no total. Os zumbis não param de vir até vocês conseguirem!`); }
       // horda ajustada pela quantidade de gente (avisa quando muda)
       if (m.n && m.n !== Z.nView) { if (m.n > 1 || Z.nView) feed(`👥 Horda ajustada para ${m.n} jogador${m.n > 1 ? 'es' : ''}: ${m.n > 1 ? `+${Math.round((zj(m.n).qtd - 1) * 100)}% zumbis, +${Math.round((zj(m.n).vida - 1) * 100)}% vida` : 'tamanho normal'}`); Z.nView = m.n; }
+      if (FAZ && isMissao()) fazLuz();
       if (m.b) { const C = chefeDe(m.b); banner(`${C.ic} Rodada ${m.r}: vem aí ${C.id === 'aranha' ? 'a' : 'o'} ${C.nome.toUpperCase()}!`, 3.5); feed(`${C.ic} ${C.nome}: ${C.desc}`); tone(60, 1.2, { type: 'sawtooth', vol: 0.12, slide: -20, lp: 500 }); tone(45, 1.4, { type: 'sawtooth', vol: 0.12, slide: -10, lp: 400, delay: 0.5 }); shake = 0.4; }
       else if (m.ev && EVENTOS[m.ev]) { const E = EVENTOS[m.ev]; banner(`${E.ic} Rodada ${m.r}: ${E.nome}!`, 3.5); feed(`${E.ic} ${E.desc}`); noise(1.5, { f: 200, f2: 1200, q: 1, vol: 0.08 }); tone(98, 1.4, { type: 'sawtooth', vol: 0.07, lp: 600 }); }
       else { banner(`Rodada ${m.r}`, 2.5); tone(110, 0.7, { type: 'sawtooth', vol: 0.08, slide: -40, lp: 700 }); tone(82, 0.9, { type: 'sawtooth', vol: 0.06, lp: 500, delay: 0.25 }); }
@@ -6865,6 +6878,8 @@ function zOnNet(m) {
     }
     case 'bought': onBought(m); return true;
     case 'arm': onArm(m); return true;
+    case 'sol': onSol(m); return true;
+    case 'corvo': onCorvo(m); return true;
     case 'caixa': onCaixa(m); return true;
     case 'zladrao': {
       if (m.ev === 'chegou') { banner('💸 ZUMBI LADRÃO NA ÁREA!', 2.2); feed('💸 O Ladrão rouba dinheiro de quem ele encostar e foge. Derrube ele para ganhar o DOBRO!'); tone(880, 0.1, { type: 'square', vol: 0.05 }); tone(660, 0.14, { type: 'square', vol: 0.05, delay: 0.12 }); }
@@ -6880,6 +6895,7 @@ function zOnNet(m) {
       if (m.barulho) { feed(`⚠️ O barulho do gerador ${(m.g | 0) + 1} está atraindo zumbis!`); tone(80, 0.8, { type: 'sawtooth', vol: 0.07, lp: 400 }); }
       G.prog = +m.p || 0; if (m.fus && !G.fus) { G.fus = true; feed(`🔌 Fusível encaixado no gerador ${(m.g | 0) + 1}`); }
       if (m.ok && !G.vis) fazGeradorLigado(m.g | 0, m.by);
+      if (m.sab) fazGeradorSabotado(m.g | 0);
       updateHud(); return true;
     }
     case 'energia': fazEnergia(); return true;
@@ -7516,11 +7532,75 @@ function fazGeradorLigado(g, by, quieto) {
   feed(`⚡ ${by === net.myId ? 'Você ligou' : nameOf(by) + ' ligou'} o gerador ${g + 1}: ${zonaInfo(G.zona)?.nome || ''} com luz · +300 💰 para todos`);
   tone(60, 1.4, { type: 'sawtooth', vol: 0.08, slide: 40, lp: 600 }); noise(1, { type: 'lowpass', f: 300, vol: 0.05 });
 }
+// 🔧 evento Sabotagem: um gerador apaga (o fusível continua) e a fazenda fica sem energia até consertarem
+function fazGeradorSabotado(g) {
+  const G = FAZ.gens[g]; G.ok = G.vis = false; G.prog = 0.5;
+  G.led.material.color.setHex(0xff3b3b); G.luz.intensity = 0; for (const b of G.bulbs) b.material = mat('bulbOff', () => lam(0x3a3a30));
+  FAZ.energia = false; fazMaqLuz(false); fazLuz();
+  feed(`🔧 O gerador ${g + 1} (${zonaInfo(G.zona)?.nome || ''}) foi quebrado! Sem energia até consertarem.`);
+  noise(0.8, { type: 'lowpass', f: 400, vol: 0.08 }); tone(90, 1, { type: 'sawtooth', vol: 0.07, slide: -60, lp: 500 });
+}
+// 🌙→🌅 a noite passa com as rodadas: 22:00 na 1ª, amanhece no fim da AMANHECER_R (o céu clareia nas últimas 7)
+const AMANHECER_R = 20;
+const fazMin = r => 22 * 60 + (Math.max(1, r) - 1) * 480 / AMANHECER_R;
+function fazHora() { const m = Math.floor(fazMin((net.isHost ? Z.round : Z.roundView) | 0)) % 1440; return `${FAZ?.sol ? '🌅' : m >= 300 && m < 1320 ? '🌄' : '🌙'} ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
+function fazLuz() {
+  if (!FAZ?.look0) return;
+  const r = (net.isHost ? Z.round : Z.roundView) | 0, k = FAZ.sol ? 1 : Math.max(0, Math.min(0.85, (r - (AMANHECER_R - 7)) / 8));
+  const L = { ...FAZ.look0 }, mix = (a, b) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
+  if (FAZ.energia) { L.hemiI *= 1.6; L.fogFar += 18; }
+  L.hemiI *= 1 + 1.6 * k; L.sunI *= 1 + 2.5 * k; L.fogFar += 40 * k; L.sky = mix(L.sky, FAZ.sol ? 0xf0a070 : 0x5a3a5a); L.sunColor = mix(L.sunColor, 0xffb070); L.hemiSky = mix(L.hemiSky, 0xffc8a0);
+  baseLook = L; if (Z.eventoView) zEventoLook(Z.eventoView); else applyClima();
+}
+// dono: passou a última rodada da noite → amanheceu, quem está vivo venceu
+function zAmanhecer() {
+  const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
+  broadcast({ t: 'sol', r: Z.round, kills, quem: Object.entries(net.players).filter(([, p]) => !p.dead).map(([id]) => id) });
+  Z.over = true; Z.overT = 14; Z.continua = false; Z.toSpawn = 0; Z.extr = null; if (net.local) Z.started = false;
+}
+function onSol(m) {
+  if (!FAZ) return;
+  FAZ.sol = true; fazLuz(); sfx.win();
+  const meus = m.kills?.[net.myId] ?? player.kills, vivo = (m.quem || []).includes(net.myId);
+  banner('🌅 AMANHECEU! Os zumbis viraram pó', 4);
+  if (vivo) { bumpStat('amanhecer', 1, true); checkUnlocks?.(); }
+  if (net.local) setTimeout(() => showResults('VOCÊS SOBREVIVERAM À NOITE!', `O sol nasceu na Fazenda Assombrada depois da rodada ${m.r}.`, [[m.r, 'rodada'], [meus, 'monstros pintados'], ['🌅', 'amanhecer']]), 2500);
+  else feed('🌅 Vocês aguentaram a noite inteira! Nova partida em instantes…');
+}
+// 🐦‍⬛ evento Revoada de Corvos: quem está ao ar livre leva bicada de tempos em tempos (dono)
+function zCorvosTick(dt) {
+  if (Z.evento !== 'corvos' || !FAZ) return;
+  Z.corvoT = (Z.corvoT || 4) - dt; if (Z.corvoT > 0) return; Z.corvoT = 3.5 + Math.random() * 2;
+  for (const [id, p] of Object.entries(net.players)) {
+    if (p.dead || p.down) continue; const q = zPlayerPos(id); if (!q || FAZ.dentro.includes(zonaDe(q[0], q[2]))) continue;
+    broadcast({ t: 'corvo', id }); zDamage(id, Math.round(5 + Z.round * 0.4));
+  }
+}
+// corvos voando em círculo em cima de mim durante o evento (e mergulhando quando bicam)
+let corvosG = null, corvoAvisou = 0;
+function corvosView(dt, t) {
+  const on = Z.eventoView === 'corvos' && FAZ && isMissao();
+  if (!on) { if (corvosG) corvosG.visible = false; return; }
+  if (!corvosG) {
+    corvosG = new THREE.Group(); const m = lam(0x111114);
+    for (let k = 0; k < 14; k++) { const b = new THREE.Group(); const c = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.18, 0.6), m); const a1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.3), m); a1.position.x = 0.5; const a2 = a1.clone(); a2.position.x = -0.5; b.add(c, a1, a2); b.userData = { r: 5 + Math.random() * 6, h: 7 + Math.random() * 5, v: 0.6 + Math.random() * 0.6, f: Math.random() * 6, a1, a2 }; corvosG.add(b); }
+    scene.add(corvosG);
+  }
+  corvosG.visible = true; corvosG.position.set(player.pos.x, 0, player.pos.z);
+  const mergulho = Math.max(0, (corvosG.userData.ate || 0) - performance.now()) / 900;
+  for (const b of corvosG.children) { const u = b.userData, a = t * u.v + u.f; b.position.set(Math.cos(a) * u.r * (1 - mergulho * 0.7), u.h * (1 - mergulho * 0.75), Math.sin(a) * u.r * (1 - mergulho * 0.7)); b.rotation.y = -a; u.a1.rotation.z = Math.sin(t * 14 + u.f) * 0.6; u.a2.rotation.z = -u.a1.rotation.z; }
+}
+function onCorvo(m) {
+  if (m.id !== net.myId) return;
+  if (corvosG) corvosG.userData.ate = performance.now() + 900;
+  shake = Math.max(shake, 0.25); noise(0.25, { type: 'highpass', f: 2500, vol: 0.05 }); tone(1300, 0.08, { type: 'square', vol: 0.03 });
+  if (performance.now() - corvoAvisou > 15000) { corvoAvisou = performance.now(); feed('🐦‍⬛ Os corvos estão bicando você! Entre na casa, no celeiro ou no galpão'); }
+}
 function fazEnergia(quieto) {
   if (!FAZ || FAZ.energia) return;
   FAZ.energia = true; fazMaqLuz(true);
   // a fazenda inteira clareia um pouco
-  baseLook = { ...baseLook, hemiI: baseLook.hemiI * 1.6, fogFar: baseLook.fogFar + 18 }; applyClima();
+  fazLuz();
   if (quieto) return;
   banner('⚡ ENERGIA RESTAURADA! Vantagens e Turbinar ligados', 3.5);
   feed('🥤 As máquinas de vantagem e a ⚙️ Turbinar da lojinha agora funcionam.');
@@ -7532,7 +7612,7 @@ function fazFecharTudo() {
   if (!FAZ) return;
   FAZ.extr = null; FAZ.heliSaiu = 0; FAZ.radioProg = 0; FAZ.fogoOk = false; FAZ.fogoProg = 0; FAZ.fogoMesh.visible = false; FAZ.fogoLuz.intensity = 0; for (const G of FAZ.gens) G.fus = false; FAZ.heliFeixe.visible = false; FAZ.heli.g.visible = false; FAZ.radioLed.material.color.setHex(0x552222);
   fazMaqLuz(false); for (const A of FAZ.arms || []) A.ate = A.cd = A.ateV = A.cdV = 0;
-  if (FAZ.energia) { FAZ.energia = false; baseLook = { ...baseLook, hemiI: baseLook.hemiI / 1.6, fogFar: baseLook.fogFar - 18 }; applyClima(); }
+  FAZ.energia = false; FAZ.sol = false; fazLuz();
   for (const G of FAZ.gens) { G.ok = G.vis = false; G.prog = 0; G.luz.intensity = 0; G.led.material.color.setHex(0xff3b3b); for (const b of G.bulbs) b.material = mat('bulbOff', () => lam(0x3a3a30)); }
   FAZ.tab = FAZ.janelas.map(() => TABUAS); FAZ.janelas.forEach((P, j) => fazTabuasView(j));
   for (const P of FAZ.portas) { P.aberta = false; P.ang = 0; P.pivot.rotation.y = 0; for (const pl of P.placas) pl.visible = true; if (!obstacles.includes(P.o)) obstacles.push(P.o); }
@@ -9185,7 +9265,7 @@ function frame() {
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt);
-    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
+    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); corvosView(dt, t); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
     if (armaOpen && (state !== 'play' || meDead)) toggleArmaMenu(false);
