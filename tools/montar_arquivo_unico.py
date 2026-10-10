@@ -1,6 +1,6 @@
 """Gera paintball-com-os-amigos.html: o jogo inteiro em um arquivo só (amigos secretos, Three.js e MQTT embutidos).
 
-Uso (na raiz do repositório):  python3 jogo/tools/montar_arquivo_unico.py
+Uso (na raiz do repositório):  python3 tools/montar_arquivo_unico.py
 Precisa de npm (baixa three e mqtt com `npm pack`). O arquivo gerado fica na raiz e não vai para o git.
 """
 import pathlib
@@ -8,8 +8,8 @@ import subprocess
 import tarfile
 import tempfile
 
-RAIZ = pathlib.Path(__file__).resolve().parents[2]
-JOGO = RAIZ / 'jogo'
+RAIZ = pathlib.Path(__file__).resolve().parents[1]
+JOGO = RAIZ
 LIBS = {
     'three@0.160.0': ('package/build/three.min.js', '<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>'),
     'mqtt@5.10.1': ('package/dist/mqtt.min.js', '<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>'),

@@ -1,10 +1,10 @@
-// Personagens secretos: as fotos dos amigos vão CRIPTOGRAFADAS em jogo/amigos.secreto.js
+// Personagens secretos: as fotos dos amigos vão CRIPTOGRAFADAS em amigos.secreto.js
 // e só aparecem no jogo para quem digita o código secreto (a chave sai do código com PBKDF2).
 //
 // Fechar (gerar o arquivo a partir de uma pasta com amigos.json + fotos):
-//   node jogo/tools/segredo.mjs fechar <pasta> <codigo>
+//   node tools/segredo.mjs fechar <pasta> <codigo>
 // Abrir (tirar as fotos de volta para editar/adicionar alguém):
-//   node jogo/tools/segredo.mjs abrir <pasta-de-saida> <codigo>
+//   node tools/segredo.mjs abrir <pasta-de-saida> <codigo>
 // amigos.json: [{ "nome": "Arthur", "foto": "amigo1.jpg", "camisa": 1776934, "cabelo": 3811870, "calca": 2237486, "velocidade": 1.15, "pele"?: 11565653 }, …]
 // Mudou a lista? Aumente VERSAO no index.html (os índices do online mudam).
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ import { webcrypto as crypto } from 'node:crypto';
 const ARQ = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'amigos.secreto.js');
 const VOLTAS = 200000;
 const [, , acao, pasta, codigo] = process.argv;
-if (!['fechar', 'abrir'].includes(acao) || !pasta || !codigo) { console.log('uso: node jogo/tools/segredo.mjs fechar|abrir <pasta> <codigo>'); process.exit(1); }
+if (!['fechar', 'abrir'].includes(acao) || !pasta || !codigo) { console.log('uso: node tools/segredo.mjs fechar|abrir <pasta> <codigo>'); process.exit(1); }
 
 async function chave(salt) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(codigo.trim()), 'PBKDF2', false, ['deriveKey']);
