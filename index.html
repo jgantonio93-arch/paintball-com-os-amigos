@@ -935,9 +935,9 @@
           <section><h4>🧟 Hordas e lojinha</h4>
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
-            Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…).</section>
+            Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…). 💾 Na rodada 5, 10, 15… o jogo salva um checkpoint: se todo mundo cair, vocês voltam para essa rodada (com o dinheiro e as armas, e na Missão sem perder o progresso) em vez de recomeçar do zero.</section>
           <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
-            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. 🚩 <b>Checkpoints</b>: encoste numa bandeira (quintal, celeiro, milharal, galpão, pasto) para ativá-la; quem morre volta nela e, se todo mundo cair, a Missão continua dali sem perder portas, geradores e peças (a rodada volta para a de quando a bandeira foi pega). Na rodada 5, 10, 15… o jogo também salva um 💾 checkpoint sozinho (sem bandeira, vocês voltam na casa).</section>
+            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante.</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
@@ -2086,15 +2086,6 @@ function buildFazenda() {
   FAZ.fogoMesh = deco(meshAt(new THREE.ConeGeometry(0.9, 2.4, 10), new THREE.MeshLambertMaterial({ color: 0xff7a1a, emissive: 0xff5a00, emissiveIntensity: 1 }), 8.5, 1.9, -40), false); FAZ.fogoMesh.visible = false;
   FAZ.fogoLuz = new THREE.PointLight(0xff8a3d, 0, 40, 1.2); FAZ.fogoLuz.position.set(8.5, 3, -40); mapGroup.add(FAZ.fogoLuz);
   const plFogo = signText('🔥 FOGUEIRA DE SINAL', 2.2, 0.4, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); plFogo.position.set(8.5, 2.2, -38.6); mapGroup.add(plFogo);
-  // 🚩 checkpoints: encostar ativa; quem morre volta na bandeira ativa e, se o time todo cair, a Missão continua dali
-  FAZ.ckpts = [[-6, 6, '🐔 Quintal'], [-30, -4, '🌾 Celeiro'], [30, -8, '🌽 Milharal'], [36, 36, '🚜 Galpão'], [-14, -34, '🐄 Pasto']].map(([x, z, nome]) => {
-    deco(meshAt(new THREE.CylinderGeometry(0.06, 0.08, 2.9, 8), mat('metal', () => lam(0x55595f)), x, 1.45, z), false);
-    const pano = deco(meshAt(new THREE.BoxGeometry(1.1, 0.7, 0.04), new THREE.MeshLambertMaterial({ color: 0xd8d8d8 }), x + 0.6, 2.45, z), false);
-    const anel = deco(meshAt(new THREE.RingGeometry(1.7, 2.1, 32), new THREE.MeshBasicMaterial({ color: 0x3dff8b, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }), x, 0.06, z), false); anel.rotation.x = -Math.PI / 2;
-    const placa = signText('🚩 CHECKPOINT', 1.5, 0.3, '#1a0b2e', '#3dff8b', 'bold 40px system-ui'); placa.position.set(x, 3.15, z); mapGroup.add(placa);
-    return { x, z, nome, pano, anel };
-  });
-  FAZ.ckptAtual = -1;
   FAZ.radio = [4, 28.6];
   const caixaRadio = deco(meshAt(new THREE.BoxGeometry(0.7, 0.4, 0.4), mat('radioCx', () => lam(0x3a3a2a)), 4, 1.0, 28.6), false);
   deco(meshAt(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), mat('metal', () => lam(0x55595f)), 4.25, 1.55, 28.6), false);
@@ -4184,8 +4175,6 @@ function hitReact(o, dt) {
 
 function onlineSpawn() {
   if (FAZ && isMissao()) {
-    const C = FAZ.ckpts?.[FAZ.ckptAtual]; // 🚩 volta na bandeira ativa
-    if (C) for (let k = 0; k < 14; k++) { const a = Math.random() * 6.28, d = 1 + Math.random() * 1.6, q = new THREE.Vector3(C.x + Math.cos(a) * d, 0, C.z + Math.sin(a) * d); if (!collides(q, PLAYER_R + 0.2, 1.8)) return q; }
     const [x, z] = randomFrom(FAZ.inicio); return new THREE.Vector3(x + (Math.random() - 0.5), 0, z + (Math.random() - 0.5)); }
   let best = null, bestD = -1;
   // no modo Times cada time nasce do seu lado do mapa
@@ -5957,7 +5946,7 @@ function updateSpitView(dt) {
 
 // --- simulação (só o dono da sala) ---
 function zPlayerPos(id) { return id === net.myId ? player.pos.toArray() : net.ppos.get(id); }
-function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckpt: -1, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null }); }
+function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null }); }
 function zBegin() {
   zReset(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
   for (const p of Object.values(net.players)) zEcoInit(p, true);
@@ -5993,7 +5982,7 @@ function zj(n = nJog()) {
   return { n, qtd, vida: 1 + 0.15 * (n - 1), chefe: 1 + 0.75 * (n - 1), grana: n / qtd, extra: Math.floor((n - 1) / 2) };
 }
 function zStartRound(r) {
-  if (FAZ && isMissao() && r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', i: Z.ckpt, r }); } // 💾 checkpoint automático na 5ª, 10ª…
+  if (r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', r }); } // 💾 checkpoint na 5ª, 10ª… rodada
   Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now();
   for (const p of Object.values(net.players)) p.pregou = 0;
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
@@ -6022,7 +6011,7 @@ function zStartRound(r) {
     p.loja = lojaOfertas(p);
   }
   sendRoster();
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ck: FAZ ? Z.ckpt : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
@@ -6488,29 +6477,19 @@ function zDamage(id, dmg) {
 function zGameOver() {
   Z.over = true; Z.overT = 9;
   const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
-  const ck = FAZ && isMissao() && Z.ckptR > 0;
-  broadcast({ t: 'zover', r: Z.round, kills, ck: ck ? Z.ckpt : undefined });
-  if (ck) { Z.continua = true; Z.overT = 6; return; } // 🚩 a Missão continua da bandeira, sem perder o progresso
+  const ck = Z.ckptR > 0;
+  broadcast({ t: 'zover', r: Z.round, kills, ck: ck ? Z.ckptR : undefined });
+  if (ck) { Z.continua = true; Z.overT = 6; return; } // 💾 volta do checkpoint em vez de recomeçar do zero
   if (net.local) Z.started = false;
 }
-// 🚩 todos caíram com um checkpoint ativo: portas, geradores, peças e fogueira ficam; a rodada volta para a da bandeira
-const CKPT_S = 15, CKPT_AUTO = 5; // sem bandeira, o checkpoint automático volta na casa
+// 💾 todos caíram depois de um checkpoint: a rodada volta para a do checkpoint e o resto fica (dinheiro, armas; na Missão portas, geradores, peças e fogueira)
+const CKPT_S = 15, CKPT_AUTO = 5;
 function zContinuar() {
   Z.over = false; Z.continua = false; Z.sim.clear(); Z.spits.length = 0; Z.caes.clear(); Z.extr = null; Z.radioProg = 0; Z.obj = null; Z.evento = null; Z.boss = 0;
   Z.round = Math.max(0, Z.ckptR - 1); Z.toSpawn = 0; Z.breakT = CKPT_S;
   for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, down: false, autoUp: 0, hp: hpMax(id) }); broadcast({ t: 'respawn', id }); }
-  broadcast({ t: 'zcont', r: Z.round + 1, i: Z.ckpt, s: CKPT_S });
+  broadcast({ t: 'zcont', r: Z.round + 1, s: CKPT_S });
   sendRoster();
-}
-// dono: quem encosta numa bandeira ativa ela
-function zCkptTick() {
-  if (!FAZ.ckpts || Z.over) return;
-  for (const [id, p] of Object.entries(net.players)) {
-    if (p.dead || p.down) continue;
-    const q = zPlayerPos(id); if (!q) continue;
-    const i = FAZ.ckpts.findIndex(C => Math.hypot(q[0] - C.x, q[2] - C.z) < 2.2);
-    if (i >= 0 && i !== Z.ckpt) { Z.ckpt = i; Z.ckptR = Math.max(1, Z.round); broadcast({ t: 'ckpt', i, by: id }); }
-  }
 }
 function zRestart() {
   zReset(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3;
@@ -6552,7 +6531,7 @@ function zHostTick(dt) {
   zSpitTick(dt, alvos);
   zQueima(dt);
   zCaesTick(dt);
-  if (FAZ) { zExtrTick(dt); zCkptTick(); }
+  if (FAZ) zExtrTick(dt);
   // um não entra no outro (fantasma passa por todos)
   const vivos = [...Z.sim.values()];
   for (let i = 0; i < vivos.length; i++) for (let j = i + 1; j < vivos.length; j++) {
@@ -6736,12 +6715,12 @@ function zOnNet(m) {
       if (m.by && !m.bm) killFeed(nameOf(m.by), m.b ? '👹 Chefão' : `${o?.T?.ic || '🧟'} ${o?.T?.nome || 'Zumbi'}`, m.ex ? 'balde' : null, m.h, m.by === net.myId, false);
       return true;
     }
-    case 'ckpt': if (FAZ) fazCkptView(m.i, m.by); if (m.r) { banner(`💾 Checkpoint salvo: rodada ${m.r}`, 2.5); feed(`💾 Se todo mundo cair, vocês voltam na rodada ${m.r} ${FAZ?.ckpts?.[m.i] ? 'na bandeira ' + FAZ.ckpts[m.i].nome : 'na casa'}, sem perder o progresso`); } return true;
+    case 'ckpt': feed(`💾 Checkpoint salvo na rodada ${m.r}: se todo mundo cair, vocês voltam daqui em vez de recomeçar`); tone(784, 0.12, { type: 'triangle', vol: 0.05 }); tone(1175, 0.18, { type: 'triangle', vol: 0.05, delay: 0.1 }); return true;
     case 'zcont': {
       clearZombies(); if (Z.eventoView) zEventoLook(null); zObjView(null);
-      if (FAZ) { FAZ.extr = null; FAZ.radioProg = 0; FAZ.heli.g.visible = false; FAZ.heliFeixe.visible = false; FAZ.radioLed.material.color.setHex(0x552222); fazCkptView(m.i); }
+      if (FAZ) { FAZ.extr = null; FAZ.radioProg = 0; FAZ.heli.g.visible = false; FAZ.heliFeixe.visible = false; FAZ.radioLed.material.color.setHex(0x552222); }
       Z.roundView = m.r - 1; zIntervaloAte = performance.now() + (+m.s || 15) * 1000;
-      banner(`🚩 De volta no checkpoint! Rodada ${m.r} em ${m.s} s`, 4); feed('🚩 Portas, geradores, peças e a fogueira continuam como estavam. Se chamaram o helicóptero, chamem de novo.'); sfx.power(); updateHud();
+      banner(`💾 De volta do checkpoint! Rodada ${m.r} em ${m.s} s`, 4); feed(FAZ ? '💾 Portas, geradores, peças, fogueira, dinheiro e armas continuam como estavam. Se chamaram o helicóptero, chamem de novo.' : '💾 Dinheiro e armas continuam como estavam.'); sfx.power(); updateHud();
       return true;
     }
     case 'zclear': clearZombies(); if (Z.eventoView) zEventoLook(null); fazFecharTudo(); return true;
@@ -6752,7 +6731,6 @@ function zOnNet(m) {
       if (Array.isArray(m.pc) && FAZ) fazPecasView(m.pc);
       if (Array.isArray(m.gf) && FAZ) m.gf.forEach((v, g) => { if (FAZ.gens[g]) FAZ.gens[g].fus = !!v; });
       if (m.fg && FAZ && !FAZ.fogoOk) fazFogoView(true);
-      if (typeof m.ck === 'number' && FAZ) fazCkptView(m.ck);
       if (Array.isArray(m.gn) && FAZ) { m.gn.forEach((v, g) => { const G = FAZ.gens[g]; if (!G) return; G.prog = +v || 0; if (v >= 1 && !G.vis) fazGeradorLigado(g, null, true); }); if (m.gn.every(v => v >= 1)) fazEnergia(true); }
       if (Array.isArray(m.tb) && FAZ) m.tb.forEach((n, j) => { if (FAZ.tabMesh[j]) { FAZ.tab[j] = n | 0; fazTabuasView(j); } });
       Z.dzView = Array.isArray(m.dz) && DESAFIOS[m.dz[0]] ? { k: m.dz[0], n: +m.dz[1] || 1, p: 0, ok: false } : null;
@@ -6905,7 +6883,7 @@ function zOnNet(m) {
       else { const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, true); } feed(`💀 ${nameOf(m.id)} não resistiu`); }
       return true;
     case 'zover': {
-      if (typeof m.ck === 'number') { banner(`💀 Todos caíram! Voltando do checkpoint ${FAZ?.ckpts?.[m.ck]?.nome || '🏠 Casa'}…`, 5); return true; }
+      if (m.ck) { if (net.local) recorde('pb-recorde-zumbi', m.r); banner(`💀 Todos caíram! Voltando do checkpoint (rodada ${m.ck})…`, 5); return true; }
       const meus = m.kills?.[net.myId] ?? player.kills;
       if (Z.eventoView) zEventoLook(null);
       if (net.local) {
@@ -7486,19 +7464,6 @@ function fazFecharTudo() {
   FAZ.tab = FAZ.janelas.map(() => TABUAS); FAZ.janelas.forEach((P, j) => fazTabuasView(j));
   for (const P of FAZ.portas) { P.aberta = false; P.ang = 0; P.pivot.rotation.y = 0; for (const pl of P.placas) pl.visible = true; if (!obstacles.includes(P.o)) obstacles.push(P.o); }
   FAZ.ver = (FAZ.ver | 0) + 1; fazZonaVista = null;
-  if (FAZ.ckpts) { for (const C of FAZ.ckpts) C.visto = false; fazCkptView(-1); }
-}
-// 🚩 bandeira ativa (verde), já usada (amarela) ou nova (branca)
-function fazCkptView(i, by) {
-  if (!FAZ?.ckpts) return;
-  const novo = i !== FAZ.ckptAtual; FAZ.ckptAtual = i;
-  if (i >= 0) FAZ.ckpts[i].visto = true;
-  FAZ.ckpts.forEach((C, k) => { const on = k === i; C.pano.material.color.setHex(on ? 0x3dff8b : C.visto ? 0xffd23d : 0xd8d8d8); C.pano.material.emissive.setHex(on ? 0x1a8a3a : 0); C.anel.material.opacity = on ? 0.45 : 0; });
-  if (novo && i >= 0 && by) {
-    const C = FAZ.ckpts[i];
-    feed(`🚩 Checkpoint ${C.nome}${by === net.myId ? '' : ' (' + nameOf(by) + ')'}: quem cair volta aqui`);
-    burst(new THREE.Vector3(C.x, 2.4, C.z), 0x3dff8b, 30, 4); tone(784, 0.12, { type: 'triangle', vol: 0.05 }); tone(1175, 0.18, { type: 'triangle', vol: 0.05, delay: 0.1 });
-  }
 }
 const fazAbertas = () => FAZ ? FAZ.portas.map((P, i) => P.aberta ? i : -1).filter(i => i >= 0) : [];
 // janela da casa perto de mim (do lado de dentro) que está faltando tábua
