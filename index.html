@@ -937,7 +937,7 @@
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…). 💾 Na rodada 5, 10, 15… o jogo salva um checkpoint: se todo mundo cair, vocês voltam para essa rodada (com o dinheiro e as armas, e na Missão sem perder o progresso) em vez de recomeçar do zero.</section>
           <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
-            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. As <b>vantagens</b> ficam em 🥤 máquinas espalhadas pela fazenda (só com energia); há 🔫 <b>armas desenhadas nas paredes</b> (mais baratas que a loja, entram no lugar da arma da mão) e ⚡🌀 <b>armadilhas</b> (cerca elétrica na frente da casa e trilhadeira no milharal: alavanca + 💰 1000, 20 s ligada). Tudo isso no E (ou no botão de interagir). A noite passa com as rodadas (🌙 22:00 na 1ª): quem aguentar até o fim da rodada 20 vê o 🌅 amanhecer e também vence. Rodadas especiais da fazenda: 🔧 Sabotagem (um gerador quebra), 🐦‍⬛ Revoada de Corvos (fiquem dentro dos prédios) e 🌽 Milharal Vivo.</section>
+            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. As <b>vantagens</b> ficam em 🥤 máquinas espalhadas pela fazenda (só com energia); há 🔫 <b>armas desenhadas nas paredes</b> (mais baratas que a loja, entram no lugar da arma da mão) e ⚡🌀 <b>armadilhas</b> (cerca elétrica na frente da casa e trilhadeira no milharal: alavanca + 💰 1000, 20 s ligada). Tudo isso no E (ou no botão de interagir). A noite passa com as rodadas (🌙 22:00 na 1ª): quem aguentar até o fim da rodada 20 vê o 🌅 amanhecer e também vence. Rodadas especiais da fazenda: 🔧 Sabotagem (um gerador quebra), 🐦‍⬛ Revoada de Corvos (fiquem dentro dos prédios) e 🌽 Milharal Vivo. Tem mais: o 🧑‍🌾 fazendeiro preso no silo do galpão (achem a 🗝️ chave; solto, ele segue vocês atirando e, se embarcar no 🚁, todos ganham 💰 1500), o 🚜 trator (com energia, E para dirigir: atropela zumbis) e um segredo de 🥚 ovos dourados escondidos…</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
@@ -1562,6 +1562,7 @@ function nearDoor() {
 }
 function useDoor() {
   if (state !== 'play' || meDead || meDown) return;
+  if (player.trator) return sairTrator();
   if (reviveId) return; // perto de amigo caído, o E é para levantar
   const pp = portaPagaPerto(); if (pp >= 0) return comprarPorta(pp);
   const I = fazInterPerto(); if (I) return fazInteragir(I);
@@ -1576,9 +1577,9 @@ function updateDoors(dt) {
     d.pivot.rotation.y = d.ang;
   }
   if (isTouch && state === 'play') {
-    const I = portaPagaPerto() < 0 ? fazInterPerto() : null, perto = (nearDoor() >= 0 || portaPagaPerto() >= 0 || !!I) && !reviveId;
+    const I = portaPagaPerto() < 0 && !player.trator ? fazInterPerto() : null, perto = ((nearDoor() >= 0 || portaPagaPerto() >= 0 || !!I) && !reviveId) || !!player.trator;
     if (perto !== updateDoors.btn) { updateDoors.btn = perto; $('doorBtn').style.display = perto ? 'flex' : 'none'; }
-    const lbl = I ? interBtn(I) : '🚪 PORTA'; if (lbl !== updateDoors.lbl) { updateDoors.lbl = lbl; $('doorBtn').textContent = lbl; }
+    const lbl = player.trator ? '🚜 SAIR' : I ? interBtn(I) : '🚪 PORTA'; if (lbl !== updateDoors.lbl) { updateDoors.lbl = lbl; $('doorBtn').textContent = lbl; }
   }
 }
 
@@ -2009,9 +2010,19 @@ function buildFazenda() {
   muro('x', 46, 22, 44, 5, [], zinco); muro('z', 44, 32, 46, 5, [], zinco); muro('z', 22, 32, 46, 5, [{ c: 39, w: 3, tipo: 'aberto' }], zinco);
   addBox(33, 39, 22.6, 0.25, 14.6, zinco, 5);
   for (const x of [22, 33, 44]) addBox(x, 32, 0.3, 5, 0.3, zinco);
-  // trator
-  addBox(30, 40, 2.4, 1.6, 3.6, mat('trator', () => lam(0x2f7a35))); addBox(30, 41, 1.6, 1.2, 1.4, mat('cabT', () => lam(0x1f2a22)), 1.6);
-  for (const [dx, dz, rr] of [[-1.35, 1, 0.9], [1.35, 1, 0.9], [-1.3, -1.2, 0.55], [1.3, -1.2, 0.55]]) { const w = deco(meshAt(new THREE.CylinderGeometry(rr, rr, 0.45, 14), mat('tire', () => lam(0x1d1d1d)), 30 + dx, rr, 40 + dz)); w.rotation.z = Math.PI / 2; }
+  // 🚜 trator (dá para dirigir com energia: FAZ.trator)
+  const tratorG = new THREE.Group(), verdeT = mat('trator', () => lam(0x2f7a35));
+  const tPeca = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; tratorG.add(o); return o; };
+  tPeca(new THREE.BoxGeometry(2.0, 1.1, 3.4), verdeT, 0, 1.05, 0); tPeca(new THREE.BoxGeometry(1.6, 0.3, 1.6), verdeT, 0, 1.75, -0.8);
+  tPeca(new THREE.BoxGeometry(1.6, 1.3, 1.4), mat('cabT', () => lam(0x1f2a22)), 0, 2.2, 1.0);
+  tPeca(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), mat('metal', () => lam(0x55595f)), 0.6, 2.3, -1.2);
+  for (const [dx, dz, rr] of [[-1.25, 1, 0.9], [1.25, 1, 0.9], [-1.15, -1.2, 0.55], [1.15, -1.2, 0.55]]) tPeca(new THREE.CylinderGeometry(rr, rr, 0.45, 14), mat('tire', () => lam(0x1d1d1d)), dx, rr, dz).rotation.z = Math.PI / 2;
+  for (const dx of [-0.6, 0.6]) tPeca(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2b0 }), dx, 1.3, -1.72);
+  tratorG.position.set(30, 0, 40); mapGroup.add(tratorG);
+  const tratorO = { mesh: null, box: new THREE.Box3(new THREE.Vector3(28.75, 0, 38.15), new THREE.Vector3(31.25, 2.8, 41.85)) }; obstacles.push(tratorO);
+  // 🆘 porta do silo (o fazendeiro está preso lá dentro)
+  deco(meshAt(new THREE.BoxGeometry(0.12, 2.2, 1.3), mat('portaSilo', () => lam(0x4a4e54)), 25.02, 1.1, 28), false);
+  const plSilo = signText('🆘 SOCORRO!', 1.4, 0.32, '#3a0a0a', '#ffd23d', 'bold 40px system-ui'); plSilo.position.set(25.1, 2.6, 28); plSilo.rotation.y = Math.PI / 2; mapGroup.add(plSilo);
   addBox(40, 44, 4, 1, 1.4, mat('bancada', () => lam(0x5a4632)));
   barrel(24, 44, 0x8a3a1a); barrel(25.2, 44.6, 0x3a5a8a);
   const silo = deco(meshAt(new THREE.CylinderGeometry(3, 3, 12, 18), mat('silo', () => lam(0x9aa0a6)), 22, 6, 28)); collider(22, 28, 5.4, 5.4, 0, 12, silo);
@@ -2106,6 +2117,12 @@ function buildFazenda() {
     loja: [-3.5, 31.3],
     dentro: ['casa', 'celeiroD', 'galpaoD'], // onde os corvos não pegam
   };
+  FAZ.trator = { g: tratorG, o: tratorO, x: 30, z: 40, yaw: 0, x0: 30, z0: 40, piloto: null, v: 0 };
+  FAZ.silo = { x: 25.7, z: 28 };
+  FAZ.extras = [
+    { get x() { return FAZ.trator.x; }, get z() { return FAZ.trator.z; }, r: 3.3, btn: '🚜 DIRIGIR', oculto: () => !!FAZ.trator.piloto, texto: tecla => !FAZ.energia ? '🚜 Trator sem bateria: liguem os 3 geradores' : `🚜 ${tecla} para dirigir o trator (atropela zumbis!)`, usar: () => FAZ.energia ? sendNet({ t: 'trator', on: 1 }) : ui.erro() },
+    { x: FAZ.silo.x, z: FAZ.silo.z, r: 2.4, btn: '🗝️ ABRIR', oculto: () => !!FAZ.npcSolto, texto: tecla => temPecaView('chave') ? `🆘 ${tecla} para abrir o silo e soltar o fazendeiro` : '🆘 Tem alguém preso no silo! Achem a 🗝️ chave', usar: () => temPecaView('chave') ? sendNet({ t: 'silo' }) : ui.erro() },
+  ];
   FAZ.look0 = { ...baseLook };
   // ⚡ geradores quebrados (quintal, celeiro, galpão): cada um acende a sua área; os 3 = energia
   const geraMat = mat('gerador', () => lam(0xd8a520)), motorMat = mat('motorG', () => lam(0x45484d)), bulbOff = mat('bulbOff', () => lam(0x3a3a30));
@@ -2151,6 +2168,11 @@ function buildFazenda() {
     fus2: [[20, 0, -19], [46, 0, -2], [-46, 0, -12]],
     fus3: [[47, 0, 30], [16, 0, 26], [-12, 0, -30]],
     gasolina: [[42, 0, 34], [-42, 0, -12], [35, 0, 44.5]],
+    chave: [[-47, 0, 14], [45, 0, -46], [44, 0, 15]],
+    // 🥚 segredo: 3 ovos dourados escondidos (sem luz em cima)
+    ovo1: [[-41, 3.3, -12], [6.6, 0, 33.2], [-47.5, 0, -47.5]],
+    ovo2: [[47.5, 0, 48], [16.5, 0, -20.5], [-13, 2.45, -14]],
+    ovo3: [[-24, 0, -42], [31.2, 0, 5.2], [-9, 2.6, 10]],
   };
   // 🔥 fogueira de sinal ao lado do heliponto (sem ela acesa o piloto não acha vocês)
   FAZ.fogueira = [8.5, -40];
@@ -2698,6 +2720,8 @@ WEAPONS.granada = { nome: 'Granada de tinta', ic: '💣', dmg: 90, cd: 1, mag: 1
 WEAPONS.bazuca  = { nome: 'Bazuca de tinta', ic: '🚀', dmg: 240, cd: 1.15, mag: 3, reload: 2.4, speed: 42, spread: 0, auto: false, cor: 0x3dffb0, len: 1.4, hs: 1, splash: 5.5, grav: 3, size: 3.6, especial: true, desc: 'explosão enorme: limpa a horda inteira' };
 WEAPONS.raio    = { nome: 'Arma de raio', ic: '⚡', dmg: 55, cd: 0.1, mag: 36, reload: 1.6, speed: 240, spread: 0.002, auto: true, cor: 0x7ad7ff, len: 1.1, hs: 1.6, size: 0.8, especial: true, desc: 'raio azul rapidíssimo e certeiro' };
 WEAPONS.confete = { nome: 'Canhão de confete', ic: '🎉', dmg: 24, cd: 0.55, mag: 8, reload: 1.8, speed: 55, spread: 0.1, auto: false, cor: 0xff3dd2, len: 1.1, hs: 1.2, pellets: 14, life: 0.5, arcoiris: true, especial: true, desc: 'chuva de confete colorido na frente toda' };
+// 🔱 só sai dos 3 ovos dourados da Missão
+WEAPONS.forcado = { nome: 'Forcado de tinta', ic: '🔱', dmg: 80, cd: 0.6, mag: 1, reload: 0.5, speed: 42, spread: 0.05, auto: true, cor: 0xffd23d, len: 1.3, hs: 1.3, pellets: 3, life: 0.12, grav: 0, size: 2.6, semMuni: true, perto: true, especial: true, desc: 'corpo a corpo dourado: 3 pontas, nunca acaba' };
 const ESPECIAIS = ['bazuca', 'raio', 'confete'];
 // Gun Game: cada abate passa para a próxima; abate com a última vence
 const GG_ORDER = ['balde', 'mangueira', 'metralha', 'smg', 'escopeta', 'rajada', 'marcador', 'besta', 'sniper', 'revolver', 'pistola', 'rolo'];
@@ -2763,6 +2787,10 @@ function buildViewmodel(id) {
     add(new THREE.CylinderGeometry(0.16, 0.09, 0.6, 14), 0xff3dd2, 0, 0.03, -0.25, Math.PI / 2);
     for (const [c, x] of [[0xffd23d, -0.06], [0x3dffb0, 0.06], [0x3db8ff, 0]]) add(new THREE.SphereGeometry(0.035, 8, 6), c, x, 0.06, -0.55);
     box(0.08, 0.2, 0.1, 0x222222, 0, -0.15, 0.05, 0.2); tip = -0.58;
+  } else if (id === 'forcado') {
+    tube(0.03, 0.9, 0x8a5a2b, 0, -0.02, -0.15); box(0.24, 0.04, 0.04, 0xffd23d, 0, 0.0, -0.62);
+    for (const x of [-0.1, 0, 0.1]) { const d = add(new THREE.ConeGeometry(0.025, 0.28, 6), 0xffd23d, x, 0.0, -0.78); d.rotation.x = -Math.PI / 2; }
+    tip = -0.9;
   } else if (id === 'rolo') {
     tube(0.025, 0.45, 0x8a5a2b, 0, -0.04, -0.05); box(0.025, 0.24, 0.025, 0x9aa3b5, 0, 0.06, -0.3);
     const rolo = add(new THREE.CylinderGeometry(0.09, 0.09, 0.44, 16), 0xffd23d, 0, 0.18, -0.34); rolo.rotation.z = Math.PI / 2;
@@ -2858,6 +2886,7 @@ const sfx = {
     else if (id === 'besta') { beep(720, 0.13, 'triangle', 0.06, -520); beep(110, 0.08, 'sine', 0.05); }
     else if (id === 'mangueira') beep(850 + Math.random() * 400, 0.035, 'sine', 0.025, -300);
     else if (id === 'rolo') beep(150, 0.14, 'triangle', 0.07, 90);
+    else if (id === 'forcado') { beep(220, 0.12, 'triangle', 0.07, 160); beep(1400, 0.05, 'square', 0.02); }
     else if (id === 'bazuca') { beep(80, 0.4, 'sawtooth', 0.11, 40); beep(240, 0.2, 'triangle', 0.06, -120); }
     else if (id === 'raio') { beep(1800, 0.05, 'sawtooth', 0.035, -900); beep(2600, 0.03, 'square', 0.02); }
     else if (id === 'confete') { beep(500, 0.12, 'triangle', 0.06, 500); beep(990, 0.1, 'square', 0.03, 300); }
@@ -3187,6 +3216,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyF' && !e.repeat) placeShield();
   if (e.code === 'KeyV' && !e.repeat) toggleQuick();
   if (e.code === 'KeyB' && !e.repeat) toggleShop(); // a loja tem tecla própria: o E fica só para interagir
+  if (e.code === 'KeyE' && !e.repeat && player.trator) { sairTrator(); return; }
   if (e.code === 'KeyE' && !e.repeat && !shopOpen) { if (janelaPerto() >= 0 || geradorPerto() >= 0 || radioPerto() || fogueiraPerto()) { /* segurar E prega/conserta/chama (missaoTick) */ } else useDoor(); }
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) jumpPressed(); }
 });
@@ -3896,6 +3926,8 @@ function hostHandle(from, m) {
     case 'peca': if (isMissao()) fazPegarPeca(from, m.k); break;
     case 'radio': if (isMissao()) fazRadio(from); break;
     case 'fogueira': if (isMissao()) fazFogueira(from); break;
+    case 'silo': if (isMissao()) zNpcSolta(from); break;
+    case 'trator': if (isMissao()) zTrator(from, m); break;
     case 'door': {
       const i = m.i | 0; if (!doors[i]) return;
       broadcast({ t: 'door', i, o: m.o ? 1 : 0 });
@@ -4066,7 +4098,7 @@ function onNet(m) {
     case 's': {
       const r = remotes.get(m.id); if (!r) break;
       r.target.fromArray(m.p); r.yaw = m.y; r.pitch = m.pi; r.crouch = !!m.c; r.fx = m.e | 0; r.w = WEAPONS[m.w] ? m.w : 'marcador';
-      r.pk = Number.isInteger(m.pk) && PROPS[m.pk] ? m.pk : 0;
+      r.pk = Number.isInteger(m.pk) && PROPS[m.pk] ? m.pk : 0; r.tr = typeof m.tr === 'number' ? m.tr : undefined;
       if (!r.seen) { r.seen = true; r.pos.copy(r.target); }
       break;
     }
@@ -5923,6 +5955,7 @@ function animCaes(dt, t) {
 }
 function zApply(m) {
   if ('cs' in m) caesView(m.cs);
+  if (FAZ) npcView(m.np);
   if (!Array.isArray(m.z)) return;
   Z.roundView = m.r | 0; Z.left = m.l | 0;
   const now = performance.now(), seen = new Set();
@@ -6091,7 +6124,7 @@ function zStartRound(r) {
     p.loja = lojaOfertas(p);
   }
   sendRoster();
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ns: FAZ ? (Z.npcSolto ? 1 : 0) : undefined, tr: FAZ?.trator ? [r2(FAZ.trator.x), r2(FAZ.trator.z), r2(FAZ.trator.yaw), FAZ.trator.piloto || 0] : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
@@ -6541,9 +6574,10 @@ function zScream(z) {
   broadcast({ t: 'zgrito', x: r2(z.x), z: r2(z.z) });
   for (const o of Z.sim.values()) if (o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 16) o.raiva = Math.max(o.raiva, 6);
 }
-function zPush(id, dx, dz, f) { if (id === 'gen') return; broadcast({ t: 'zpush', id, x: r2(dx * f), z: r2(dz * f) }); }
+function zPush(id, dx, dz, f) { if (id === 'gen' || id === 'npc') return; broadcast({ t: 'zpush', id, x: r2(dx * f), z: r2(dz * f) }); }
 function zDamage(id, dmg) {
   if (id === 'gen') return zDanoGerador(dmg);
+  if (id === 'npc') return zDanoNpc(dmg);
   const p = net.players[id], now = performance.now();
   if (!p || p.dead || p.down || (net.inv.get(id) || 0) > now) return;
   p.hp -= dmg; net.lastDmg.set(id, now);
@@ -6568,6 +6602,8 @@ const CKPT_S = 15, CKPT_AUTO = 5;
 function zContinuar() {
   Z.over = false; Z.continua = false; Z.sim.clear(); Z.spits.length = 0; Z.caes.clear(); Z.extr = null; Z.radioProg = 0; Z.obj = null; Z.evento = null; Z.boss = 0;
   Z.round = Math.max(0, Z.ckptR - 1); Z.toSpawn = 0; Z.breakT = CKPT_S;
+  if (FAZ?.trator?.piloto) zTratorSai();
+  if (Z.npc) Object.assign(Z.npc, { x: FAZ.inicio[0][0] + 1, z: FAZ.inicio[0][1], hp: Z.npc.max });
   for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, down: false, autoUp: 0, hp: hpMax(id) }); broadcast({ t: 'respawn', id }); }
   broadcast({ t: 'zcont', r: Z.round + 1, s: CKPT_S });
   sendRoster();
@@ -6602,6 +6638,7 @@ function zHostTick(dt) {
     if (p.dead || p.down) continue;
     const pos = zPlayerPos(id); if (pos) alvos.push({ id, x: pos[0], y: pos[1], z: pos[2] });
   }
+  if (Z.npc) alvos.push({ id: 'npc', x: Z.npc.x, y: 0, z: Z.npc.z });
   zObjTick(dt, alvos);
   // desafio "sem tomar dano": conta os segundos de cada um
   if (Z.desafio?.k === 'intacto' && !(Z.breakT > 0)) for (const [id, p] of Object.entries(net.players)) {
@@ -6613,7 +6650,7 @@ function zHostTick(dt) {
   zSpitTick(dt, alvos);
   zQueima(dt);
   zCaesTick(dt);
-  if (FAZ) { zExtrTick(dt); zArmTick(dt); zCorvosTick(dt); }
+  if (FAZ) { zExtrTick(dt); zArmTick(dt); zCorvosTick(dt); zNpcTick(dt); zTratorTick(dt); }
   // um não entra no outro (fantasma passa por todos)
   const vivos = [...Z.sim.values()];
   for (let i = 0; i < vivos.length; i++) for (let j = i + 1; j < vivos.length; j++) {
@@ -6627,7 +6664,7 @@ function zHostTick(dt) {
   if (Z.sendT <= 0) {
     Z.sendT = 0.1;
     broadcast({ t: 'zs', r: Z.round, l: Z.toSpawn + Z.sim.size, z: vivos.map(z => [z.id, r2(z.x), r2(z.y), r2(z.z), r2(z.yaw), Math.round(z.hp / z.max * 100), z.atkFlag ? 1 : 0, z.kind, z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, z.type,
-      (z.elite ? 1 : 0) | (z.raiva > 0 ? 2 : 0) | (z.fuse >= 0 ? 4 : 0) | (z.charge > 0 ? 8 : 0) | (z.air ? 16 : 0) | (z.grito > 0 ? 32 : 0) | (z.fogoT > 0 ? 64 : 0) | (z.lentoT > 0 ? 128 : 0) | (z.ladrao ? 256 : 0) | (z.roubou ? 512 : 0)]), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]) });
+      (z.elite ? 1 : 0) | (z.raiva > 0 ? 2 : 0) | (z.fuse >= 0 ? 4 : 0) | (z.charge > 0 ? 8 : 0) | (z.air ? 16 : 0) | (z.grito > 0 ? 32 : 0) | (z.fogoT > 0 ? 64 : 0) | (z.lentoT > 0 ? 128 : 0) | (z.ladrao ? 256 : 0) | (z.roubou ? 512 : 0)]), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]), np: FAZ ? npcMsg() : undefined });
     for (const z of vivos) z.atkFlag = false;
   }
   Z.rosterT -= dt;
@@ -6814,6 +6851,8 @@ function zOnNet(m) {
       if (Array.isArray(m.pc) && FAZ) fazPecasView(m.pc);
       if (Array.isArray(m.gf) && FAZ) m.gf.forEach((v, g) => { if (FAZ.gens[g]) FAZ.gens[g].fus = !!v; });
       if (m.fg && FAZ && !FAZ.fogoOk) fazFogoView(true);
+      if (FAZ && m.ns) FAZ.npcSolto = true;
+      if (FAZ?.trator && Array.isArray(m.tr) && !FAZ.trator.piloto && !m.tr[3]) { [FAZ.trator.x, FAZ.trator.z, FAZ.trator.yaw] = m.tr.map(Number); tratorParado(); }
       if (Array.isArray(m.gn) && FAZ) { m.gn.forEach((v, g) => { const G = FAZ.gens[g]; if (!G) return; G.prog = +v || 0; if (v >= 1 && !G.vis) fazGeradorLigado(g, null, true); }); if (m.gn.every(v => v >= 1)) fazEnergia(true); }
       if (Array.isArray(m.tb) && FAZ) m.tb.forEach((n, j) => { if (FAZ.tabMesh[j]) { FAZ.tab[j] = n | 0; fazTabuasView(j); } });
       Z.dzView = Array.isArray(m.dz) && DESAFIOS[m.dz[0]] ? { k: m.dz[0], n: +m.dz[1] || 1, p: 0, ok: false } : null;
@@ -6880,6 +6919,9 @@ function zOnNet(m) {
     case 'arm': onArm(m); return true;
     case 'sol': onSol(m); return true;
     case 'corvo': onCorvo(m); return true;
+    case 'npc': onNpc(m); return true;
+    case 'npctiro': onNpcTiro(m); return true;
+    case 'trator': onTrator(m); return true;
     case 'caixa': onCaixa(m); return true;
     case 'zladrao': {
       if (m.ev === 'chegou') { banner('💸 ZUMBI LADRÃO NA ÁREA!', 2.2); feed('💸 O Ladrão rouba dinheiro de quem ele encostar e foge. Derrube ele para ganhar o DOBRO!'); tone(880, 0.1, { type: 'square', vol: 0.05 }); tone(660, 0.14, { type: 'square', vol: 0.05, delay: 0.12 }); }
@@ -6901,7 +6943,9 @@ function zOnNet(m) {
     case 'energia': fazEnergia(); return true;
     case 'pecas': {
       fazPecasView(m.l || []);
-      if (m.k && PECAS[m.k]) { const P = PECAS[m.k], tp = P.tipo, tot = pecasDoTipo(tp).length, faltam = fazPecasFaltam(tp).length; banner(`${P.ic} ${P.nome}!${tot > 1 ? ` (${tot - faltam}/${tot})` : ''}`, 2); feed(`${P.ic} ${m.by === net.myId ? 'Você achou' : nameOf(m.by) + ' achou'} ${P.nome.toLowerCase()} · ${tp === 'fus' ? 'serve para ligar um gerador ⚡' : tp === 'gas' ? 'serve para acender a 🔥 fogueira de sinal no pasto' : faltam ? `faltam ${faltam} peças do rádio` : 'todas as peças! Levem ao 📻 rádio da casa'}`); [784, 988, 1175].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.05, delay: i * 0.07 })); }
+      if (m.k && PECAS[m.k]?.tipo === 'ovo') { const n = pecasDoTipo('ovo').length - fazPecasFaltam('ovo').length; banner(`🥚 Ovo dourado! (${n}/3)`, 2.2); feed(n < 3 ? `🥚 ${m.by === net.myId ? 'Você achou' : nameOf(m.by) + ' achou'} um ovo dourado escondido! +500 💰 · será que tem mais?` : '🥚🥚🥚 Os 3 ovos dourados! Todo mundo ganhou o 🔱 Forcado de tinta: está na aba 🎁 da loja'); if (n >= 3) bumpStat('ovos', 1, true); [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.14, { type: 'triangle', vol: 0.05, delay: i * 0.07 })); }
+      else if (m.k === 'chave') { banner('🗝️ Chave do silo!', 2); feed(`🗝️ ${m.by === net.myId ? 'Você achou' : nameOf(m.by) + ' achou'} a chave do silo: tem alguém preso lá no galpão!`); tone(988, 0.12, { type: 'triangle', vol: 0.05 }); }
+      else if (m.k && PECAS[m.k]) { const P = PECAS[m.k], tp = P.tipo, tot = pecasDoTipo(tp).length, faltam = fazPecasFaltam(tp).length; banner(`${P.ic} ${P.nome}!${tot > 1 ? ` (${tot - faltam}/${tot})` : ''}`, 2); feed(`${P.ic} ${m.by === net.myId ? 'Você achou' : nameOf(m.by) + ' achou'} ${P.nome.toLowerCase()} · ${tp === 'fus' ? 'serve para ligar um gerador ⚡' : tp === 'gas' ? 'serve para acender a 🔥 fogueira de sinal no pasto' : faltam ? `faltam ${faltam} peças do rádio` : 'todas as peças! Levem ao 📻 rádio da casa'}`); [784, 988, 1175].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.05, delay: i * 0.07 })); }
       updateHud(); return true;
     }
     case 'radiop': if (FAZ) FAZ.radioProg = +m.p || 0; return true;
@@ -7612,6 +7656,8 @@ function fazFecharTudo() {
   if (!FAZ) return;
   FAZ.extr = null; FAZ.heliSaiu = 0; FAZ.radioProg = 0; FAZ.fogoOk = false; FAZ.fogoProg = 0; FAZ.fogoMesh.visible = false; FAZ.fogoLuz.intensity = 0; for (const G of FAZ.gens) G.fus = false; FAZ.heliFeixe.visible = false; FAZ.heli.g.visible = false; FAZ.radioLed.material.color.setHex(0x552222);
   fazMaqLuz(false); for (const A of FAZ.arms || []) A.ate = A.cd = A.ateV = A.cdV = 0;
+  FAZ.npcSolto = false; npcView(0);
+  if (FAZ.trator) { const T = FAZ.trator; T.piloto = null; T.x = T.x0; T.z = T.z0; T.yaw = 0; tratorParado(); if (player.trator) { player.trator = false; player.pos.y = 0; } }
   FAZ.energia = false; FAZ.sol = false; fazLuz();
   for (const G of FAZ.gens) { G.ok = G.vis = false; G.prog = 0; G.luz.intensity = 0; G.led.material.color.setHex(0xff3b3b); for (const b of G.bulbs) b.material = mat('bulbOff', () => lam(0x3a3a30)); }
   FAZ.tab = FAZ.janelas.map(() => TABUAS); FAZ.janelas.forEach((P, j) => fazTabuasView(j));
@@ -7681,8 +7727,8 @@ function paredeOferta(w) { const inv = zInv(), velho = inv.length < 2 ? null : i
 // o que dá para usar perto de mim
 function fazInterPerto() {
   if (!FAZ || !isMissao() || meDead || meDown || state !== 'play' || player.pos.y > 1.2) return null;
-  let best = 2.2, r = null;
-  const ver = (lst, tipo) => (lst || []).forEach((o, i) => { const d = Math.hypot(o.x - player.pos.x, o.z - player.pos.z); if (d < best) { best = d; r = { tipo, i, o }; } });
+  let best = 0, r = null;
+  const ver = (lst, tipo) => (lst || []).forEach((o, i) => { if (o.oculto?.()) return; const d = Math.hypot(o.x - player.pos.x, o.z - player.pos.z) - (o.r || 2.2); if (d < best) { best = d; r = { tipo, i, o }; } });
   ver(FAZ.maquinas, 'maq'); ver(FAZ.paredes, 'parede'); ver(FAZ.arms, 'alav'); ver(FAZ.extras, 'extra');
   return r;
 }
@@ -7760,6 +7806,157 @@ function fazArmView(dt) {
     }
   }
 }
+// ===== 🧑‍🌾 fazendeiro do silo (ajuda atirando; levar no helicóptero dá bônus) =====
+const NPC_VIDA = 400, npcQ = new THREE.Vector3(), npcQ2 = new THREE.Vector3();
+function zNpcSolta(from) {
+  const p = net.players[from]; if (!FAZ?.silo || !p || p.dead || p.down || Z.npcSolto || !Z.pecas?.chave?.pega) return;
+  if (!fazPertoHost(hostPos(from), FAZ.silo)) return;
+  Z.npcSolto = true; Z.npc = { x: FAZ.silo.x + 1.2, z: FAZ.silo.z, yaw: 0, hp: NPC_VIDA, max: NPC_VIDA, tiroT: 1.5, segue: from, preso: 0, falaT: 6 };
+  broadcast({ t: 'npc', ev: 'solto', by: from });
+}
+function zDanoNpc(d) {
+  const N = Z.npc; if (!N) return;
+  N.hp -= d;
+  if (N.hp <= 0) { Z.npc = null; broadcast({ t: 'npc', ev: 'morreu' }); }
+}
+function zNpcTick(dt) {
+  const N = Z.npc; if (!N) return;
+  // segue quem está de pé mais perto
+  let alvo = null, bd = 1e9;
+  for (const [id, p] of Object.entries(net.players)) { if (p.dead || p.down) continue; const q = zPlayerPos(id); if (!q) continue; const d = Math.hypot(q[0] - N.x, q[2] - N.z); if (d < bd) { bd = d; alvo = { id, x: q[0], z: q[2] }; } }
+  if (alvo) {
+    N.segue = alvo.id;
+    if (bd > 3.2) {
+      const sp = Math.min(6.2 * dt, bd - 3), ux = (alvo.x - N.x) / bd, uz = (alvo.z - N.z) / bd;
+      npcQ.set(N.x, 0, N.z); moveWithCollision(npcQ, ux * sp, uz * sp, 0.4, 1.7);
+      const andou = Math.hypot(npcQ.x - N.x, npcQ.z - N.z); N.x = npcQ.x; N.z = npcQ.z; N.yaw = Math.atan2(-ux, -uz);
+      N.preso = andou < sp * 0.3 ? N.preso + dt : Math.max(0, N.preso - dt);
+      // preso numa parede ou muito longe: corre e aparece atrás de quem ele segue
+      if (N.preso > 3 || bd > 32) { for (const [ox, oz] of [[1.5, 1.5], [-1.5, 1.5], [1.5, -1.5], [-1.5, -1.5], [0, 2]]) { npcQ.set(alvo.x + ox, 0, alvo.z + oz); if (!collides(npcQ, 0.45, 1.7)) { N.x = npcQ.x; N.z = npcQ.z; break; } } N.preso = 0; }
+    }
+  }
+  // atira no zumbi mais perto que ele enxerga
+  N.tiroT -= dt;
+  if (N.tiroT <= 0) {
+    N.tiroT = 0.35;
+    const vis = [...Z.sim.values()].filter(z => !z.sobe && Math.hypot(z.x - N.x, z.z - N.z) < 18).sort((a, b) => Math.hypot(a.x - N.x, a.z - N.z) - Math.hypot(b.x - N.x, b.z - N.z));
+    const z0 = vis.slice(0, 3).find(z => hasLineOfSight(npcQ.set(N.x, 1.5, N.z), npcQ2.set(z.x, z.y + 1.2, z.z)));
+    if (z0) {
+      N.tiroT = 0.95; N.yaw = Math.atan2(-(z0.x - N.x), -(z0.z - N.z));
+      broadcast({ t: 'npctiro', x: r2(N.x), z: r2(N.z), tx: r2(z0.x), ty: r2(z0.y + 1.2), tz: r2(z0.z) });
+      zFerir(z0, N.segue, Math.round(zVidaBase(Math.max(1, Z.round)) * 0.55 * (z0.boss ? 0.2 : 1)), { semGrana: true });
+    }
+  }
+}
+const npcMsg = () => Z.npc ? [r2(Z.npc.x), r2(Z.npc.z), r2(Z.npc.yaw), Math.max(0, Math.round(Z.npc.hp / Z.npc.max * 100))] : 0;
+// desenho do fazendeiro
+function npcMesh() {
+  const g = new THREE.Group(), pele = lam(0xe0b08a), jeans = lam(0x2f4a7a), xadrez = lam(0xb0302a), palha = lam(0xd8b860);
+  const P = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  const pe = [P(new THREE.BoxGeometry(0.28, 0.9, 0.3), jeans, -0.17, 0.45, 0), P(new THREE.BoxGeometry(0.28, 0.9, 0.3), jeans, 0.17, 0.45, 0)];
+  P(new THREE.BoxGeometry(0.75, 0.75, 0.42), xadrez, 0, 1.28, 0); P(new THREE.BoxGeometry(0.5, 0.5, 0.44), jeans, 0, 1.05, 0.01);
+  P(new THREE.BoxGeometry(0.2, 0.7, 0.2), xadrez, -0.48, 1.25, -0.15).rotation.x = -1.2; P(new THREE.BoxGeometry(0.2, 0.7, 0.2), xadrez, 0.48, 1.25, -0.15).rotation.x = -1.2;
+  P(new THREE.BoxGeometry(0.5, 0.52, 0.48), pele, 0, 1.92, 0); P(new THREE.BoxGeometry(0.52, 0.2, 0.1), lam(0xe8e8e8), 0, 1.74, -0.25);
+  P(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 16), palha, 0, 2.2, 0); P(new THREE.CylinderGeometry(0.3, 0.32, 0.3, 14), palha, 0, 2.36, 0);
+  P(new THREE.BoxGeometry(0.1, 0.12, 1.1), lam(0x3a2a1a), 0, 1.3, -0.65);
+  const ic = iconSprite('🧑‍🌾', 0x3dff8b); ic.position.y = 2.9; g.add(ic);
+  const barra = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09), new THREE.MeshBasicMaterial({ color: 0x3dff8b, depthTest: false })); barra.position.y = 2.5; g.add(barra);
+  return { g, pe, barra, x: 0, z: 0, yaw: 0, tx: 0, tz: 0, tyaw: 0, passo: 0 };
+}
+function npcView(np) {
+  if (!FAZ) return;
+  if (!np) { if (FAZ.npcV) FAZ.npcV.g.visible = false; return; }
+  if (!FAZ.npcV) { FAZ.npcV = npcMesh(); mapGroup.add(FAZ.npcV.g); FAZ.npcV.x = np[0]; FAZ.npcV.z = np[1]; }
+  const V = FAZ.npcV; V.g.visible = true; V.tx = np[0]; V.tz = np[1]; V.tyaw = np[2];
+  V.barra.scale.x = Math.max(0.02, (np[3] | 0) / 100); V.barra.material.color.setHex(np[3] > 50 ? 0x3dff8b : np[3] > 25 ? 0xffd23d : 0xff3b3b);
+}
+function npcAnim(dt) {
+  const V = FAZ?.npcV; if (!V?.g.visible) return;
+  const k = Math.min(1, dt * 10), ax = V.x, az = V.z; V.x += (V.tx - V.x) * k; V.z += (V.tz - V.z) * k; V.yaw += Math.atan2(Math.sin(V.tyaw - V.yaw), Math.cos(V.tyaw - V.yaw)) * k;
+  const v = Math.hypot(V.x - ax, V.z - az) / Math.max(dt, 1e-3); V.passo += dt * v * 2.2;
+  V.pe[0].rotation.x = Math.sin(V.passo) * 0.6 * Math.min(1, v / 3); V.pe[1].rotation.x = -V.pe[0].rotation.x;
+  V.g.position.set(V.x, 0, V.z); V.g.rotation.y = V.yaw; V.barra.quaternion.copy(camera.quaternion);
+}
+function onNpc(m) {
+  if (!FAZ) return;
+  if (m.ev === 'solto') { FAZ.npcSolto = true; banner('🧑‍🌾 O FAZENDEIRO ESTÁ LIVRE!', 3); feed(`🧑‍🌾 ${m.by === net.myId ? 'Você soltou' : nameOf(m.by) + ' soltou'} o Seu Zé do silo! Ele vai com vocês atirando. Levem ele no 🚁 para ganhar um bônus.`); [523, 659, 784].forEach((f, i) => tone(f, 0.15, { type: 'triangle', vol: 0.05, delay: i * 0.1 })); }
+  if (m.ev === 'morreu') { banner('😢 O fazendeiro não resistiu…', 2.5); feed('🧑‍🌾 Os zumbis pegaram o Seu Zé.'); npcView(0); }
+}
+function onNpcTiro(m) {
+  const a = new THREE.Vector3(+m.x, 1.5, +m.z), b = new THREE.Vector3(+m.tx, +m.ty, +m.tz);
+  const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.9 }));
+  scene.add(ln); setTimeout(() => { scene.remove(ln); ln.geometry.dispose(); }, 90);
+  burst(b, 0xffd23d, 6, 2);
+  const d = Math.hypot(player.pos.x - a.x, player.pos.z - a.z); if (d < 35) { beep(160, 0.12, 'sawtooth', 0.07 * (1 - d / 35), -80); }
+}
+// ===== 🚜 trator: quem dirige vai no lugar dele (WASD/joystick), atropela zumbis; E sai =====
+const TRATOR_Y = 1.1;
+function zTrator(from, m) {
+  const T = FAZ?.trator, p = net.players[from]; if (!T || !p) return;
+  const q = hostPos(from);
+  if (m.on) {
+    if (T.piloto || p.dead || p.down || !FAZ.energia || !q || Math.hypot(q.x - T.x, q.z - T.z) > 4) return;
+    T.piloto = from; T.ult = null; T.vh = 0; broadcast({ t: 'trator', id: from });
+  } else if (T.piloto === from) {
+    if (typeof m.x === 'number' && q && Math.hypot(m.x - q.x, m.z - q.z) < 4) { T.x = m.x; T.z = m.z; T.yaw = +m.y || 0; } else if (q) { T.x = q.x; T.z = q.z; }
+    zTratorSai();
+  }
+}
+function zTratorSai() { const T = FAZ.trator; T.piloto = null; broadcast({ t: 'trator', id: null, x: r2(T.x), z: r2(T.z), y: r2(T.yaw) }); }
+function zTratorTick(dt) {
+  const T = FAZ?.trator; if (!T?.piloto) return;
+  const p = net.players[T.piloto], q = zPlayerPos(T.piloto);
+  if (!p || p.dead || p.down || !q) { if (q) { T.x = q[0]; T.z = q[2]; } return zTratorSai(); }
+  T.x = q[0]; T.z = q[2];
+  T.sT = (T.sT || 0) + dt; if (T.sT >= 0.25) { T.vh = T.ult ? Math.hypot(q[0] - T.ult[0], q[2] - T.ult[2]) / T.sT : 0; T.ult = q.slice(); T.sT = 0; }
+  if (T.vh < 3) return;
+  const now = performance.now();
+  for (const z of [...Z.sim.values()]) if (Math.hypot(z.x - q[0], z.z - q[2]) < 2.3 && !(z.atropT > now)) { z.atropT = now + 600; zFerir(z, T.piloto, Math.round(zVidaBase(Math.max(1, Z.round)) * 2.2 * (z.boss ? 0.15 : 1)), { semGrana: true }); }
+}
+function tratorParado() {
+  const T = FAZ.trator; T.g.position.set(T.x, 0, T.z); T.g.rotation.y = T.yaw;
+  const c = Math.abs(Math.cos(T.yaw)), sn = Math.abs(Math.sin(T.yaw)), hx = c * 1.25 + sn * 1.85, hz = sn * 1.25 + c * 1.85;
+  T.o.box.min.set(T.x - hx, 0, T.z - hz); T.o.box.max.set(T.x + hx, 2.8, T.z + hz);
+  if (!obstacles.includes(T.o)) obstacles.push(T.o);
+}
+function onTrator(m) {
+  const T = FAZ?.trator; if (!T) return;
+  const antes = T.piloto; T.piloto = m.id || null;
+  if (T.piloto) { const i = obstacles.indexOf(T.o); if (i >= 0) obstacles.splice(i, 1); }
+  else { if (typeof m.x === 'number') { T.x = m.x; T.z = m.z; T.yaw = +m.y || 0; } tratorParado(); }
+  if (m.id === net.myId) {
+    player.trator = true; T.v = 0; player.pos.set(T.x, TRATOR_Y, T.z); player.climb = null; if (player.crouch) setCrouch(false);
+    banner('🚜 Dirigindo o trator!', 2); feed(`🚜 ${isTouch ? 'Joystick' : 'W/S'} acelera, ${isTouch ? 'para os lados' : 'A/D'} vira · passe por cima dos zumbis · ${isTouch ? 'SAIR' : 'E'} desce`);
+    tone(70, 0.8, { type: 'sawtooth', vol: 0.08, slide: 40, lp: 500 });
+  } else if (player.trator) { // desci (ou o dono me tirou)
+    player.trator = false;
+    for (const [ox, oz] of [[2.4, 0], [-2.4, 0], [0, 2.6], [0, -2.6]]) { const a = Math.cos(T.yaw), b = Math.sin(T.yaw); player.pos.set(T.x + ox * a + oz * b, 0, T.z - ox * b + oz * a); if (!collides(player.pos, PLAYER_R, player.eye)) break; }
+  } else if (m.id && antes !== m.id) feed(`🚜 ${nameOf(m.id)} está dirigindo o trator`);
+}
+function sairTrator() { const T = FAZ?.trator; if (!T) return; sendNet({ t: 'trator', on: 0, x: r2(T.x), z: r2(T.z), y: r2(T.yaw) }); }
+function dirigeTrator(dt) {
+  const T = FAZ.trator;
+  let mx = 0, mz = 0;
+  if (keys.KeyW || keys.ArrowUp) mz += 1; if (keys.KeyS || keys.ArrowDown) mz -= 1;
+  if (keys.KeyD || keys.ArrowRight) mx += 1; if (keys.KeyA || keys.ArrowLeft) mx -= 1;
+  mx += touchMove.x; mz -= touchMove.y; if (shopOpen) mx = mz = 0;
+  const alvoV = mz > 0.1 ? 12 * Math.min(1, mz) : mz < -0.1 ? 5 * Math.max(-1, mz) : 0;
+  T.v += (alvoV - T.v) * Math.min(1, dt * (alvoV === 0 ? 1.6 : 2.4));
+  if (Math.abs(T.v) > 0.3) T.yaw -= Math.max(-1, Math.min(1, mx)) * 1.8 * dt * Math.sign(T.v);
+  const p = player.pos, ax = p.x, az = p.z, fx = -Math.sin(T.yaw), fz = -Math.cos(T.yaw);
+  p.y = 0; moveWithCollision(p, fx * T.v * dt, fz * T.v * dt, 1.3, 2.2);
+  if (Math.hypot(p.x - ax, p.z - az) < Math.abs(T.v * dt) * 0.3) T.v *= 0.2; // bateu
+  p.y = TRATOR_Y; player.vy = 0; player.onGround = true; player.mom.set(0, 0, 0);
+  T.x = p.x; T.z = p.z; T.g.position.set(p.x, 0, p.z); T.g.rotation.y = T.yaw;
+  T.somT = (T.somT || 0) - dt; if (T.somT <= 0) { T.somT = 0.18; tone(55 + Math.abs(T.v) * 6, 0.2, { type: 'sawtooth', vol: 0.03, lp: 400 }); }
+  return updatePlayerFim(dt, false);
+}
+// o trator de quem está dirigindo (para os outros)
+function tratorView() {
+  const T = FAZ?.trator; if (!T?.piloto || T.piloto === net.myId) return;
+  const r = remotes.get(T.piloto); if (!r) return;
+  T.g.position.set(r.pos.x, 0, r.pos.z); if (typeof r.tr === 'number') T.g.rotation.y = r.tr;
+}
 function fazMaqLuz(on) { for (const M of FAZ?.maquinas || []) { M.tela.material.emissiveIntensity = on ? 0.9 : 0; M.luz.intensity = on ? 3 : 0; } }
 function onArm(m) {
   const A = FAZ?.arms?.[m.i | 0]; if (!A) return;
@@ -7773,6 +7970,8 @@ const PECAS = {
   radio: { ic: '📻', nome: 'Rádio velho', tipo: 'radio' }, fone: { ic: '🎧', nome: 'Fone do rádio', tipo: 'radio' },
   fus1: { ic: '🔌', nome: 'Fusível', tipo: 'fus' }, fus2: { ic: '🔌', nome: 'Fusível', tipo: 'fus' }, fus3: { ic: '🔌', nome: 'Fusível', tipo: 'fus' },
   gasolina: { ic: '⛽', nome: 'Galão de gasolina', tipo: 'gas' },
+  chave: { ic: '🗝️', nome: 'Chave do silo', tipo: 'chave' },
+  ovo1: { ic: '🥚', nome: 'Ovo dourado', tipo: 'ovo' }, ovo2: { ic: '🥚', nome: 'Ovo dourado', tipo: 'ovo' }, ovo3: { ic: '🥚', nome: 'Ovo dourado', tipo: 'ovo' },
 };
 const pecasDoTipo = t => Object.keys(PECAS).filter(k => PECAS[k].tipo === t);
 const RADIO_S = 12, HELI_VINDO = 120, HELI_ESPERA = 40, FOGO_S = 6;
@@ -7793,7 +7992,8 @@ function fazFogueira(from) {
 function fazSortearPecas() {
   if (!FAZ) return;
   Z.pecas = Object.fromEntries(Object.entries(FAZ.pecaOpcoes).map(([k, ops]) => [k, { pos: randomFrom(ops), pega: false }]));
-  Z.radioProg = 0; Z.extr = null; Z.fogoOk = false; Z.fogoProg = 0;
+  Z.radioProg = 0; Z.extr = null; Z.fogoOk = false; Z.fogoProg = 0; Z.npc = null; Z.npcSolto = false;
+  if (FAZ.trator) { FAZ.trator.piloto = null; FAZ.trator.x = FAZ.trator.x0; FAZ.trator.z = FAZ.trator.z0; FAZ.trator.yaw = 0; }
   for (const G of FAZ.gens) G.fus = false;
   broadcast({ t: 'pecas', l: fazPecasMsg() });
 }
@@ -7801,8 +8001,10 @@ const fazPecasMsg = () => Z.pecas ? Object.entries(Z.pecas).map(([k, P]) => [k, 
 function fazPegarPeca(from, k) {
   const P = Z.pecas?.[k], p = net.players[from]; if (!P || P.pega || !p || p.dead || p.down) return;
   const q = hostPos(from); if (!q || Math.hypot(q.x - P.pos[0], q.z - P.pos[2]) > 2.6) return;
-  P.pega = true; zPagar(from, 250);
+  P.pega = true; zPagar(from, PECAS[k]?.tipo === 'ovo' ? 500 : 250);
   broadcast({ t: 'pecas', l: fazPecasMsg(), k, by: from });
+  // 🥚 os 3 ovos dourados: todo mundo ganha o 🔱 Forcado de tinta (na aba da caixa)
+  if (PECAS[k]?.tipo === 'ovo' && pecasDoTipo('ovo').every(o => Z.pecas[o]?.pega)) for (const [id, pl] of Object.entries(net.players)) { pl.caixa = { w: 'forcado', l: Math.min(NIVEL_MAX, zNivelLoja() + 2) }; broadcast({ t: 'caixa', id, w: 'forcado', l: pl.caixa.l, ovos: 1 }); }
 }
 function fazRadio(from) {
   const p = net.players[from], now = performance.now(); if (!p || p.dead || p.down || Z.extr || !FAZ.energia) return;
@@ -7829,7 +8031,9 @@ function zExtrTick(dt) {
     Z.extr = null; Z.radioProg = 0;
     if (quem.length) {
       const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
-      broadcast({ t: 'extr', f: 'foi', quem, r: Z.round, kills });
+      const npc = Z.npc && Math.hypot(Z.npc.x - FAZ.heliPos[0], Z.npc.z - FAZ.heliPos[1]) < FAZ.heliR + 1.5;
+      if (npc) for (const id of quem) zPagar(id, 1500);
+      broadcast({ t: 'extr', f: 'foi', quem, r: Z.round, kills, npc: npc ? 1 : 0 });
       Z.over = true; Z.overT = 12; Z.toSpawn = 0; if (net.local) Z.started = false;
     } else broadcast({ t: 'extr', f: 'foi', quem: [] });
     return;
@@ -7850,10 +8054,12 @@ function fazPecasView(l) {
       else if (k === 'antena') { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 1.4, 6), L(0x9aa0a6)); h.position.y = 0.9; const d = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.1, 0.12, 14), L(0xd8dde6)); d.position.y = 1.5; d.rotation.x = 0.6; g.add(h, d); }
       else if (k === 'fone') { const ar = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 6, 16, Math.PI), L(0x2a2a2a)); ar.position.y = 0.7; g.add(ar); for (const dx of [-0.3, 0.3]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 12), L(0x3db8ff)); c.rotation.z = Math.PI / 2; c.position.set(dx, 0.7, 0); g.add(c); } }
       else if (PECAS[k]?.tipo === 'fus') { const f = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.5, 10), L(0xffd23d)); f.rotation.z = Math.PI / 2; f.position.y = 0.5; g.add(f); for (const dx of [-0.28, 0.28]) { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.08, 10), L(0x9aa0a6)); t.rotation.z = Math.PI / 2; t.position.set(dx, 0.5, 0); g.add(t); } }
+      else if (PECAS[k]?.tipo === 'ovo') { const o = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10), new THREE.MeshLambertMaterial({ color: 0xffd23d, emissive: 0xc08a00, emissiveIntensity: 0.7 })); o.scale.set(1, 1.3, 1); o.position.y = 0.3; g.add(o); }
+      else if (k === 'chave') { const a = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.05, 6, 14), L(0xffd23d)); a.position.y = 0.75; const h = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.55, 0.07), L(0xffd23d)); h.position.y = 0.38; const d = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.07, 0.07), L(0xffd23d)); d.position.set(0.1, 0.18, 0); g.add(a, h, d); }
       else if (k === 'gasolina') { const gl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.25), L(0xc0392b)); gl.position.y = 0.45; const al = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.08), L(0x2a2a2a)); al.position.y = 0.85; g.add(gl, al); }
       else { const r = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.3), L(0x8a5a2b)); r.position.y = 0.5; const a = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.05, 12), L(0x111111)); a.rotation.x = Math.PI / 2; a.position.set(-0.12, 0.5, 0.16); g.add(r, a); }
-      const ic = iconSprite(PECAS[k].ic, 0xffd23d); ic.position.y = 2.2; g.add(ic);
-      const feixe = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 12, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.12, depthWrite: false })); feixe.position.y = 6; g.add(feixe);
+      const secreto = PECAS[k].tipo === 'ovo', ic = secreto ? new THREE.Object3D() : iconSprite(PECAS[k].ic, 0xffd23d); ic.position.y = 2.2; g.add(ic);
+      if (!secreto) { const feixe = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 12, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.12, depthWrite: false })); feixe.position.y = 6; g.add(feixe); }
       g.position.set(x, y, z); scene.add(g);
       m = { g, k, x, y, z, ic }; pecaMeshes.set(k, m);
     }
@@ -7881,7 +8087,7 @@ function fazExtrView(m) {
     const fui = (m.quem || []).includes(net.myId);
     if (!m.quem?.length) { banner('🚁 O helicóptero foi embora sem ninguém… Chamem de novo no rádio', 4); FAZ.radioLed.material.color.setHex(0x552222); }
     else if (fui) {
-      bumpStat('fuga', 1, true); checkUnlocks?.();
+      bumpStat('fuga', 1, true); if (m.npc) { bumpStat('fazendeiro', 1, true); feed('🧑‍🌾 O Seu Zé também escapou! +1500 💰'); } checkUnlocks?.();
       const meus = m.kills?.[net.myId] ?? player.kills;
       if (net.local) showResults('🚁 VOCÊ ESCAPOU!', `Fugiu da Fazenda Assombrada na rodada ${m.r}!`, [[m.r, 'rodada'], [meus, 'monstros pintados'], ['🚁', 'fuga']]);
       else banner(`🚁 VOCÊS ESCAPARAM! (${m.quem.map(nameOf).join(', ')})`, 8);
@@ -7958,7 +8164,7 @@ function animHeli(dt, t) {
 // Só vale nas hordas. Começa com uma pistola fraca; pintar monstros dá 💰; na lojinha (um quiosque em
 // todo mapa) dá para comprar uma das 2 armas da vez ou melhorar a arma na mão (até o nível NIVEL_MAX).
 // O dono da sala guarda o dinheiro e as armas de cada um (p.cash e p.inv).
-const WPRECO = { bazuca: 1600, raio: 1500, confete: 1300, pistola: 250, rolo: 300, revolver: 450, smg: 500, marcador: 550, mangueira: 600, escopeta: 750, rajada: 800, metralha: 850, besta: 900, sniper: 950, balde: 1250 };
+const WPRECO = { forcado: 1800, bazuca: 1600, raio: 1500, confete: 1300, pistola: 250, rolo: 300, revolver: 450, smg: 500, marcador: 550, mangueira: 600, escopeta: 750, rajada: 800, metralha: 850, besta: 900, sniper: 950, balde: 1250 };
 const NIVEL_MAX = 10;
 const RECOMPENSA = { comum: 50, corredor: 60, rastejante: 40, cuspidor: 80, bomba: 70, saltador: 90, fantasma: 100, tanque: 140, gritador: 110, mae: 250 };
 const INV_INICIAL = () => [{ w: 'pistola', l: zd().nivel }]; // nos níveis fáceis a pistola já começa melhor
@@ -8796,6 +9002,7 @@ function jumpPressed() {
 }
 
 function updatePlayer(dt) {
+  if (player.trator && FAZ?.trator) return dirigeTrator(dt);
   const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
   const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
   let mx = 0, mz = 0;
@@ -9265,7 +9472,7 @@ function frame() {
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt);
-    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); corvosView(dt, t); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
+    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); corvosView(dt, t); npcAnim(dt); tratorView(); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
     if (armaOpen && (state !== 'play' || meDead)) toggleArmaMenu(false);
@@ -9275,7 +9482,7 @@ function frame() {
     net.sendT -= dt;
     if (net.sendT <= 0) {
       net.sendT = 1 / 10;
-      sendNet({ t: 's', w: player.weapon, p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch), c: (player.crouch || player.slideT > 0) ? 1 : 0, e: (player.speedT > 0 ? 1 : 0) | (player.invT > 0 ? 2 : 0), pk: player.pk | 0 });
+      sendNet({ t: 's', w: player.weapon, p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch), c: (player.crouch || player.slideT > 0) ? 1 : 0, e: (player.speedT > 0 ? 1 : 0) | (player.invT > 0 ? 2 : 0), pk: player.pk | 0, tr: player.trator && FAZ?.trator ? r3(FAZ.trator.yaw) : undefined });
     }
   } else if (state === 'play') {
     updatePlayer(dt);
