@@ -937,7 +937,7 @@
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
             Monstros: ⚡ Corredor, 🤢 Cuspidor (ácido deixa lento), 💥 Bomba de Tinta (explode, até em outros zumbis), 🛡️ Brutamontes (blindado: mire na cabeça), 🕷️ Rastejante, 🦘 Saltador, 👻 Fantasma (atravessa paredes), 📢 Gritador (enfurece a horda) e 🥚 Mãe da Horda. A cada 3 rodadas vem uma rodada especial (neblina, apagão, lua de sangue…). 💾 Na rodada 5, 10, 15… o jogo salva um checkpoint: se todo mundo cair, vocês voltam para essa rodada (com o dinheiro e as armas, e na Missão sem perder o progresso) em vez de recomeçar do zero.</section>
           <section><h4>🌾 Missão: Fazenda Assombrada</h4>Vocês começam trancados na casa. Os zumbis saem da terra e entram pelas janelas: segure <b>E</b> perto de uma janela (do lado de dentro) para pregar as tábuas de volta. A seta no alto mostra o próximo objetivo:<br>
-            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante.</section>
+            1) abrir a porta da frente (💰) e as porteiras para o celeiro, o milharal, o galpão e o pasto; 2) achar os 🔌 fusíveis e consertar os 3 ⚡ geradores (segure <b>E</b>; o barulho atrai zumbis): com energia voltam as vantagens e a Turbinar; 3) achar as 4 peças do 📻 rádio (🔋 📡 📻 🎧, mudam de lugar a cada partida); 4) segurar <b>E</b> no rádio da casa para chamar o 🚁 e sobreviver 2 min de horda; 5) acender a 🔥 fogueira de sinal ao lado do H (precisa do ⛽ galão), senão o piloto não acha vocês; 6) quem estiver no 🅷 do pasto quando ele decolar escapa. Na Missão os zumbis são mais lentos e espaçados e o intervalo entre as rodadas é de 30 s. O chefão da fazenda é o 🎃 Espantalho Gigante. As <b>vantagens</b> ficam em 🥤 máquinas espalhadas pela fazenda (só com energia); há 🔫 <b>armas desenhadas nas paredes</b> (mais baratas que a loja, entram no lugar da arma da mão) e ⚡🌀 <b>armadilhas</b> (cerca elétrica na frente da casa e trilhadeira no milharal: alavanca + 💰 1000, 20 s ligada). Tudo isso no E (ou no botão de interagir).</section>
           <section><h4>🎨 Visual e conquistas</h4>
             No menu, <b>🎨 Visual</b> muda a cor da máscara, do macacão e da sua tinta. Chapéus e acessórios destravam jogando: abates, headshots, vitórias, recordes do treino.
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
@@ -1564,6 +1564,7 @@ function useDoor() {
   if (state !== 'play' || meDead || meDown) return;
   if (reviveId) return; // perto de amigo caído, o E é para levantar
   const pp = portaPagaPerto(); if (pp >= 0) return comprarPorta(pp);
+  const I = fazInterPerto(); if (I) return fazInteragir(I);
   const i = nearDoor(); if (i < 0) return;
   if (mode === 'online' && !net.local) sendNet({ t: 'door', i, o: doors[i].open ? 0 : 1 });
   else setDoor(i, !doors[i].open);
@@ -1575,8 +1576,9 @@ function updateDoors(dt) {
     d.pivot.rotation.y = d.ang;
   }
   if (isTouch && state === 'play') {
-    const perto = (nearDoor() >= 0 || portaPagaPerto() >= 0) && !reviveId;
+    const I = portaPagaPerto() < 0 ? fazInterPerto() : null, perto = (nearDoor() >= 0 || portaPagaPerto() >= 0 || !!I) && !reviveId;
     if (perto !== updateDoors.btn) { updateDoors.btn = perto; $('doorBtn').style.display = perto ? 'flex' : 'none'; }
+    const lbl = I ? interBtn(I) : '🚪 PORTA'; if (lbl !== updateDoors.lbl) { updateDoors.lbl = lbl; $('doorBtn').textContent = lbl; }
   }
 }
 
@@ -1864,6 +1866,57 @@ function portaPaga(nome, preco, x, z, w, ax, abre, cor = 0x6b4426, h = 2.3) {
   obstacles.push(o);
   return { nome, preco, x, z, w, ax, abre, pivot, placas: [placa, placa2], o, aberta: false, ang: 0 };
 }
+// 🥤 máquina de vantagem no mapa da Missão (só funciona com energia); k = chave de VANTAGENS
+function maquinaVant(k, ic, cor, x, z, ry, onde) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
+  const corpo = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.3, 0.9), lam(cor)); corpo.position.y = 1.15; corpo.castShadow = true;
+  const tela = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.0, 0.06), new THREE.MeshLambertMaterial({ color: 0x1a1a1a, emissive: cor, emissiveIntensity: 0 })); tela.position.set(0, 1.55, 0.46);
+  const bico = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.28, 0.1), lam(0x111111)); bico.position.set(0, 0.55, 0.47);
+  const topo = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1.0), lam(0x222222)); topo.position.y = 2.38;
+  const ico = iconSprite(ic, cor); ico.position.y = 3.0;
+  g.add(corpo, tela, bico, topo, ico); mapGroup.add(g);
+  const lado = Math.abs(Math.sin(ry)) > 0.5; collider(x, z, lado ? 1.0 : 1.4, lado ? 1.4 : 1.0, 0, 2.5);
+  const fx = Math.sin(ry), fz = Math.cos(ry);
+  const luz = new THREE.PointLight(cor, 0, 7, 1.6); luz.position.set(x + fx * 1.2, 1.8, z + fz * 1.2); mapGroup.add(luz);
+  return { k, x: x + fx * 1.05, z: z + fz * 1.05, tela, luz, onde };
+}
+// 🔫 arma desenhada na parede (Missão): compra ali mesmo, mais barata que a loja
+function armaParede(w, ic, nome, x, z, ry) {
+  const t = canvasTex(512, 256, (g, cw, ch) => {
+    g.fillStyle = '#20262a'; g.fillRect(0, 0, cw, ch); g.strokeStyle = '#e8e2d0'; g.lineWidth = 8; g.setLineDash([18, 10]); g.strokeRect(14, 14, cw - 28, ch - 28);
+    g.fillStyle = '#f2ecd8'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 110px system-ui'; g.fillText(ic, cw / 2, ch * 0.42); g.font = 'bold 44px system-ui'; g.fillText(nome.toUpperCase(), cw / 2, ch * 0.8);
+  });
+  const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9), new THREE.MeshLambertMaterial({ map: t, emissive: 0x222222 })); pl.position.set(x, 1.7, z); pl.rotation.y = ry; mapGroup.add(pl);
+  return { w, x: x + Math.sin(ry) * 1.0, z: z + Math.cos(ry) * 1.0 };
+}
+// ⚡🌀 armadilha (Missão): alavanca liga por ARM_S; rect = área que machuca os zumbis
+function armadilha(tipo, ic, nome, rect, alav) {
+  const [x1, z1, x2, z2] = rect, cx = (x1 + x2) / 2, cz = (z1 + z2) / 2, metal = mat('metal', () => lam(0x55595f));
+  // alavanca
+  addBox(alav[0], alav[1], 0.5, 1.2, 0.4, mat('alavCx', () => lam(0x8a2a1a)));
+  const cabo = new THREE.Group(); cabo.position.set(alav[0], 1.2, alav[1]);
+  const haste = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6), metal); haste.position.y = 0.4; const bola = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), lam(0xff3b3b)); bola.position.y = 0.8;
+  cabo.add(haste, bola); cabo.rotation.z = 0.6; mapGroup.add(cabo);
+  const placa = signText(`${ic} ${nome}`, 1.8, 0.36, '#1a0b2e', '#ffd23d', 'bold 40px system-ui'); placa.position.set(alav[0], 2.35, alav[1]); mapGroup.add(placa);
+  const placa2 = placa.clone(); placa2.rotation.y = Math.PI; mapGroup.add(placa2);
+  const A = { tipo, ic, nome, rect, x: alav[0], z: alav[1], cabo, ate: 0, cd: 0, ateV: 0, cdV: 0 };
+  if (tipo === 'cerca') {
+    // cerquinha de fios na frente da área (não segura ninguém; dá choque nos zumbis quando ligada)
+    A.fio = new THREE.MeshLambertMaterial({ color: 0x3a4a5a, emissive: 0x3db8ff, emissiveIntensity: 0 });
+    for (let x = x1; x <= x2 + 0.01; x += 2.5) deco(meshAt(new THREE.BoxGeometry(0.12, 0.9, 0.12), metal, x, 0.45, z1), false);
+    for (const y of [0.3, 0.6, 0.85]) deco(meshAt(new THREE.BoxGeometry(x2 - x1, 0.04, 0.04), A.fio, cx, y, z1), false);
+    for (let k = 0; k < 6; k++) deco(meshAt(new THREE.BoxGeometry(x2 - x1, 0.02, 0.05), A.fio, cx, 0.03, z1 + (k + 0.5) * (z2 - z1) / 6), false);
+  } else {
+    // trilhadeira: rolo de lâminas atravessado que corre a área de ponta a ponta
+    A.rolo = new THREE.Group(); A.rolo.position.set(x1 + 0.6, 0.65, cz);
+    const tambor = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, z2 - z1, 14), lam(0xb03a1a)); tambor.rotation.x = Math.PI / 2;
+    A.giro = new THREE.Group(); A.giro.add(tambor);
+    for (let k = 0; k < 6; k++) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.5, z2 - z1), metal); l.rotation.z = k * Math.PI / 6; A.giro.add(l); }
+    const chassi = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, z2 - z1 + 0.6), lam(0x2a2a2a)); chassi.position.y = 0.6;
+    A.rolo.add(A.giro, chassi); mapGroup.add(A.rolo);
+  }
+  return A;
+}
 function buildFazenda() {
   ARENA = 50;
   setLook({ sky: 0x060914, fogNear: 10, fogFar: 62, hemiSky: 0x5a6a9a, hemiGround: 0x141a10, hemiI: 0.42, sunColor: 0x9fb4ff, sunI: 0.38 });
@@ -2068,6 +2121,24 @@ function buildFazenda() {
     return { x, z, zona, prog: 0, ok: false, motor, led, bulbs, luz };
   });
   FAZ.energia = false;
+  // 🥤 máquinas de vantagem espalhadas (só com energia), 🔫 armas na parede e ⚡🌀 armadilhas
+  FAZ.maquinas = [
+    maquinaVant('vida', '❤️', 0xc0392b, -38, -12.5, 0, 'dentro do celeiro'),
+    maquinaVant('rec', '⚡', 0x3db8ff, 42.3, 42.5, -Math.PI / 2, 'dentro do galpão'),
+    maquinaVant('corre', '🏃', 0x3dff8b, 33.5, 7, -Math.PI / 2, 'na clareira do milharal'),
+    maquinaVant('ajuda', '🤝', 0xffd23d, 11.5, -10, -Math.PI / 2, 'no quintal'),
+    maquinaVant('volta', '🩹', 0xff3dd2, -6, -28, Math.PI, 'no pasto'),
+  ];
+  FAZ.paredes = [
+    armaParede('smg', '🔫', 'Submetralhadora', 1.5, 21.82, Math.PI),
+    armaParede('besta', '🏹', 'Besta', -13, -12.2, 0),
+    armaParede('escopeta', '💥', 'Escopeta', -43.82, -8, Math.PI / 2),
+    armaParede('rajada', '🔫', 'Rajada', 34, 45.82, Math.PI),
+  ];
+  FAZ.arms = [
+    armadilha('cerca', '⚡', 'Cerca elétrica', [-10, 17, 10, 21.4], [-11.5, 15.5]),
+    armadilha('trilha', '🌀', 'Trilhadeira', [19, -8.2, 29, -3.8], [16.8, -9.5]),
+  ];
   // 📻 peças do rádio (cada uma sorteia 1 de 3 lugares por partida) e a mesa do rádio na cozinha
   FAZ.pecaOpcoes = {
     bateria: [[31, 0, 42.6], [40, 0, 42.6], [26.5, 0, 30.5]],
@@ -3669,7 +3740,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 34;
+const VERSAO = 35;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -6531,7 +6602,7 @@ function zHostTick(dt) {
   zSpitTick(dt, alvos);
   zQueima(dt);
   zCaesTick(dt);
-  if (FAZ) zExtrTick(dt);
+  if (FAZ) { zExtrTick(dt); zArmTick(dt); }
   // um não entra no outro (fantasma passa por todos)
   const vivos = [...Z.sim.values()];
   for (let i = 0; i < vivos.length; i++) for (let j = i + 1; j < vivos.length; j++) {
@@ -6793,6 +6864,7 @@ function zOnNet(m) {
       return true;
     }
     case 'bought': onBought(m); return true;
+    case 'arm': onArm(m); return true;
     case 'caixa': onCaixa(m); return true;
     case 'zladrao': {
       if (m.ev === 'chegou') { banner('💸 ZUMBI LADRÃO NA ÁREA!', 2.2); feed('💸 O Ladrão rouba dinheiro de quem ele encostar e foge. Derrube ele para ganhar o DOBRO!'); tone(880, 0.1, { type: 'square', vol: 0.05 }); tone(660, 0.14, { type: 'square', vol: 0.05, delay: 0.12 }); }
@@ -7446,7 +7518,7 @@ function fazGeradorLigado(g, by, quieto) {
 }
 function fazEnergia(quieto) {
   if (!FAZ || FAZ.energia) return;
-  FAZ.energia = true;
+  FAZ.energia = true; fazMaqLuz(true);
   // a fazenda inteira clareia um pouco
   baseLook = { ...baseLook, hemiI: baseLook.hemiI * 1.6, fogFar: baseLook.fogFar + 18 }; applyClima();
   if (quieto) return;
@@ -7459,6 +7531,7 @@ function fazFecharTudo() {
   fazLimparPecas();
   if (!FAZ) return;
   FAZ.extr = null; FAZ.heliSaiu = 0; FAZ.radioProg = 0; FAZ.fogoOk = false; FAZ.fogoProg = 0; FAZ.fogoMesh.visible = false; FAZ.fogoLuz.intensity = 0; for (const G of FAZ.gens) G.fus = false; FAZ.heliFeixe.visible = false; FAZ.heli.g.visible = false; FAZ.radioLed.material.color.setHex(0x552222);
+  fazMaqLuz(false); for (const A of FAZ.arms || []) A.ate = A.cd = A.ateV = A.cdV = 0;
   if (FAZ.energia) { FAZ.energia = false; baseLook = { ...baseLook, hemiI: baseLook.hemiI / 1.6, fogFar: baseLook.fogFar - 18 }; applyClima(); }
   for (const G of FAZ.gens) { G.ok = G.vis = false; G.prog = 0; G.luz.intensity = 0; G.led.material.color.setHex(0xff3b3b); for (const b of G.bulbs) b.material = mat('bulbOff', () => lam(0x3a3a30)); }
   FAZ.tab = FAZ.janelas.map(() => TABUAS); FAZ.janelas.forEach((P, j) => fazTabuasView(j));
@@ -7491,7 +7564,8 @@ function missaoTick(dt = 1 / 60) {
   const fg = state === 'play' && !shopOpen && jn < 0 && gn < 0 && !rd && fogueiraPerto(), fogoPronto = fg && temPecaView('gasolina');
   const semFus = gn >= 0 && !FAZ.gens[gn].fus && fusLivresView() <= 0;
   const faltam = fazPecasFaltam(), radioPronto = rd && FAZ.energia && FAZ.pecasView && !faltam.length;
-  const chave = i >= 0 ? 'p' + i : jn >= 0 ? `j${jn}:${FAZ.tab[jn]}` : gn >= 0 ? `g${gn}:${semFus}:${Math.floor(FAZ.gens[gn].prog * 20)}` : fg ? `f${fogoPronto}:${Math.floor((FAZ.fogoProg || 0) * 20)}` : rd ? `r${radioPronto ? Math.floor((FAZ.radioProg || 0) * 20) : 'x' + faltam.join() + FAZ.energia}` : '';
+  const I = i < 0 && jn < 0 && gn < 0 && !fg && !rd && !shopOpen ? fazInterPerto() : null, iTxt = I ? fazInterTexto(I) : '';
+  const chave = i >= 0 ? 'p' + i : I ? 'I' + iTxt : jn >= 0 ? `j${jn}:${FAZ.tab[jn]}` : gn >= 0 ? `g${gn}:${semFus}:${Math.floor(FAZ.gens[gn].prog * 20)}` : fg ? `f${fogoPronto}:${Math.floor((FAZ.fogoProg || 0) * 20)}` : rd ? `r${radioPronto ? Math.floor((FAZ.radioProg || 0) * 20) : 'x' + faltam.join() + FAZ.energia}` : '';
   if (chave !== missaoTick.i) {
     missaoTick.i = chave;
     const P = FAZ.portas[i];
@@ -7499,6 +7573,7 @@ function missaoTick(dt = 1 / 60) {
       : jn >= 0 ? `🔨 ${isTouch ? 'Segure <b>PREGAR</b>' : 'Segure <kbd>E</kbd>'} para pregar tábuas na janela (${FAZ.tab[jn]}/${TABUAS})`
       : gn >= 0 ? (semFus ? `🔌 O gerador ${gn + 1} está sem fusível: achem um pela fazenda` : `🔧 ${isTouch ? 'Segure <b>CONSERTAR</b>' : 'Segure <kbd>E</kbd>'} para consertar o gerador ${gn + 1} (${Math.round(FAZ.gens[gn].prog * 100)}%)`)
       : fg ? (fogoPronto ? `🔥 ${isTouch ? 'Segure <b>ACENDER</b>' : 'Segure <kbd>E</kbd>'} para acender a fogueira de sinal (${Math.round((FAZ.fogoProg || 0) * 100)}%)` : '🔥 Fogueira de sinal: precisa do ⛽ galão de gasolina')
+      : I ? iTxt
       : rd ? (radioPronto ? `📻 ${isTouch ? 'Segure <b>CHAMAR</b>' : 'Segure <kbd>E</kbd>'} para chamar o helicóptero (${Math.round((FAZ.radioProg || 0) * 100)}%)` : `📻 Rádio quebrado: ${!FAZ.energia ? 'precisa de energia (3 geradores) · ' : ''}${faltam.length ? 'faltam ' + faltam.map(k => PECAS[k].ic).join(' ') : ''}`) : '';
     $('portaPrompt').style.display = chave ? 'block' : 'none';
     $('pregarBtn').style.display = (jn >= 0 || (gn >= 0 && !semFus) || radioPronto || fogoPronto) && isTouch ? 'flex' : 'none';
@@ -7517,6 +7592,101 @@ function missaoTick(dt = 1 / 60) {
 }
 // a Missão por cima do modo Zumbi
 function buildMissao() {}
+// ===== Missão: máquinas de vantagem, armas na parede e armadilhas (tudo no E / botão de interagir) =====
+const ARM_PRECO = 1000, ARM_S = 20, ARM_CD = 60, PAREDE_DESC = 0.8;
+const precoParede = (w, l) => Math.round(precoArma(w, l) * PAREDE_DESC);
+const slotMao = () => { const i = zInv().findIndex(s => s.w === player.weapon); return i < 0 ? 0 : i; };
+// a arma da parede entra no espaço vazio ou no lugar da arma da mão, no nível dela (ou no da rodada)
+function paredeOferta(w) { const inv = zInv(), velho = inv.length < 2 ? null : inv[slotMao()], l = Math.max(velho ? velho.l : 1, zNivelLoja()); return { l, preco: precoParede(w, l), velho }; }
+// o que dá para usar perto de mim
+function fazInterPerto() {
+  if (!FAZ || !isMissao() || meDead || meDown || state !== 'play' || player.pos.y > 1.2) return null;
+  let best = 2.2, r = null;
+  const ver = (lst, tipo) => (lst || []).forEach((o, i) => { const d = Math.hypot(o.x - player.pos.x, o.z - player.pos.z); if (d < best) { best = d; r = { tipo, i, o }; } });
+  ver(FAZ.maquinas, 'maq'); ver(FAZ.paredes, 'parede'); ver(FAZ.arms, 'alav'); ver(FAZ.extras, 'extra');
+  return r;
+}
+const INTER_BTN = { maq: '🥤 COMPRAR', parede: '🔫 COMPRAR', alav: '⚡ LIGAR' };
+const interBtn = I => I.tipo === 'extra' ? I.o.btn : INTER_BTN[I.tipo];
+function fazInterTexto(I) {
+  const me = net.players[net.myId], now = performance.now(), tecla = isTouch ? `Toque em <b>${interBtn(I).replace(/^\S+ /, '')}</b>` : 'Aperte <kbd>E</kbd>';
+  if (I.tipo === 'maq') {
+    const V = VANTAGENS[I.o.k];
+    if ((me?.vant || []).includes(I.o.k)) return `${V.ic} ${V.nome}: você já tem`;
+    if (!FAZ.energia) return `${V.ic} ${V.nome} · 🔌 desligada: liguem os 3 geradores`;
+    return `${V.ic} ${tecla} para beber <b>${V.nome}</b> (${V.desc}) · 💰 ${V.preco}`;
+  }
+  if (I.tipo === 'parede') {
+    const W = WEAPONS[I.o.w]; if (zInv().some(s => s.w === I.o.w)) return `${W.ic} ${W.nome}: você já tem`;
+    const { l, preco, velho } = paredeOferta(I.o.w);
+    return `${W.ic} ${tecla} para comprar <b>${W.nome}</b> ${estrelas(l)}${velho ? ` no lugar da ${WEAPONS[velho.w].nome}` : ''} · 💰 ${preco}`;
+  }
+  if (I.tipo === 'alav') {
+    const A = I.o;
+    if (A.ateV > now) return `${A.ic} ${A.nome} LIGADA (${Math.ceil((A.ateV - now) / 1000)} s)`;
+    if (A.cdV > now) return `${A.ic} ${A.nome} esfriando (${Math.ceil((A.cdV - now) / 1000)} s)`;
+    if (!FAZ.energia) return `${A.ic} ${A.nome} · 🔌 precisa de energia`;
+    return `${A.ic} ${tecla} para ligar <b>${A.nome}</b> por ${ARM_S} s · 💰 ${ARM_PRECO}`;
+  }
+  return I.o.texto?.(tecla) || '';
+}
+function fazInteragir(I) {
+  const me = net.players[net.myId]; if (!me) return;
+  const cash = me.cash | 0, sem = () => { ui.erro(); feed('💰 Dinheiro insuficiente'); };
+  if (I.tipo === 'maq') {
+    const V = VANTAGENS[I.o.k];
+    if ((me.vant || []).includes(I.o.k)) return ui.erro();
+    if (!FAZ.energia) { ui.erro(); return feed('🔌 A máquina está desligada: liguem os 3 geradores'); }
+    if (cash < V.preco) return sem();
+    sendNet({ t: 'buy', op: 5, v: I.o.k });
+  } else if (I.tipo === 'parede') {
+    if (zInv().some(s => s.w === I.o.w)) return ui.erro();
+    if (cash < paredeOferta(I.o.w).preco) return sem();
+    sendNet({ t: 'buy', op: 9, pw: I.i, slot: slotMao() });
+  } else if (I.tipo === 'alav') {
+    const A = I.o, now = performance.now();
+    if (A.ateV > now || A.cdV > now) return ui.erro();
+    if (!FAZ.energia) { ui.erro(); return feed('🔌 A armadilha precisa de energia'); }
+    if (cash < ARM_PRECO) return sem();
+    sendNet({ t: 'buy', op: 10, a: I.i });
+  } else I.o.usar?.(I);
+}
+// dono: a pessoa está mesmo perto do que está comprando?
+const fazPertoHost = (q, o) => !!(q && o && Math.hypot(q.x - o.x, q.z - o.z) < 3.2);
+// dono: armadilha ligada machuca os zumbis dentro da área (4× por segundo)
+function zArmTick(dt) {
+  const now = performance.now();
+  for (const A of FAZ.arms || []) {
+    if (!(A.ate > now)) continue;
+    A.tk = (A.tk || 0) + dt; if (A.tk < 0.25) continue;
+    const d = zVidaBase(Math.max(1, Z.round)) * 1.6 * A.tk; A.tk = 0;
+    const [x1, z1, x2, z2] = A.tipo === 'trilha' ? [A.rx - 1.8, A.rect[1], A.rx + 1.8, A.rect[3]] : A.rect;
+    for (const z of [...Z.sim.values()]) if (z.x > x1 && z.x < x2 && z.z > z1 && z.z < z2) zFerir(z, A.by, Math.round(d * (z.boss ? 0.25 : 1)), { semGrana: true, fx: A.tipo === 'cerca' ? 'raio' : undefined });
+  }
+}
+// todos: desenho das armadilhas, das máquinas acesas
+function fazArmView(dt) {
+  if (!FAZ?.arms) return;
+  const now = performance.now();
+  for (const A of FAZ.arms) {
+    const on = A.ateV > now;
+    A.cabo.rotation.z += ((on ? -0.6 : 0.6) - A.cabo.rotation.z) * Math.min(1, dt * 8);
+    if (A.tipo === 'cerca') { A.fio.emissiveIntensity = on ? 0.7 + Math.random() * 0.6 : 0; if (on && Math.random() < dt * 6) { const [x1, z1, x2, z2] = A.rect; burst(new THREE.Vector3(x1 + Math.random() * (x2 - x1), 0.4, z1 + Math.random() * (z2 - z1)), 0x9fdcff, 4, 2); } }
+    else {
+      // o rolo vai e volta pela área (o dono usa a mesma posição para o dano)
+      const [x1, , x2] = A.rect, k = on ? (Math.sin((now - A.iniV) / 1000 - Math.PI / 2) + 1) / 2 : 0;
+      A.rx = x1 + 0.6 + k * (x2 - x1 - 1.2); A.rolo.position.x = A.rx;
+      if (on) { A.giro.rotation.z -= dt * 14; if (Math.random() < dt * 4) noise(0.12, { f: 300, q: 0.7, vol: 0.02 }); }
+    }
+  }
+}
+function fazMaqLuz(on) { for (const M of FAZ?.maquinas || []) { M.tela.material.emissiveIntensity = on ? 0.9 : 0; M.luz.intensity = on ? 3 : 0; } }
+function onArm(m) {
+  const A = FAZ?.arms?.[m.i | 0]; if (!A) return;
+  const now = performance.now(); A.ateV = now + (+m.s || 0) * 1000; A.cdV = now + (+m.cd || 0) * 1000; A.iniV = now;
+  feed(`${A.ic} ${m.by === net.myId ? 'Você ligou' : nameOf(m.by) + ' ligou'} a ${A.nome}!`);
+  tone(A.tipo === 'cerca' ? 120 : 70, 0.6, { type: 'sawtooth', vol: 0.06, lp: 900 });
+}
 // 📻 peças do rádio, chamado de socorro e 🚁 extração
 const PECAS = {
   bateria: { ic: '🔋', nome: 'Bateria do trator', tipo: 'radio' }, antena: { ic: '📡', nome: 'Antena', tipo: 'radio' },
@@ -7760,10 +7930,12 @@ function zPagar(id, v) { const p = net.players[id]; if (!p || !v) return 0; p.ca
 function zComprar(from, m) {
   const p = net.players[from]; if (!p || p.dead || p.down || !obj.loja) return;
   const q = hostPos(from), naLoja = q && Math.hypot(q.x - obj.loja.x, q.z - obj.loja.z) <= 4.5;
-  if (!naLoja && !(Z.breakT > 0)) return; // fora do intervalo só no quiosque
+  const op = m.op | 0, fm = isMissao() && FAZ;
+  // na Missão vantagens, armas da parede e armadilhas só no próprio lugar; o resto na loja (ou de qualquer lugar no intervalo)
+  if (fm && (op === 5 || op === 9 || op === 10)) { if (!fazPertoHost(q, op === 5 ? FAZ.maquinas?.find(M => M.k === m.v) : op === 9 ? FAZ.paredes?.[m.pw | 0] : FAZ.arms?.[m.a | 0])) return; }
+  else if (!naLoja && !(Z.breakT > 0)) return; // fora do intervalo só no quiosque
   if (!Array.isArray(p.inv)) zEcoInit(p, true);
-  const op = m.op | 0;
-  if (isMissao() && FAZ && !FAZ.energia && (op === 5 || op === 7 || op === 8)) return; // sem energia
+  if (fm && !FAZ.energia && (op === 5 || op === 7 || op === 8 || op === 10)) return; // sem energia
   if (op === 5) { // vantagem
     const k = m.v, V = VANTAGENS[k]; if (!V || (p.vant ||= []).includes(k) || (p.cash | 0) < V.preco) return;
     p.cash -= V.preco; p.vant.push(k);
@@ -7793,6 +7965,17 @@ function zComprar(from, m) {
     const preco = turboPreco(s.w); if ((p.cash | 0) < preco) return;
     p.cash -= preco; s.t = 1;
     broadcast({ t: 'bought', id: from, w: s.w, l: s.l, up: 1, turbo: 1 });
+  } else if (op === 9) { // 🔫 arma na parede (Missão): mais barata, entra no espaço vazio ou no lugar da arma da mão
+    const w = FAZ?.paredes?.[m.pw | 0]?.w; if (!w || p.inv.some(x => x.w === w)) return;
+    const slot = p.inv.length < 2 ? p.inv.length : (m.slot === 1 ? 1 : 0), velho = p.inv[slot], l = Math.max(velho ? velho.l : 1, zNivelLoja()), preco = precoParede(w, l);
+    if ((p.cash | 0) < preco) return;
+    p.cash -= preco; p.inv[slot] = { w, l };
+    broadcast({ t: 'bought', id: from, w, l, tr: velho?.w || null });
+  } else if (op === 10) { // ⚡🌀 armadilha (Missão)
+    const A = FAZ?.arms?.[m.a | 0], now = performance.now();
+    if (!A || A.ate > now || A.cd > now || (p.cash | 0) < ARM_PRECO) return;
+    p.cash -= ARM_PRECO; A.ate = now + ARM_S * 1000; A.cd = now + (ARM_S + ARM_CD) * 1000; A.by = from;
+    broadcast({ t: 'arm', i: m.a | 0, s: ARM_S, cd: ARM_S + ARM_CD, by: from });
   } else if (op === 2) {
     const s = p.inv.find(x => x.w === m.cur) || p.inv[0];
     if (!s || s.l >= NIVEL_MAX) return;
@@ -7899,12 +8082,17 @@ function renderShop() {
     const E = TURBO[elemento(sel.w)], preco = turboPreco(sel.w);
     cards.push(card(3, '⚙️', `Turbinar ${WEAPONS[sel.w].nome}`, `vira ${WEAPONS[sel.w].nome} ${E.nome} ${E.ic}: dourada, +60% de dano, pente maior e ${E.desc}`, `💰 ${preco}`, cash >= preco, turbinarArma, 'up turbo'));
   } else if (sel) cards.push(card(3, '🏆', `${WEAPONS[sel.w].nome} ${TURBO[elemento(sel.w)].nome}`, 'Nível máximo e turbinada: é o melhor que essa arma fica', '⚙️ TURBO', false, () => {}, 'up turbo'));
-  $('shopDica').firstChild.textContent = shopTab === 'vant' ? 'Vantagens valem até você morrer (cair e ser levantado não tira). Cada uma só uma vez. '
+  $('shopDica').firstChild.textContent = shopTab === 'vant' && isMissao() ? 'Na Missão as vantagens ficam em máquinas espalhadas pelo mapa (vá até elas e aperte E). Valem até você morrer. '
+    : shopTab === 'vant' ? 'Vantagens valem até você morrer (cair e ser levantado não tira). Cada uma só uma vez. '
     : shopTab === 'caixa' ? 'A caixa sorteia uma arma no nível da rodada (às vezes melhor) e, com sorte, uma ARMA ESPECIAL que só existe aqui. Se não gostar, deixe. Com 2 armas, ela entra no lugar da escolhida. '
     : 'Você carrega 2 armas. Toque numa delas para escolher qual melhora e qual sai se você trocar: a arma nova entra no lugar dela com o mesmo nível. As ofertas mudam a cada rodada e, no intervalo, a loja abre de qualquer lugar. ';
-  $('shopDica').querySelector('.kbdHint').textContent = (shopTab === 'vant' ? '1–6 compra' : shopTab === 'caixa' ? '1 gira · 2 pega · 3 deixa · Q escolhe a arma' : '1–2 compra · 3/U melhora · Q escolhe a arma') + ' · ←/→ troca de aba · E/Esc fecha';
-  if (shopTab === 'vant' && isMissao() && FAZ && !FAZ.energia) {
-    $('shopCards').replaceChildren(card(1, '🔌', 'Sem energia', `As máquinas de vantagem estão desligadas. Liguem os 3 geradores da fazenda (${FAZ.gens.filter(G => G.ok).length}/3).`, '⚡ desligado', false, () => {}, 'vant'));
+  $('shopDica').querySelector('.kbdHint').textContent = (shopTab === 'vant' ? '1–6 compra' : shopTab === 'caixa' ? '1 gira · 2 pega · 3 deixa · Q escolhe a arma' : '1–2 compra · 3/U melhora · Q escolhe a arma') + ' · ←/→ troca de aba · B/Esc fecha';
+  if (shopTab === 'vant' && isMissao() && FAZ?.maquinas) {
+    // na Missão as vantagens ficam em máquinas espalhadas pelo mapa (só com energia)
+    const mine = me.vant || [], luz = FAZ.energia, pc = caoPreco(), temCao = caoMeshes.has(net.myId);
+    $('shopCards').replaceChildren(...FAZ.maquinas.map((M, i) => { const V = VANTAGENS[M.k]; return card(i + 1, V.ic, V.nome, `${V.desc} · 📍 máquina ${M.onde}${luz ? '' : ' (🔌 desligada)'}`, mine.includes(M.k) ? '✅ você tem' : `💰 ${V.preco}`, false, () => {}, 'vant' + (mine.includes(M.k) ? ' tem' : '')); }),
+      temCao ? card(6, '🐕', 'Cachorro de tinta', 'ele já está com você nesta rodada', '✅ com você', false, () => {}, 'vant tem')
+        : card(6, '🐕', 'Cachorro de tinta', luz ? 'corre e morde os zumbis perto de você até o fim da rodada' : 'precisa dos 3 geradores ligados', luz ? `💰 ${pc}` : '⚡ desligado', luz && cash >= pc, comprarCao, 'vant'));
     return;
   }
   if (shopTab === 'vant') {
@@ -7942,6 +8130,7 @@ function comprarCao() {
   sendNet({ t: 'buy', op: 8 });
 }
 function comprarVant(k) {
+  if (isMissao() && FAZ?.maquinas) { const M = FAZ.maquinas.find(M => M.k === k); ui.erro(); if (M) feed(`📍 ${VANTAGENS[k].nome}: vá até a máquina ${M.onde}`); return; }
   const me = net.players[net.myId], V = VANTAGENS[k]; if (!shopOpen || !me || !V || (me.vant || []).includes(k)) return;
   if ((me.cash | 0) < V.preco) { ui.erro(); feed('💰 Dinheiro insuficiente'); return; }
   sendNet({ t: 'buy', op: 5, v: k });
@@ -8996,7 +9185,7 @@ function frame() {
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt);
-    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
+    if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
     if (armaOpen && (state !== 'play' || meDead)) toggleArmaMenu(false);
