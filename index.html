@@ -1145,6 +1145,31 @@ scene.add(sun);
 // Tudo é determinístico (sem Math.random) para ficar igual em todos os aparelhos no online.
 let ARENA = 38;
 const obstacles = []; // {mesh, box: Box3}
+// versão da lista: muda a cada push/splice (e quando alguém mexe numa caixa: obsVer++) para refazer a grade
+let obsVer = 0;
+for (const k of ['push', 'splice']) { const f = Array.prototype[k]; obstacles[k] = function (...a) { obsVer++; return f.apply(this, a); }; }
+// grade espacial (células de 4 m): colisão olha só as caixas perto em vez do mapa inteiro
+const GRADE = 4, grade = new Map(); let gradeVer = -1, gradeN = -1, gradeQ = 0;
+function gradeAtual() {
+  if (gradeVer === obsVer && gradeN === obstacles.length) return;
+  gradeVer = obsVer; gradeN = obstacles.length; grade.clear();
+  obstacles.forEach((o, i) => {
+    o._i = i; const b = o.box;
+    for (let ix = Math.floor(b.min.x / GRADE); ix <= Math.floor(b.max.x / GRADE); ix++)
+      for (let iz = Math.floor(b.min.z / GRADE); iz <= Math.floor(b.max.z / GRADE); iz++) {
+        const k = ix * 4096 + iz; let l = grade.get(k); if (!l) grade.set(k, l = []); l.push(o);
+      }
+  });
+}
+// chama fn(o) para cada caixa perto do retângulo (sem repetir)
+function pertoDe(x1, z1, x2, z2, fn) {
+  gradeAtual(); const q = ++gradeQ;
+  for (let ix = Math.floor(x1 / GRADE); ix <= Math.floor(x2 / GRADE); ix++)
+    for (let iz = Math.floor(z1 / GRADE); iz <= Math.floor(z2 / GRADE); iz++) {
+      const l = grade.get(ix * 4096 + iz); if (!l) continue;
+      for (const o of l) if (o._q !== q) { o._q = q; fn(o); }
+    }
+}
 let mapGroup = new THREE.Group(); scene.add(mapGroup);
 let curMap = null, mapTick = null;
 
@@ -3175,14 +3200,17 @@ const player = {
 const EYE = 1.7, PLAYER_R = 0.4;
 
 function collides(p, r, h) {
-  for (const o of obstacles) {
+  // a primeira da lista que bate (igual a percorrer tudo em ordem), mas olhando só as células perto
+  let achou = null;
+  pertoDe(p.x - r, p.z - r, p.x + r, p.z + r, o => {
+    if (achou && achou._i < o._i) return;
     const b = o.box;
-    if (p.y + h < b.min.y || p.y > b.max.y - 0.03) continue; // em pé em cima: anda livre
+    if (p.y + h < b.min.y || p.y > b.max.y - 0.03) return; // em pé em cima: anda livre
     const cx = Math.max(b.min.x, Math.min(p.x, b.max.x));
     const cz = Math.max(b.min.z, Math.min(p.z, b.max.z));
-    if ((p.x - cx) ** 2 + (p.z - cz) ** 2 < r * r) return o;
-  }
-  return null;
+    if ((p.x - cx) ** 2 + (p.z - cz) ** 2 < r * r) achou = o;
+  });
+  return achou;
 }
 // Move com colisão separada por eixo (desliza nas paredes)
 function moveWithCollision(pos, dx, dz, r, h) {
@@ -3214,10 +3242,10 @@ function acharSubida(pos, dirX, dirZ, r, h, alcance) {
 // Altura do chão (topo das caixas permite subir nelas pulando)
 function groundHeight(p, r) {
   let gh = 0;
-  for (const o of obstacles) {
+  pertoDe(p.x - r, p.z - r, p.x + r, p.z + r, o => {
     const b = o.box;
     if (p.x + r > b.min.x && p.x - r < b.max.x && p.z + r > b.min.z && p.z - r < b.max.z && p.y >= b.max.y - 0.3) gh = Math.max(gh, b.max.y);
-  }
+  });
   return gh;
 }
 
@@ -4166,7 +4194,7 @@ function iconSprite(txt, cor) {
   g.fillStyle = '#' + cor.toString(16).padStart(6, '0'); g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fill();
   g.fillStyle = '#1a0b2e'; g.font = 'bold 76px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(txt, 64, 70);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.userData.solta = true; // única: pode liberar junto
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t }));
   sp.scale.set(0.8, 0.8, 1);
   return sp;
@@ -6656,7 +6684,15 @@ function bichoMesh(tipo, parts, extra) {
   for (const x of [-0.35, 0.35]) for (const z of [-0.7, 0.7]) { const p = P(new THREE.BoxGeometry(0.22, 0.8, 0.22), couro, x, 0.4, z); pernas.push(p); }
   return { bicho: { g, pernas, alto: 0.8 }, animalHit: [[1.15, 0.75, -0.3], [1.55, 0.42, 1.2], [1.15, 0.75, 0.55]], icY: 2.7 };
 }
-function removeZombie(id) { const o = zombies.get(id); if (!o) return; scene.remove(o.root); zombies.delete(id); }
+// tira o zumbi da cena e libera a memória da placa de vídeo (geometrias e materiais são de cada zumbi;
+// os rostos ficam em cache e não são liberados)
+function liberaMalha(root) {
+  root.traverse(m => {
+    m.geometry?.dispose?.();
+    for (const mt of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) { if (mt.map?.userData?.solta) mt.map.dispose(); mt.dispose(); }
+  });
+}
+function removeZombie(id) { const o = zombies.get(id); if (!o) return; scene.remove(o.root); liberaMalha(o.root); zombies.delete(id); }
 function clearZombies() { caesView?.([]); zObjView(null); Z.dzView = null; for (const id of [...zombies.keys()]) removeZombie(id); for (const s of zSpitView) scene.remove(s.mesh); zSpitView.length = 0; }
 
 // --- o que todo mundo desenha ---
@@ -8991,7 +9027,7 @@ function zTratorTick(dt) {
 function tratorParado() {
   const T = FAZ.trator; T.g.position.set(T.x, 0, T.z); T.g.rotation.y = T.yaw;
   const c = Math.abs(Math.cos(T.yaw)), sn = Math.abs(Math.sin(T.yaw)), hx = c * 1.25 + sn * 1.85, hz = sn * 1.25 + c * 1.85;
-  T.o.box.min.set(T.x - hx, 0, T.z - hz); T.o.box.max.set(T.x + hx, 2.8, T.z + hz);
+  T.o.box.min.set(T.x - hx, 0, T.z - hz); T.o.box.max.set(T.x + hx, 2.8, T.z + hz); obsVer++;
   if (!obstacles.includes(T.o)) obstacles.push(T.o);
 }
 function onTrator(m) {
@@ -9941,7 +9977,7 @@ function remoteTargetsFor(sid) {
 let obsMeshes = [], obsMeshesN = -1, obsMeshesT = 0;
 function meshesObstaculos() {
   const now = performance.now();
-  if (obsMeshesN !== obstacles.length || now - obsMeshesT > 1000) { obsMeshes = obstacles.filter(o => o.mesh).map(o => o.mesh); obsMeshesN = obstacles.length; obsMeshesT = now; }
+  if (obsMeshesN !== obsVer) { obsMeshes = obstacles.filter(o => o.mesh).map(o => o.mesh); obsMeshesN = obsVer; obsMeshesT = now; }
   return obsMeshes;
 }
 function hasLineOfSight(from, to) {
@@ -10360,12 +10396,12 @@ function updateBalls(dt) {
     }
     // obstáculos
     ballLo.copy(start).min(end).subScalar(0.05); ballHi.copy(start).max(end).addScalar(0.05);
-    for (const o of obstacles) {
-      if (o.soCorpo) continue; // cerca vazada e vão de janela: a bolinha passa
-      const B = o.box; if (B.max.x < ballLo.x || B.min.x > ballHi.x || B.max.z < ballLo.z || B.min.z > ballHi.z || B.max.y < ballLo.y || B.min.y > ballHi.y) continue;
+    pertoDe(ballLo.x, ballLo.z, ballHi.x, ballHi.z, o => {
+      if (o.soCorpo) return; // cerca vazada e vão de janela: a bolinha passa
+      const B = o.box; if (B.max.x < ballLo.x || B.min.x > ballHi.x || B.max.z < ballLo.z || B.min.z > ballHi.z || B.max.y < ballLo.y || B.min.y > ballHi.y) return;
       const p = ballRay.intersectBox(B, ballHit);
       if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { box: B, p: p.clone() }; } }
-    }
+    });
     // chão
     if (!hitInfo && end.y <= 0.01) { hitInfo = { ground: true, p: new THREE.Vector3(end.x, 0.01, end.z) }; }
 
@@ -10598,7 +10634,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { PROPS, rostoChefe, zRostos, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
