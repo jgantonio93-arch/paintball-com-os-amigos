@@ -797,7 +797,7 @@
     <div class="screenHead"><button class="back" id="soloBackBtn">←</button><div><span class="tag">Sem internet</span><h2>Treino solo</h2></div></div>
     <section class="panel"><h3><em>1</em> Modo</h3><div class="cards" id="soloModeSeg"></div></section>
     <section class="panel"><h3><em>2</em> Mapa</h3><div class="cards" id="mapSel"></div></section>
-    <section class="panel"><h3><em>3</em> Dificuldade e clima</h3><div class="chips" id="difSel"></div><div class="chips" id="soloClima" style="margin-top:10px"></div><div class="chips" id="soloCkpt" style="margin-top:10px"></div></section>
+    <section class="panel"><h3><em>3</em> Dificuldade e clima</h3><div class="chips" id="difSel"></div><div class="chips" id="soloClima" style="margin-top:10px"></div><div class="chips" id="soloEsc" style="margin-top:10px"></div><div class="chips" id="soloCkpt" style="margin-top:10px"></div></section>
     <div class="stickyBar"><button class="btn big" id="playBtn">COMEÇAR</button></div>
   </div>
 </div>
@@ -937,7 +937,7 @@
             <b>Roleta de Armas</b>: de tempos em tempos a arma de todo mundo muda sozinha.
             <b>Pique-bandeira</b>: leve a bandeira do outro time até a sua base. <b>Rei do morro</b>: fique sozinho na área marcada.
             <b>Último de pé</b>: sem voltar, o último vivo ganha a rodada. <b>Esconde-esconde</b>: 3 de cada 4 viram objeto do cenário (cada mapa tem os seus) e o resto caça por 90 s; a cada 20 s os escondidos apitam 🎵.
-            <b>Zumbis</b>: todos juntos contra hordas. <b>Chefões</b>: só chefões, vários de uma vez e rodadas malucas. <b>Defesa do Gerador</b>: protejam o gerador do meio do mapa. <b>Sobrevivência</b>: horda sem parar até o resgate. No Zumbi, um chefão a cada 5 rodadas (são 12: 👹 Gigante, 🕷️ Aranha Rainha, 🤡 Palhaço, 🧑‍🚒 Bombeiro, 🍦 Sorveteiro, 🥁 Baterista, 🪓 Lenhador, 🤖 Robô, 👰 Noiva Fantasma, 🩺 Doutor, 🐻 Ursão e 🎃 Espantalho).</section>
+            <b>Zumbis</b>: todos juntos contra hordas. <b>Chefões</b>: só chefões, vários de uma vez e rodadas malucas (na 📈 Escalada, +1 chefão a cada rodada). <b>Defesa do Gerador</b>: protejam o gerador do meio do mapa. <b>Sobrevivência</b>: horda sem parar até o resgate. No Zumbi, um chefão a cada 5 rodadas (são 12: 👹 Gigante, 🕷️ Aranha Rainha, 🤡 Palhaço, 🧑‍🚒 Bombeiro, 🍦 Sorveteiro, 🥁 Baterista, 🪓 Lenhador, 🤖 Robô, 👰 Noiva Fantasma, 🩺 Doutor, 🐻 Ursão e 🎃 Espantalho).</section>
           <section><h4>🧟 Hordas e lojinha</h4>
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
@@ -4277,10 +4277,15 @@ function tickPowerEffects(dt) {
   if (had || fxTxt) updateFx();
 }
 let fxTxt = '';
+// 🔥 encurralado (hordas): com 3+ zumbis colados em você (chefão conta 2) o dano sobe até ×2,5 enquanto durar
+const ENC_R = 4.5;
+const encMult = n => n >= 3 ? Math.min(2.5, 1 + 0.25 * (n - 2)) : 1;
+let encView = 1;
 function updateFx() {
   const parts = [];
   if (player.speedT > 0) parts.push(`⚡ Velocidade ${Math.ceil(player.speedT)}s`);
   if (player.invT > 0) parts.push(`★ Invencível ${Math.ceil(player.invT)}s`);
+  if (encView > 1) parts.push(`🔥 Encurralado: dano ×${encView.toFixed(2).replace(/0$/, '').replace('.', ',')}`);
   for (const k in ZPREMIOS) if (buffOn(k)) parts.push(`${ZPREMIOS[k].icone} ${ZPREMIOS[k].nome} ${Math.ceil((zBuff[k] - performance.now()) / 1000)}s`);
   document.body.classList.toggle('zgelo', buffOn('zgelo')); document.body.classList.toggle('zmorte', buffOn('zmorte'));
   const txt = parts.join('|');
@@ -4322,7 +4327,7 @@ const ALVOS = ['normal', 'cabeca', 'umtiro'];
 // munição infinita, cabeção, bolinha que quica, modo raiz (sem mira e sem números) e caçada ao líder
 const REGRAS_LIGA = ['muni', 'cabecao', 'quica', 'raiz', 'caca'];
 const CFG_PADRAO = { modo: 'dm', mapa: 'arena', clima: 'auto', tempo: 10, kills: 20, caps: 3, hill: 60, rounds: 3, bots: 0, armas: [...WEAPON_ORDER], vida: 1, respawn: 3, dif: 1, rInt: 30, rIgual: true, power: true, regen: true, hs: true, ff: false, itens: true,
-  grav: 1, velo: 1, vamp: 0, prot: 2, alvo: 'normal', muni: false, cabecao: false, quica: false, raiz: false, caca: false, ckpt: false };
+  grav: 1, velo: 1, vamp: 0, prot: 2, alvo: 'normal', muni: false, cabecao: false, quica: false, raiz: false, caca: false, ckpt: false, esc: false };
 // regra que vale agora (fora do online fica o padrão)
 const regra = k => (mode === 'online' || net.joined) ? net.cfg[k] ?? CFG_PADRAO[k] : CFG_PADRAO[k];
 // times do modo Times
@@ -4367,7 +4372,7 @@ function cleanCfg(c) {
     grav: pick('grav'), velo: pick('velo'), vamp: pick('vamp'), prot: pick('prot'), alvo: ALVOS.includes(c.alvo) ? c.alvo : 'normal',
     armas: armas.length ? armas : [...WEAPON_ORDER],
     rIgual: c.rIgual !== false, power: c.power !== false, regen: c.regen !== false, hs: c.hs !== false, ff: c.ff === true, itens: c.itens !== false,
-    ...Object.fromEntries(REGRAS_LIGA.map(k => [k, c[k] === true])), ckpt: c.ckpt === true,
+    ...Object.fromEntries(REGRAS_LIGA.map(k => [k, c[k] === true])), ckpt: c.ckpt === true, esc: c.esc === true,
   };
 }
 // arma que vale para o dano, decidida pelo dono da sala
@@ -4381,7 +4386,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 37;
+const VERSAO = 38;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -5586,6 +5591,7 @@ function renderCfgForm() {
     ['cabecao', '🎈 Cabeção', 'todo mundo com a cabeça gigante (mais fácil de acertar)', true],
     ['quica', '🏀 Bolinha que quica', 'o tiro rebate uma vez na parede e no chão', true],
     ['raiz', '🥷 Modo raiz', 'sem mira na tela, sem números de dano e sem barra de vida dos outros', true],
+    ['esc', '📈 Escalada: +1 chefão a cada rodada', 'rodada 1 = 1 chefão, rodada 2 = 2… vence quem aguentar os 12 de uma vez', c.modo === 'chefoes'],
     ['ckpt', '💾 Checkpoint a cada 5 rodadas', 'se todos caírem, voltam da última rodada 5, 10, 15… (desligado: recomeça da rodada 1)', zb && c.modo !== 'sobrev'],
     ['caca', '👑 Caçada ao líder', 'quem está ganhando fica com uma coroa visível através das paredes', !zb && !es],
   ];
@@ -6323,6 +6329,8 @@ function showSolo() {
   choice($('mapSel'), Object.entries(MAPS).filter(([v, m]) => soloCfg.modo === 'missao' ? m.so === 'missao' : !m.so).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === soloCfg.mapa, v => set('mapa', v), 'card2');
   choice($('difSel'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === +soloCfg.dif, v => set('dif', v));
   choice($('soloClima'), Object.entries(CLIMAS).map(([v, m]) => ({ v, t: `${m.ic} ${m.nome}` })), v => v === (soloCfg.clima || 'auto'), v => { soloCfg.clima = v; save('pb-solo', soloCfg); applyClima(); showSolo(); });
+  $('soloEsc').style.display = soloCfg.modo === 'chefoes' ? '' : 'none';
+  choice($('soloEsc'), [{ v: false, t: '👹 Chefões normal' }, { v: true, t: '📈 Escalada: +1 chefão por rodada' }], v => v === (soloCfg.esc === true), v => set('esc', v));
   $('soloCkpt').style.display = soloCfg.modo === 'ondas' || soloCfg.modo === 'sobrev' ? 'none' : '';
   choice($('soloCkpt'), [{ v: false, t: '🔁 Sem checkpoint' }, { v: true, t: '💾 Checkpoint a cada 5 rodadas' }], v => v === (soloCfg.ckpt === true), v => set('ckpt', v));
   if ($('soloScreen').style.display !== 'flex') { loadMap(soloCfg.mapa); showScreen('soloScreen'); }
@@ -6966,7 +6974,7 @@ function zRenasce(id, frac) {
 }
 // ===== Modos cooperativos novos: 👹 Chefões, ⚡ Defesa do Gerador, ⏳ Sobrevivência =====
 const INFO_COOP = {
-  chefoes: '👹 Toda rodada é de chefão (os 12 em ordem sorteada). Quanto mais difícil, mais chefões ao mesmo tempo e mais fortes; de vez em quando vem uma rodada maluca (Dupla Dinâmica, Espelho, Mini-chefões, Chefão Supremo, Fúria Total, Chefão + Horda, Apagão). Derrotem os 12 para vencer. ',
+  chefoes: '👹 Toda rodada é de chefão (os 12 em ordem sorteada). Quanto mais difícil, mais chefões ao mesmo tempo e mais fortes; de vez em quando vem uma rodada maluca (Dupla Dinâmica, Espelho, Mini-chefões, Chefão Supremo, Fúria Total, Chefão + Horda, Apagão). Derrotem os 12 para vencer. Na 📈 Escalada vem 1 chefão a mais a cada rodada: vence quem aguentar os 12 de uma vez. ',
   defesa: '⚡ Um gerador no meio do mapa: parte dos zumbis vai direto nele. Se quebrar, acabou. No intervalo da loja, fique perto dele para consertar; a partir da rodada 5 ele dá choque em quem chega perto. A cada 3 rodadas: Sabotadores, Cerco ou Blindados. ',
   sobrev: '⏳ A horda não para: cada minuto fica mais difícil (chefão no 5º, 10º…, e quem caiu volta a cada minuto). Caixas de suprimentos caem pelo mapa. Aguente o tempo (6 a 15 min, pela dificuldade) e segure a área do resgate. Loja só no quiosque. ',
 };
@@ -6987,18 +6995,19 @@ function zRodadaChefoes(r) {
   if (!Z.chOrdem) { Z.chOrdem = [...ORDEM_CHEFES].sort(() => Math.random() - 0.5); Z.chPos = 0; }
   // falta algum dos 12? ele vem primeiro
   const prox = () => { for (let k = 0; k < Z.chOrdem.length; k++) { const i = Z.chOrdem[(Z.chPos + k) % Z.chOrdem.length]; if (!Z.chDerrot.has(i) && !fila.includes(i)) { Z.chPos += k + 1; return i; } } return Z.chOrdem[Z.chPos++ % Z.chOrdem.length]; };
-  let n = Math.min(4, 1 + Math.floor((r - 1) / ritmo) + (dif >= 1.8 ? 1 : 0));
+  const esc = !!net.cfg.esc; // 📈 Escalada: a rodada r tem r chefões
+  let n = esc ? r : Math.min(4, 1 + Math.floor((r - 1) / ritmo) + (dif >= 1.8 ? 1 : 0));
   const nivel = Math.min(3, 1 + Math.floor((r - 1) / 4) + (dif >= 1.4 ? 1 : 0));
   let vr = null;
-  if (r >= 3 && (dif >= 1.8 || r % 2 === 1)) vr = randomFrom(Object.keys(CH_VAR).filter(k => k !== Z.chVarAntes));
+  if (r >= 3 && (dif >= 1.8 || r % 2 === 1)) vr = randomFrom(Object.keys(CH_VAR).filter(k => k !== Z.chVarAntes && !(esc && (k === 'mini' || k === 'supremo'))));
   Z.chVarAntes = vr;
-  const fila = []; let vida = 1, fase2 = false, escolta = Math.round((2 + r) * zj().qtd * zd().qtd);
+  const fila = []; let vida = 1, fase2 = false, escolta = Math.round((esc ? 1 + r * 0.5 : 2 + r) * zj().qtd * zd().qtd);
   if (vr === 'dupla') n = Math.max(2, n);
   if (vr === 'espelho') { n = Math.max(2, n); const i = prox(); for (let k = 0; k < n; k++) fila.push(i); vida = 0.8; }
   if (vr === 'mini') { n = Math.min(6, n + 3); vida = 0.4; }
   if (vr === 'supremo') { n = 1; vida = 3; fase2 = true; }
   if (vr === 'furia') fase2 = true;
-  if (vr === 'horda') escolta = Math.round(Math.min(6 + r * 4, 30) * zj().qtd * zd().qtd);
+  if (vr === 'horda') escolta = Math.round(Math.min(6 + r * 4, esc ? 18 : 30) * zj().qtd * zd().qtd);
   while (fila.length < n) fila.push(prox());
   if (vr !== 'mini' && vr !== 'supremo') vida *= (1 + 0.5 * (n - 1)) / n; // vários juntos: cada um um pouco mais fraco
   Z.bossFila = fila.map(i => ({ i, nivel, vida, fase2, dupla: vr === 'dupla' }));
@@ -7438,8 +7447,9 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
   }
   z.hab = (z.hab ?? 3) - dt;
   if (z.hab > 0 || !alvo) return;
+  const lotado = Z.sim.size >= ZMAXV() - 4; // muitos chefões juntos (Escalada): sem capangas para não travar
   const filhosDe = () => { let n = 0; for (const o of Z.sim.values()) if (o.mae === z.id) n++; return n; };
-  const capangas = (tipo, n, vida) => { for (let k = 0; k < n; k++) { const o = zAdd(tipo, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); o.mae = z.id; o.hp = o.max = Math.round(o.hp * vida); } };
+  const capangas = (tipo, n, vida) => { if (lotado) return; for (let k = 0; k < n; k++) { const o = zAdd(tipo, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); o.mae = z.id; o.hp = o.max = Math.round(o.hp * vida); } };
   const perto = (R, fn) => { for (const a of Object.keys(net.players)) { const q = zPlayerPos(a); if (!q) continue; const vx = q[0] - z.x, vz = q[2] - z.z, d = Math.hypot(vx, vz); if (d < R) fn(a, vx / (d || 1), vz / (d || 1), d); } };
   if (z.chefe === 'sorveteiro') {
     if (ve && best < 24) zSpit(z, alvo, z.fase2 ? 4 : 2, { gelo: 1, c: 0xbfe8ff });
@@ -7474,7 +7484,7 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     // teia (cuspe que deixa bem lento) e filhotes rastejantes
     if (ve && best < 22) zSpit(z, alvo, z.fase2 ? 3 : 2);
     const filhos = [...Z.sim.values()].filter(o => o.mae === z.id).length;
-    if (filhos < (z.fase2 ? 8 : 5)) for (let k = 0; k < (z.fase2 ? 3 : 2); k++) { const n = zAdd(ZT.rastejante, z.x + (Math.random() - 0.5) * 3, 0, z.z + (Math.random() - 0.5) * 3); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.6); }
+    if (!lotado && filhos < (z.fase2 ? 8 : 5)) for (let k = 0; k < (z.fase2 ? 3 : 2); k++) { const n = zAdd(ZT.rastejante, z.x + (Math.random() - 0.5) * 3, 0, z.z + (Math.random() - 0.5) * 3); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.6); }
     z.hab = 4.5 * f2;
   } else if (z.chefe === 'palhaco') {
     // some e reaparece atrás de alguém (sem parede no lugar)
@@ -7486,7 +7496,7 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
       z.x = nx; z.z = nz; z.y = groundHeight(zq.set(nx, 2, nz), 0.9); z.atkCd = 0.6;
       break;
     }
-    if (z.fase2) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.corredor, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.hp = n.max = Math.round(n.hp * 0.5); }
+    if (z.fase2 && !lotado) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.corredor, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.hp = n.max = Math.round(n.hp * 0.5); }
     z.hab = 7 * f2;
   } else if (z.chefe === 'bombeiro') {
     // jato de água: empurra quem está na frente e lava a tinta dele (cura)
@@ -7502,14 +7512,14 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     // sementes em leque e os mortos do milharal; furioso, pega fogo (anda mais rápido e queima quem encosta)
     if (ve && best < 26) zSpit(z, alvo, z.fase2 ? 5 : 3);
     const filhos = [...Z.sim.values()].filter(o => o.mae === z.id).length;
-    if (filhos < (z.fase2 ? 7 : 4)) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.rastejante, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.7); }
+    if (!lotado && filhos < (z.fase2 ? 7 : 4)) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.rastejante, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.7); }
     if (z.fase2) { z.fogoT = 99; z.fogoDps = 0; }
     z.hab = 5 * f2;
   } else if (z.chefe === 'mascote') {
     // pulo enorme em cima de alguém (pancada no chão ao cair); furioso, chama os bonecos do parque
     if (ve && best > 3 && best < 22 && !z.air && (!FAZ || zonaDe(alvo.x, alvo.z) === zonaDe(z.x, z.z))) { const tv = 1.1; z.vx = (alvo.x - z.x) / tv; z.vz = (alvo.z - z.z) / tv; z.vy = 11 + (alvo.y - z.y) / tv; z.air = true; }
     const filhos = [...Z.sim.values()].filter(o => o.mae === z.id).length;
-    if (z.fase2 && filhos < 6) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.corredor, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.5); }
+    if (z.fase2 && !lotado && filhos < 6) for (let k = 0; k < 2; k++) { const n = zAdd(ZT.corredor, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); n.mae = z.id; n.hp = n.max = Math.round(n.hp * 0.5); }
     z.hab = 5.5 * f2;
   } else if (z.chefe === 'doutor') {
     // seringas em leque (deixam lento) e cura os zumbis em volta; furioso, chama os pacientes
@@ -7518,7 +7528,7 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     z.hp = Math.min(z.max, z.hp + z.max * 0.02);
     broadcast({ t: 'zcura', x: r2(z.x), z: r2(z.z) });
     const filhos = [...Z.sim.values()].filter(o => o.mae === z.id).length;
-    if (z.fase2 && filhos < 6) for (let k = 0; k < 2; k++) { const o = zAdd(ZT.comum, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); o.mae = z.id; }
+    if (z.fase2 && !lotado && filhos < 6) for (let k = 0; k < 2; k++) { const o = zAdd(ZT.comum, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); o.mae = z.id; }
     z.hab = 6 * f2;
   } else z.hab = 99;
 }
@@ -7631,7 +7641,7 @@ function zHostTick(dt) {
   if (net.cfg.modo === 'sobrev' && Z.round > 0) zSobrevTick(dt);
   else if (Z.breakT > 0) { Z.breakT -= dt; if (Z.breakT <= 0) zStartRound(Z.round + 1); }
   else if (Z.toSpawn === 0 && Z.sim.size === 0 && FAZ && isMissao() && Z.round >= AMANHECER_R && !Z.extr) zAmanhecer();
-  else if (Z.toSpawn === 0 && Z.sim.size === 0 && net.cfg.modo === 'chefoes' && Z.chDerrot.size >= CHEFOES_META) zVitoria();
+  else if (Z.toSpawn === 0 && Z.sim.size === 0 && net.cfg.modo === 'chefoes' && (net.cfg.esc ? Z.round >= CHEFOES_META : Z.chDerrot.size >= CHEFOES_META)) zVitoria();
   else if (Z.toSpawn === 0 && Z.sim.size === 0) { zObjFim(); Z.breakT = zMis()?.intervalo ?? INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: Z.breakT }); zFimRodada(); }
   Z.spawnT -= dt;
   if (Z.toSpawn > 0 && Z.spawnT <= 0 && Z.sim.size < ZMAXV()) { zSpawn(); Z.toSpawn--; Z.spawnT = (net.cfg.modo === 'defesa' ? 1.7 : 1) * Math.max(0.28, 1.25 - Z.round * 0.07) * (Z.evento === 'corredores' ? 0.6 : 1) / zj().qtd * (zMis()?.ritmo ?? 1); }
@@ -7789,7 +7799,10 @@ function zHostHandle(from, m) {
     const nivel = W === WEAPONS.granada ? 1.6 : zMult((sh.inv || []).find(x => x.w === hostWeaponOf(from, m.w))?.l || 1);
     const slot = (sh.inv || []).find(x => x.w === hostWeaponOf(from, m.w));
     const turbo = W !== WEAPONS.granada && slot?.t ? TURBO[elemento(slot.w)] : null;
-    const dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * armadura * nivel * (turbo ? TURBO_DANO : 1)));
+    // 🔥 encurralado: quanto mais zumbis colados em quem atira, mais forte o tiro (até sair do aperto)
+    const pq = zPlayerPos(from); let perto = 0;
+    if (pq) for (const o of Z.sim.values()) if (Math.hypot(o.x - pq[0], o.z - pq[2]) < ENC_R) perto += o.boss ? 2 : 1;
+    const dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * armadura * nivel * (turbo ? TURBO_DANO : 1) * encMult(perto)));
     zFerir(z, from, dmg, { head, arm: armadura < 1, w: W === WEAPONS.granada ? 'granada' : m.w });
     if (turbo) zTurbo(z, from, dmg, elemento(slot.w));
   } else if (m.t === 'zretrato') {
@@ -8072,7 +8085,7 @@ function zOnNet(m) {
       if (Z.eventoView) zEventoLook(null);
       sfx.win(); const meus = m.kills?.[net.myId] ?? player.kills, md = net.cfg.modo;
       const tit = md === 'chefoes' ? 'VOCÊS VENCERAM TODOS OS CHEFÕES!' : 'RESGATE CONCLUÍDO!';
-      const sub = md === 'chefoes' ? `Os ${CHEFOES_META} chefões caíram em ${m.r} rodadas (${m.ch} chefões derrotados).` : `Vocês aguentaram ${m.mn} minutos de horda e foram resgatados.`;
+      const sub = md === 'chefoes' ? (net.cfg.esc ? `📈 Escalada vencida: vocês aguentaram ${CHEFOES_META} chefões de uma vez (${m.ch} derrotados no total).` : `Os ${CHEFOES_META} chefões caíram em ${m.r} rodadas (${m.ch} chefões derrotados).`) : `Vocês aguentaram ${m.mn} minutos de horda e foram resgatados.`;
       banner('🏆 ' + tit, 5);
       if (net.local) { recorde(recKey(), md === 'chefoes' ? m.ch : m.mn); checkUnlocks(); setTimeout(() => showResults(tit, sub, md === 'chefoes' ? [[m.ch, 'chefões'], [m.r, 'rodadas'], [meus, 'monstros pintados']] : [[m.mn, 'minutos'], [meus, 'monstros pintados'], ['🚁', 'resgate']]), 2500); }
       else feed('🏆 ' + sub + ' Nova partida em instantes…');
@@ -8131,6 +8144,13 @@ function reviveSprite(r) {
   r.revSp.visible = true;
 }
 function zClientTick(dt) {
+  // 🔥 encurralado: mesma conta do dono, só para mostrar na tela
+  if ((zClientTick.encT = (zClientTick.encT || 0) - dt) <= 0) {
+    zClientTick.encT = 0.25; let perto = 0;
+    if (!meDead && !meDown) for (const o of zombies.values()) if (!o.dead && Math.hypot(o.pos.x - player.pos.x, o.pos.z - player.pos.z) < ENC_R) perto += o.boss ? 2 : 1;
+    const k = encMult(perto);
+    if (k !== encView) { if (encView === 1 && k > 1) { banner('🔥 ENCURRALADO! Sua arma ficou mais forte', 1.6); tone(220, 0.25, { type: 'sawtooth', vol: 0.06, slide: 220, lp: 1800 }); } encView = k; updateFx(); }
+  }
   // minha tela de derrubado / morto
   const caido = meDown || (meDead && isZumbi());
   $('downOverlay').classList.toggle('on', meDown);
@@ -8187,7 +8207,7 @@ function startLocalZombie() {
   if (net.clients.length) leaveOnline(null);
   readSetup();
   Object.assign(net, { local: true, isHost: true, joined: true, myId: newId(), code: 'SOLO', players: {}, clients: [], winning: false });
-  net.cfg = cleanCfg({ modo: soloCfg.modo, mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima, ckpt: soloCfg.ckpt === true });
+  net.cfg = cleanCfg({ modo: soloCfg.modo, mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima, ckpt: soloCfg.ckpt === true, esc: soloCfg.esc === true });
   loadMap(net.cfg.mapa);
   const c = myNetChar();
   addPlayer(net.myId, myName, c.char, c.cor, c.lk);
@@ -9953,7 +9973,8 @@ function playerShoot() {
     const d = dir.clone();
     d.x += (Math.random() - .5) * 2 * spread; d.y += (Math.random() - .5) * 2 * spread; d.z += (Math.random() - .5) * 2 * spread;
     d.normalize(); dirs.push(d);
-    fireBall(origin, d, W.speed, 'player', color, id);
+    const b = fireBall(origin, d, W.speed, 'player', color, id);
+    if (!player.zoom) b.orig = camera.position.clone();
   }
   if (mode === 'online') sendNet({ t: 'shot', o: origin.toArray().map(r3), ds: dirs.map(d => d.toArray().map(r3)), c: color, w: id });
   if (ammoOf(id) === 0) reload();
@@ -10356,12 +10377,15 @@ function updateBalls(dt) {
   let meusAlvos = null; const alvosDe = new Map();
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
-    const start = b.mesh.position.clone();
+    // tiro do jogador: o 1º trecho começa no olho (b.orig) e não no cano; com cano comprido o cano já passava
+    // do zumbi colado em você e a bolinha acertava o de trás
+    const start = b.orig || b.mesh.position.clone(); b.orig = null;
     b.vel.y -= b.grav * dt;
     const step = b.vel.clone().multiplyScalar(dt);
-    const end = start.clone().add(step);
-    const stepLen = step.length();
-    const dir = step.clone().normalize();
+    const end = b.mesh.position.clone().add(step);
+    const seg = end.clone().sub(start);
+    const stepLen = seg.length();
+    const dir = seg.normalize();
     b.life -= dt;
     let done = b.life <= 0;
 
