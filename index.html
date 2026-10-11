@@ -10017,6 +10017,8 @@ function playerShoot() {
     // "só cabeça", só a cabeça), com puxão parcial e cone que fecha com a distância (antes puxava sempre
     // para o peito e quem jogava no celular nunca acertava a cabeça)
     const soCabeca = regra('alvo') === 'cabeca';
+    // cópia da direção da mira: hasLineOfSight reaproveita o mesmo raycaster e trocava a direção no meio do laço
+    const mira = raycaster.ray.direction.clone();
     let best = Infinity, target = null;
     for (const e of shootTargets()) {
       if (e.dead) continue;
@@ -10025,11 +10027,11 @@ function playerShoot() {
       alturas.forEach((h, k) => {
         if (soCabeca && alturas.length > 1 && k !== 1) return;
         const c = new THREE.Vector3(e.pos.x, e.pos.y + h, e.pos.z);
-        const dist = c.distanceTo(origin);
+        const dist = c.distanceTo(camera.position);
         const cone = Math.min(player.zoom ? 0.04 : 0.13, Math.atan(1.1 / Math.max(1, dist)));
         c.addScaledVector(e.vel, dist / W.speed); // antecipa o movimento
+        const ang = c.clone().sub(camera.position).normalize().angleTo(mira); // pela mira (olho), não pelo cano
         const to = c.clone().sub(origin).normalize();
-        const ang = to.angleTo(raycaster.ray.direction);
         if (ang < cone && ang < best && hasLineOfSight(camera.position, c)) { best = ang; target = to; }
       });
     }
