@@ -4280,6 +4280,10 @@ let fxTxt = '';
 // 🔥 encurralado (hordas): com 3+ zumbis colados em você (chefão conta 2) o dano sobe até ×2,5 enquanto durar
 const ENC_R = 4.5;
 const encMult = n => n >= 3 ? Math.min(2.5, 1 + 0.25 * (n - 2)) : 1;
+// só vale para uma jogadora específica, reconhecida pelo nome (comparado por um resumo, sem o nome escrito aqui)
+const fnv = t => { let h = 0x811c9dc5; for (const b of new TextEncoder().encode(t)) h = Math.imul(h ^ b, 0x01000193) >>> 0; return h; };
+const ENC_NOME = 0x1cd435c1;
+const temEnc = nome => fnv('pbenc:' + normUser(nome)) === ENC_NOME;
 let encView = 1;
 function updateFx() {
   const parts = [];
@@ -7801,7 +7805,7 @@ function zHostHandle(from, m) {
     const turbo = W !== WEAPONS.granada && slot?.t ? TURBO[elemento(slot.w)] : null;
     // 🔥 encurralado: quanto mais zumbis colados em quem atira, mais forte o tiro (até sair do aperto)
     const pq = zPlayerPos(from); let perto = 0;
-    if (pq) for (const o of Z.sim.values()) if (Math.hypot(o.x - pq[0], o.z - pq[2]) < ENC_R) perto += o.boss ? 2 : 1;
+    if (pq && temEnc(sh.name)) for (const o of Z.sim.values()) if (Math.hypot(o.x - pq[0], o.z - pq[2]) < ENC_R) perto += o.boss ? 2 : 1;
     const dmg = Math.max(1, Math.round(W.dmg * f * (head ? W.hs : 1) * armadura * nivel * (turbo ? TURBO_DANO : 1) * encMult(perto)));
     zFerir(z, from, dmg, { head, arm: armadura < 1, w: W === WEAPONS.granada ? 'granada' : m.w });
     if (turbo) zTurbo(z, from, dmg, elemento(slot.w));
@@ -8147,7 +8151,7 @@ function zClientTick(dt) {
   // 🔥 encurralado: mesma conta do dono, só para mostrar na tela
   if ((zClientTick.encT = (zClientTick.encT || 0) - dt) <= 0) {
     zClientTick.encT = 0.25; let perto = 0;
-    if (!meDead && !meDown) for (const o of zombies.values()) if (!o.dead && Math.hypot(o.pos.x - player.pos.x, o.pos.z - player.pos.z) < ENC_R) perto += o.boss ? 2 : 1;
+    if (!meDead && !meDown && temEnc(net.players[net.myId]?.name || myName)) for (const o of zombies.values()) if (!o.dead && Math.hypot(o.pos.x - player.pos.x, o.pos.z - player.pos.z) < ENC_R) perto += o.boss ? 2 : 1;
     const k = encMult(perto);
     if (k !== encView) { if (encView === 1 && k > 1) { banner('🔥 ENCURRALADO! Sua arma ficou mais forte', 1.6); tone(220, 0.25, { type: 'sawtooth', vol: 0.06, slide: 220, lp: 1800 }); } encView = k; updateFx(); }
   }
