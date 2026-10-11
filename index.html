@@ -797,7 +797,7 @@
     <div class="screenHead"><button class="back" id="soloBackBtn">←</button><div><span class="tag">Sem internet</span><h2>Treino solo</h2></div></div>
     <section class="panel"><h3><em>1</em> Modo</h3><div class="cards" id="soloModeSeg"></div></section>
     <section class="panel"><h3><em>2</em> Mapa</h3><div class="cards" id="mapSel"></div></section>
-    <section class="panel"><h3><em>3</em> Dificuldade e clima</h3><div class="chips" id="difSel"></div><div class="chips" id="soloClima" style="margin-top:10px"></div></section>
+    <section class="panel"><h3><em>3</em> Dificuldade e clima</h3><div class="chips" id="difSel"></div><div class="chips" id="soloClima" style="margin-top:10px"></div><div class="chips" id="soloCkpt" style="margin-top:10px"></div></section>
     <div class="stickyBar"><button class="btn big" id="playBtn">COMEÇAR</button></div>
   </div>
 </div>
@@ -949,7 +949,7 @@
             No fim de cada partida aparecem o pódio, os destaques e a votação do próximo mapa.</section>
           <section><h4>❤️ Vida</h4>
             <b>PvP</b>: a vida volta sozinha depois de 5 s sem levar dano.<br>
-            <b>Hordas</b>: não volta sozinha. Recupere com ✚ kit médico, 🩸 bolsa de sangue (+30) que os zumbis às vezes deixam, ou sobrevivendo até a próxima rodada (+25).<br>
+            <b>Hordas</b>: não volta sozinha. Recupere com ✚ kit médico, 🩸 bolsa de sangue (+30) que os zumbis às vezes deixam, ou sobrevivendo até o fim da rodada (+33% da vida). Quem morreu volta no fim da rodada, a tempo de comprar, e fica 7 s invencível (também ao ser levantado).<br>
             Tiro na cabeça dá mais dano: o número sobe <span style="color:var(--yel)">amarelo</span>; o tiro que derruba fica <span style="color:#ff5a4a">vermelho</span>.</section>
         </div>
         <h3>⚙️ Ajustes</h3>
@@ -3091,13 +3091,14 @@ function emojiSprite(e) {
   }
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex.get(e), transparent: true, depthWrite: false }));
 }
+const FX_GEO = { confete: new THREE.PlaneGeometry(0.12, 0.08), bola: new THREE.SphereGeometry(0.09, 6, 4) };
 function fxBurst(pos, fxId, alvoScene = scene) {
-  const F = FXS.find(x => x.id === fxId); if (!F || F.id === 'nada' || !pos) return;
-  const n = F.id === 'confete' || F.id === 'arcoiris' ? 30 : 12;
+  const F = FXS.find(x => x.id === fxId); if (!F || F.id === 'nada' || !pos || fxParts.length > (settings.qual === 'baixa' ? 40 : 140)) return;
+  const n = (F.id === 'confete' || F.id === 'arcoiris' ? 30 : 12) >> (settings.qual === 'baixa' ? 1 : 0);
   for (let i = 0; i < n; i++) {
     let o;
-    if (F.id === 'confete') { o = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.08), new THREE.MeshBasicMaterial({ color: PAINT[i % PAINT.length], side: THREE.DoubleSide, transparent: true })); }
-    else if (F.id === 'arcoiris') { o = new THREE.Mesh(Sp(0.09, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(i / n, 1, 0.55), transparent: true })); }
+    if (F.id === 'confete') { o = new THREE.Mesh(FX_GEO.confete, new THREE.MeshBasicMaterial({ color: PAINT[i % PAINT.length], side: THREE.DoubleSide, transparent: true })); }
+    else if (F.id === 'arcoiris') { o = new THREE.Mesh(FX_GEO.bola, new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(i / n, 1, 0.55), transparent: true })); }
     else { o = emojiSprite(F.ic); o.scale.setScalar(0.45 + Math.random() * 0.3); }
     o.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 1.4 + Math.random() * 0.8, (Math.random() - 0.5) * 0.6));
     const sobe = ['fogo', 'coracoes', 'caveiras', 'raios'].includes(F.id);
@@ -3114,7 +3115,7 @@ function updateFxParts(dt) {
     p.v.y -= p.g * dt; p.o.position.addScaledVector(p.v, dt);
     if (p.o.isMesh) { p.o.rotation.x += dt * p.gira; p.o.rotation.y += dt * p.gira * 0.7; }
     const a = Math.max(0, 1 - p.t / p.vida); p.o.material.opacity = a;
-    if (p.t >= p.vida) { p.cena.remove(p.o); p.o.material.dispose(); if (p.o.isMesh) p.o.geometry.dispose(); fxParts.splice(i, 1); }
+    if (p.t >= p.vida) { p.cena.remove(p.o); p.o.material.dispose(); fxParts.splice(i, 1); }
   }
 }
 
@@ -3342,9 +3343,19 @@ function addSplat(point, normal, color, parent, size = 0.6) {
 }
 
 const particles = [];
+// materiais reaproveitados por cor (criar um material por bolinha travava o jogo com raio/bazuca)
+const corMats = new Map();
+function corMat(color, criar) {
+  let m = corMats.get(color);
+  if (!m) { m = criar(); if (corMats.size < 160) corMats.set(color, m); else m.userData.solto = true; }
+  return m;
+}
+const PART_MAX = () => settings.qual === 'baixa' ? 110 : settings.qual === 'alta' ? 320 : 200;
 function burst(point, color, n = 14, speed = 4) {
+  n = Math.min(n, PART_MAX() - particles.length); if (settings.qual === 'baixa') n = Math.ceil(n / 2);
+  const mat = corMat('b' + color, () => new THREE.MeshBasicMaterial({ color }));
   for (let i = 0; i < n; i++) {
-    const m = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ color }));
+    const m = new THREE.Mesh(ballGeo, mat);
     m.scale.setScalar(0.4 + Math.random() * 0.6);
     m.position.copy(point);
     particles.push({ mesh: m, vel: new THREE.Vector3((Math.random() - .5) * speed, Math.random() * speed, (Math.random() - .5) * speed), life: 0.6 + Math.random() * 0.4 });
@@ -3354,7 +3365,7 @@ function burst(point, color, n = 14, speed = 4) {
 
 function fireBall(origin, dir, speed, owner, color, wid) {
   const W = WEAPONS[wid];
-  const m = new THREE.Mesh(ballGeo, new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.35 }));
+  const m = new THREE.Mesh(ballGeo, corMat('t' + color, () => new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.35 })));
   m.position.copy(origin);
   m.scale.setScalar(W?.size || (owner === 'enemy' ? 1.6 : 1));
   scene.add(m);
@@ -4220,7 +4231,7 @@ const ALVOS = ['normal', 'cabeca', 'umtiro'];
 // munição infinita, cabeção, bolinha que quica, modo raiz (sem mira e sem números) e caçada ao líder
 const REGRAS_LIGA = ['muni', 'cabecao', 'quica', 'raiz', 'caca'];
 const CFG_PADRAO = { modo: 'dm', mapa: 'arena', clima: 'auto', tempo: 10, kills: 20, caps: 3, hill: 60, rounds: 3, bots: 0, armas: [...WEAPON_ORDER], vida: 1, respawn: 3, dif: 1, rInt: 30, rIgual: true, power: true, regen: true, hs: true, ff: false, itens: true,
-  grav: 1, velo: 1, vamp: 0, prot: 2, alvo: 'normal', muni: false, cabecao: false, quica: false, raiz: false, caca: false };
+  grav: 1, velo: 1, vamp: 0, prot: 2, alvo: 'normal', muni: false, cabecao: false, quica: false, raiz: false, caca: false, ckpt: false };
 // regra que vale agora (fora do online fica o padrão)
 const regra = k => (mode === 'online' || net.joined) ? net.cfg[k] ?? CFG_PADRAO[k] : CFG_PADRAO[k];
 // times do modo Times
@@ -4258,7 +4269,7 @@ function cleanCfg(c) {
     grav: pick('grav'), velo: pick('velo'), vamp: pick('vamp'), prot: pick('prot'), alvo: ALVOS.includes(c.alvo) ? c.alvo : 'normal',
     armas: armas.length ? armas : [...WEAPON_ORDER],
     rIgual: c.rIgual !== false, power: c.power !== false, regen: c.regen !== false, hs: c.hs !== false, ff: c.ff === true, itens: c.itens !== false,
-    ...Object.fromEntries(REGRAS_LIGA.map(k => [k, c[k] === true])),
+    ...Object.fromEntries(REGRAS_LIGA.map(k => [k, c[k] === true])), ckpt: c.ckpt === true,
   };
 }
 // arma que vale para o dano, decidida pelo dono da sala
@@ -4272,7 +4283,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 36;
+const VERSAO = 37;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -4471,6 +4482,7 @@ function hostHandle(from, m) {
       broadcast({ ...m, f: undefined, id: from }, from);
       break;
     case 'zhit': case 'revive': case 'zretrato': zHostHandle(from, m); break;
+    case 'zhitl': if (Array.isArray(m.l)) for (const e of m.l.slice(0, 60)) if (Array.isArray(e)) zHostHandle(from, { t: 'zhit', id: e[0], w: m.w, f: e[1], h: e[2] }); break;
     case 'buy': if (ehZumbi(net.cfg.modo)) zComprar(from, m); break;
     case 'hit': {
       const sh = net.players[from], tg = net.players[m.target];
@@ -4644,7 +4656,8 @@ function onNet(m) {
         meDead = false; meDown = false; resetMoves(); player.hp = myMaxHp(); player.vy = 0; player.ammoBy = {}; player.reloading = 0; player.gren = Math.max(player.gren | 0, 2); updateWeaponBtns();
         player.pk = Math.floor(Math.random() * PROPS.length);
         player.pos.copy(onlineSpawn()); updateHud();
-        if (net.cfg.prot && !isZumbi()) { player.invT = net.cfg.prot; updateFx(); } // proteção ao voltar (o dono também ignora o dano)
+        if (isZumbi()) { player.invT = INV_VOLTA_S; updateFx(); } // 7 s invencível ao voltar (quem decide é o dono: net.inv)
+        else if (net.cfg.prot) { player.invT = net.cfg.prot; updateFx(); } // proteção ao voltar (o dono também ignora o dano)
       } else {
         const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, false); }
         if (net.isHost && net.bots.has(m.id)) botSpawn(m.id);
@@ -5472,6 +5485,7 @@ function renderCfgForm() {
     ['cabecao', '🎈 Cabeção', 'todo mundo com a cabeça gigante (mais fácil de acertar)', true],
     ['quica', '🏀 Bolinha que quica', 'o tiro rebate uma vez na parede e no chão', true],
     ['raiz', '🥷 Modo raiz', 'sem mira na tela, sem números de dano e sem barra de vida dos outros', true],
+    ['ckpt', '💾 Checkpoint a cada 5 rodadas', 'se todos caírem, voltam da última rodada 5, 10, 15… (desligado: recomeça da rodada 1)', zb],
     ['caca', '👑 Caçada ao líder', 'quem está ganhando fica com uma coroa visível através das paredes', !zb && !es],
   ];
   const regras = rules.filter(r => r[3]).map(([k, t, d]) => {
@@ -6208,6 +6222,8 @@ function showSolo() {
   choice($('mapSel'), Object.entries(MAPS).filter(([v, m]) => soloCfg.modo === 'missao' ? m.so === 'missao' : !m.so).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === soloCfg.mapa, v => set('mapa', v), 'card2');
   choice($('difSel'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === +soloCfg.dif, v => set('dif', v));
   choice($('soloClima'), Object.entries(CLIMAS).map(([v, m]) => ({ v, t: `${m.ic} ${m.nome}` })), v => v === (soloCfg.clima || 'auto'), v => { soloCfg.clima = v; save('pb-solo', soloCfg); applyClima(); showSolo(); });
+  $('soloCkpt').style.display = soloCfg.modo === 'ondas' ? 'none' : '';
+  choice($('soloCkpt'), [{ v: false, t: '🔁 Sem checkpoint' }, { v: true, t: '💾 Checkpoint a cada 5 rodadas' }], v => v === (soloCfg.ckpt === true), v => set('ckpt', v));
   if ($('soloScreen').style.display !== 'flex') { loadMap(soloCfg.mapa); showScreen('soloScreen'); }
 }
 $('soloBackBtn').onclick = openHome;
@@ -6593,8 +6609,12 @@ function hitZombie(o, point, color, dir, wid, head) {
   hitMarker(head ? 'head' : ''); sfx.hit();
   burst(point, color, 10, 3);
   addSplat(point, dir.clone().negate(), color, o.root, 0.5);
-  sendNet({ t: 'zhit', id: o.id, w: wid, h: head ? 1 : 0 });
+  zhitJunta(wid, [o.id, 1, head ? 1 : 0]);
 }
+// acertos em zumbis do mesmo quadro vão juntos (confete/escopeta: até 14 bolinhas por tiro)
+const zhitQ = new Map();
+function zhitJunta(w, e) { let l = zhitQ.get(w); if (!l) zhitQ.set(w, l = []); l.push(e); }
+function zhitEnvia() { if (!zhitQ.size) return; for (const [w, l] of zhitQ) sendNet({ t: 'zhitl', w, l }); zhitQ.clear(); }
 
 // ----- cuspe ácido: o dono calcula, todo mundo desenha -----
 const zSpitView = [];
@@ -6637,7 +6657,7 @@ const zVidaBase = r => (70 + r * 12) * 1.05 ** (r - 1);
 const nJog = () => Math.max(1, Object.keys(net.players).length);
 // Ritmo da Missão (por cima da dificuldade): lá é preciso parar para pregar, consertar e procurar coisas,
 // então os zumbis são mais lentos, vêm em menor número e mais espaçados, nascem mais longe e o intervalo é maior
-const MISSAO_RITMO = { vel: 0.72, cap: 0.8, qtd: 0.62, ritmo: 1.9, vivos: n => Math.min(22, 9 + n * 3), intervalo: 30, desde: 2, dano: 0.8, longe: 14 };
+const MISSAO_RITMO = { vel: 0.72, cap: 0.8, qtd: 0.62, ritmo: 1.9, vivos: n => Math.min(22, 9 + n * 3), intervalo: 40, desde: 2, dano: 0.8, longe: 14 };
 const zMis = () => (FAZ && isMissao() ? MISSAO_RITMO : null);
 const ZMAXV = () => zMis() ? zMis().vivos(nJog()) : Math.min(36, 24 + nJog() * 3);
 // Balanceamento pela quantidade de jogadores (soma com a dificuldade): mais zumbis (+50% por pessoa),
@@ -6648,7 +6668,7 @@ function zj(n = nJog()) {
   return { n, qtd, vida: 1 + 0.15 * (n - 1), chefe: 1 + 0.75 * (n - 1), grana: n / qtd, extra: Math.floor((n - 1) / 2) };
 }
 function zStartRound(r) {
-  if (r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', r }); } // 💾 checkpoint na 5ª, 10ª… rodada
+  if (net.cfg.ckpt && r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', r }); } // 💾 checkpoint na 5ª, 10ª… rodada
   Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now();
   for (const p of Object.values(net.players)) p.pregou = 0;
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
@@ -6670,17 +6690,36 @@ function zStartRound(r) {
   Z.corvoT = 4;
   if (Z.evento === 'corredores' || Z.evento === 'bombas') Z.toSpawn = Math.round(Z.toSpawn * 1.2);
   Z.spawnT = 1.2;
-  // quem morreu volta na nova rodada; quem estava caído levanta; quem sobreviveu ganha +25 de vida
+  // normalmente todo mundo já voltou no fim da rodada anterior (zFimRodada); aqui só garante (amanhecer da Missão, checkpoint…)
   for (const [id, p] of Object.entries(net.players)) {
-    if (p.dead || p.down) { Object.assign(p, { dead: false, down: false, hp: Math.round(hpMax(id) * 0.6) }); broadcast({ t: 'respawn', id }); broadcast({ t: 'hp', id, hp: p.hp }); }
-    else if (r > 1 && p.hp < hpMax(id)) { p.hp = Math.min(hpMax(id), p.hp + zd().cura); broadcast({ t: 'hp', id, hp: p.hp }); }
-    // bônus por sobreviver e armas novas na lojinha
+    if (p.dead || p.down) zRenasce(id, 0.6);
     if (!Array.isArray(p.inv)) zEcoInit(p, true);
-    if (r > 1 && !p.dead) zPagar(id, 100 + 15 * r);
-    p.loja = lojaOfertas(p);
+    if (r === 1) p.loja = lojaOfertas(p);
   }
   sendRoster();
   broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ns: FAZ ? (Z.npcSolto ? 1 : 0) : undefined, tr: FAZ?.trator ? [r2(FAZ.trator.x), r2(FAZ.trator.z), r2(FAZ.trator.yaw), FAZ.trator.piloto || 0] : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+}
+// 🏁 fim da rodada (começo do intervalo da loja): quem morreu ou está caído volta já (para dar tempo de comprar),
+// quem sobreviveu ganha CURA_FIM da vida máxima, todo mundo ganha o bônus da rodada e a lojinha sorteia armas novas
+const CURA_FIM = 0.33;
+function zFimRodada() {
+  for (const [id, p] of Object.entries(net.players)) {
+    if (p.dead || p.down) zRenasce(id, 0.6);
+    else if (p.hp < hpMax(id)) { p.hp = Math.min(hpMax(id), p.hp + Math.round(hpMax(id) * CURA_FIM)); broadcast({ t: 'hp', id, hp: p.hp }); }
+    if (!Array.isArray(p.inv)) zEcoInit(p, true);
+    zPagar(id, 100 + 15 * (Z.round + 1));
+    p.loja = lojaOfertas(p);
+  }
+  sendRoster();
+}
+// volta para o jogo (renascer, levantar): fica INV_VOLTA_S segundos invencível
+const INV_VOLTA_S = 7;
+function zInvencivel(id) { net.inv.set(id, performance.now() + INV_VOLTA_S * 1000); }
+function zRenasce(id, frac) {
+  const p = net.players[id]; if (!p) return;
+  Object.assign(p, { dead: false, down: false, autoUp: 0, hp: Math.round(hpMax(id) * frac) });
+  zInvencivel(id); net.lastDmg.set(id, performance.now());
+  broadcast({ t: 'respawn', id }); broadcast({ t: 'hp', id, hp: p.hp });
 }
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
@@ -7164,19 +7203,19 @@ function zDamage(id, dmg) {
 function zGameOver() {
   Z.over = true; Z.overT = 9;
   const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
-  const ck = Z.ckptR > 0;
+  const ck = net.cfg.ckpt && Z.ckptR > 0;
   broadcast({ t: 'zover', r: Z.round, kills, ck: ck ? Z.ckptR : undefined });
   if (ck) { Z.continua = true; Z.overT = 6; return; } // 💾 volta do checkpoint em vez de recomeçar do zero
   if (net.local) Z.started = false;
 }
 // 💾 todos caíram depois de um checkpoint: a rodada volta para a do checkpoint e o resto fica (dinheiro, armas; na Missão portas, geradores, peças e fogueira)
-const CKPT_S = 15, CKPT_AUTO = 5;
+const CKPT_S = 40, CKPT_AUTO = 5;
 function zContinuar() {
   Z.over = false; Z.continua = false; Z.sim.clear(); Z.spits.length = 0; Z.caes.clear(); Z.extr = null; Z.radioProg = 0; Z.obj = null; Z.evento = null; Z.boss = 0;
   Z.round = Math.max(0, Z.ckptR - 1); Z.toSpawn = 0; Z.breakT = CKPT_S;
   if (FAZ?.trator?.piloto) zTratorSai();
   if (Z.npc) Object.assign(Z.npc, { x: FAZ.inicio[0][0] + 1, z: FAZ.inicio[0][1], hp: Z.npc.max });
-  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, down: false, autoUp: 0, hp: hpMax(id) }); broadcast({ t: 'respawn', id }); }
+  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, down: false, autoUp: 0, hp: hpMax(id) }); zInvencivel(id); broadcast({ t: 'respawn', id }); }
   broadcast({ t: 'zcont', r: Z.round + 1, s: CKPT_S });
   sendRoster();
 }
@@ -7190,10 +7229,11 @@ function zRestart() {
 function zHostTick(dt) {
   if (!net.isHost || !isZumbi() || !Z.started) return;
   const now = performance.now();
+  zdEnvia(dt);
   if (Z.over) { Z.overT -= dt; if (Z.overT <= 0) { if (Z.continua) zContinuar(); else zRestart(); } return; }
   // quem está caído sangra até morrer
   for (const [id, p] of Object.entries(net.players)) {
-    if (p.down && p.autoUp && now > p.autoUp) { p.down = false; p.autoUp = 0; p.hp = Math.round(hpMax(id) * 0.5); net.lastDmg.set(id, now); broadcast({ t: 'up', id, by: id, hp: p.hp, auto: 1 }); sendRoster(); continue; }
+    if (p.down && p.autoUp && now > p.autoUp) { p.down = false; p.autoUp = 0; p.hp = Math.round(hpMax(id) * 0.5); net.lastDmg.set(id, now); zInvencivel(id); broadcast({ t: 'up', id, by: id, hp: p.hp, auto: 1 }); sendRoster(); continue; }
     if (p.down && now > p.downUntil) { p.down = false; p.dead = true; p.deaths++; p.hp = 0; p.autoUp = 0; p.vant = []; broadcast({ t: 'bled', id }); sendRoster(); }
   }
   const ps = Object.values(net.players);
@@ -7201,7 +7241,7 @@ function zHostTick(dt) {
   // rodadas
   if (Z.breakT > 0) { Z.breakT -= dt; if (Z.breakT <= 0) zStartRound(Z.round + 1); }
   else if (Z.toSpawn === 0 && Z.sim.size === 0 && FAZ && isMissao() && Z.round >= AMANHECER_R && !Z.extr) zAmanhecer();
-  else if (Z.toSpawn === 0 && Z.sim.size === 0) { zObjFim(); Z.breakT = zMis()?.intervalo ?? INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: Z.breakT }); }
+  else if (Z.toSpawn === 0 && Z.sim.size === 0) { zObjFim(); Z.breakT = zMis()?.intervalo ?? INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: Z.breakT }); zFimRodada(); }
   Z.spawnT -= dt;
   if (Z.toSpawn > 0 && Z.spawnT <= 0 && Z.sim.size < ZMAXV()) { zSpawn(); Z.toSpawn--; Z.spawnT = Math.max(0.28, 1.25 - Z.round * 0.07) * (Z.evento === 'corredores' ? 0.6 : 1) / zj().qtd * (zMis()?.ritmo ?? 1); }
   // movimento e ataque
@@ -7248,9 +7288,10 @@ function zFerir(z, from, dmg, o = {}) {
   const sh = net.players[from], T = ZTYPES[z.type], head = !!o.head;
   if (buffOn('zmorte') && !z.boss) dmg = Math.max(dmg, Math.ceil(z.hp)); // prêmio: qualquer tiro derruba
   z.hp -= dmg;
-  const c = o.semGrana ? undefined : zPagar(from, 2);
-  broadcast({ t: 'zd', id: z.id, by: from, d: dmg, h: head ? 1 : 0, a: o.arm ? 1 : 0, p: Math.max(0, Math.round(z.hp / z.max * 100)), c, fx: o.fx });
-  if (z.hp > 0) return;
+  const c = o.semGrana ? undefined : zPagar(from, 2), pct = Math.max(0, Math.round(z.hp / z.max * 100));
+  if (z.hp > 0) { zdJunta(z.id, from, dmg, head, o.arm, pct, c); return; }
+  for (const k of zdFila.keys()) if (k.startsWith(z.id + '|')) zdFila.delete(k);
+  broadcast({ t: 'zd', id: z.id, by: from, d: dmg, h: head ? 1 : 0, a: o.arm ? 1 : 0, p: pct, c });
   if ((T.id === 'bomba' || T.id === 'galinha') && !z.boss) return zExplode(z, from); // explode ao morrer: cuidado de perto!
   if (z.ladrao && z.roubou && sh) { zPagar(from, z.roubou * 2); broadcast({ t: 'zladrao', ev: 'pego', by: from, v: z.roubou * 2 }); } // devolve em dobro
   const premio = z.boss ? 600 + 100 * Z.round : Math.round((RECOMPENSA[T.id] || 50) * 0.8 * (1 + 0.04 * Z.round) * zj().grana * (z.elite ? 2 : 1)) + (head ? 20 : 0);
@@ -7265,6 +7306,30 @@ function zFerir(z, from, dmg, o = {}) {
   // prêmio do time (poucos por rodada; some em 30 s)
   if (!z.boss && (Z.premios | 0) < 2 + nJog() && Math.random() < 0.035) { Z.premios = (Z.premios | 0) + 1; zDrop(randomFrom(Object.keys(ZPREMIOS)), z.x + 0.9, z.z, 30000); }
 }
+// todos: mostra o dano num zumbi (número, barra, som)
+function zdView(m) {
+  const o = zombies.get(m.id);
+  if (o) { o.hpPct = +m.p || 0; o.flash = 0.15; }
+  if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); }
+  if (o && m.by === net.myId) {
+    dmgNumber(o, +m.d, m.p <= 0 ? 'kill' : m.h ? 'head' : 'n'); showBar(o);
+    if (m.h) sfx.head(); else if (m.a) { tone(1800, 0.05, { type: 'square', vol: 0.03, lp: 4000 }); if (!o.avisouArm) { o.avisouArm = true; feed('🛡️ Blindado! Mire na cabeça'); } }
+  }
+}
+// fila de dano (dono): arma de raio, fogo, confete e bazuca acertam dezenas de vezes por segundo;
+// cada acerto virava uma mensagem para todo mundo (×3 servidores) e travava o jogo de todos
+const zdFila = new Map(); let zdFilaT = 0;
+const zraioMat = new THREE.LineBasicMaterial({ color: 0x9fe8ff });
+function zdJunta(id, by, d, head, arm, p, c) {
+  const k = id + '|' + by, e = zdFila.get(k);
+  if (e) { e[2] += d; e[3] = p; e[4] |= (head ? 1 : 0) | (arm ? 2 : 0); if (c !== undefined) e[5] = c; }
+  else zdFila.set(k, [id, by, d, p, (head ? 1 : 0) | (arm ? 2 : 0), c]);
+}
+function zdEnvia(dt) {
+  if ((zdFilaT += dt) < 0.1 || !zdFila.size) return;
+  zdFilaT = 0; const l = [...zdFila.values()]; zdFila.clear();
+  broadcast({ t: 'zdl', l });
+}
 // ⚙️ arma turbinada: efeito extra de cada elemento
 function zTurbo(z, from, dmg, el) {
   if (el === 'fogo' && Z.sim.has(z.id)) { z.fogoT = 3; z.fogoDps = Math.max(z.fogoDps || 0, dmg * 0.5); z.fogoBy = from; }
@@ -7272,7 +7337,8 @@ function zTurbo(z, from, dmg, el) {
   else if (el === 'raio') {
     // o choque pula para até 2 zumbis perto (metade do dano)
     const perto = [...Z.sim.values()].filter(o => o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 6).sort((a, b) => Math.hypot(a.x - z.x, a.z - z.z) - Math.hypot(b.x - z.x, b.z - z.z)).slice(0, 2);
-    if (perto.length) broadcast({ t: 'zraio', p: [[r2(z.x), r2(z.z)], ...perto.map(o => [r2(o.x), r2(o.z)])] });
+    const agora = performance.now(); Z.raioVis ||= {};
+    if (perto.length && agora - (Z.raioVis[from] || 0) > 180) { Z.raioVis[from] = agora; broadcast({ t: 'zraio', p: [[r2(z.x), r2(z.z)], ...perto.map(o => [r2(o.x), r2(o.z)])] }); } // o desenho no máximo ~5x/s
     for (const o of perto) zFerir(o, from, Math.round(dmg * 0.5), { semGrana: true, fx: 'raio' });
   }
 }
@@ -7347,7 +7413,7 @@ function zHostHandle(from, m) {
     const a = zPlayerPos(from), b = zPlayerPos(m.target);
     if (!a || !b || Math.hypot(a[0] - b[0], a[2] - b[2]) > 3.5) return;
     tg.down = false; tg.hp = Math.round(hpMax(m.target) * 0.4);
-    net.lastDmg.set(m.target, performance.now());
+    net.lastDmg.set(m.target, performance.now()); zInvencivel(m.target);
     zPagar(from, 150); // levantar amigo dá dinheiro
     if (Z.desafio?.k === 'levanta') zDesafioProg(from, (net.players[from].dz?.p | 0) + 1);
     broadcast({ t: 'up', id: m.target, by: from, hp: tg.hp });
@@ -7386,16 +7452,10 @@ let acidT = 0;
 function zOnNet(m) {
   switch (m.t) {
     case 'zs': zApply(m); return true;
-    case 'zd': {
-      const o = zombies.get(m.id);
-      if (o) { o.hpPct = +m.p || 0; o.flash = 0.15; }
-      if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); }
-      if (o && m.by === net.myId) {
-        dmgNumber(o, +m.d, m.p <= 0 ? 'kill' : m.h ? 'head' : 'n'); showBar(o);
-        if (m.h) sfx.head(); else if (m.a) { tone(1800, 0.05, { type: 'square', vol: 0.03, lp: 4000 }); if (!o.avisouArm) { o.avisouArm = true; feed('🛡️ Blindado! Mire na cabeça'); } }
-      }
+    case 'zdl':
+      for (const e of Array.isArray(m.l) ? m.l.slice(0, 200) : []) if (Array.isArray(e)) zdView({ id: e[0], by: e[1], d: e[2], p: e[3], h: e[4] & 1, a: e[4] & 2, c: e[5] ?? undefined });
       return true;
-    }
+    case 'zd': zdView(m); return true;
     case 'zdie': {
       if (m.id === '-') { if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); } return true; }
       const o = zombies.get(m.id);
@@ -7561,14 +7621,14 @@ function zOnNet(m) {
     case 'zraio': {
       // choque da arma turbinada: linhas azuis piscando entre os zumbis
       const pts = (m.p || []).map(([x, z]) => new THREE.Vector3(+x, 1.3, +z)); if (pts.length < 2) return true;
-      const linhas = [];
+      const linhas = [], agora = performance.now(), somOk = agora - (zraioMat.som || 0) > 120; if (somOk) zraioMat.som = agora;
       for (let i = 1; i < pts.length; i++) {
         const meio = [pts[0]]; for (let k = 1; k < 5; k++) meio.push(pts[0].clone().lerp(pts[i], k / 5).add(new THREE.Vector3((Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7))); meio.push(pts[i]);
-        const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(meio), new THREE.LineBasicMaterial({ color: 0x9fe8ff })); scene.add(l); linhas.push(l);
-        burst(pts[i], 0x7ad7ff, 8, 3);
+        const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(meio), zraioMat); scene.add(l); linhas.push(l);
+        burst(pts[i], 0x7ad7ff, 4, 3);
       }
-      tone(2400, 0.08, { type: 'sawtooth', vol: 0.03, slide: -1800 });
-      setTimeout(() => { for (const l of linhas) { scene.remove(l); l.geometry.dispose(); l.material.dispose(); } }, 160);
+      if (somOk) tone(2400, 0.08, { type: 'sawtooth', vol: 0.03, slide: -1800 });
+      setTimeout(() => { for (const l of linhas) { scene.remove(l); l.geometry.dispose(); } }, 160);
       return true;
     }
     case 'zbota': zsom('bota', new THREE.Vector3(+m.x, 1, +m.z)); burst(new THREE.Vector3(+m.x, 0.8, +m.z), 0xf0e0b0, 14, 3); return true;
@@ -7584,11 +7644,11 @@ function zOnNet(m) {
       }
       return true;
     case 'up':
-      if (m.id === net.myId) { meDown = false; player.hp = m.hp; banner(m.auto ? '🩹 Segunda Chance: você levantou!' : `${nameOf(m.by)} te levantou! 💪`, 2); updateHud(); }
+      if (m.id === net.myId) { meDown = false; player.hp = m.hp; player.invT = INV_VOLTA_S; updateFx(); banner(m.auto ? '🩹 Segunda Chance: você levantou!' : `${nameOf(m.by)} te levantou! 💪`, 2); updateHud(); }
       else { const r = remotes.get(m.id); if (r) r.down = false; feed(m.auto ? `🩹 ${nameOf(m.id)} levantou sozinho (Segunda Chance)` : m.by === net.myId ? `Você levantou ${nameOf(m.id)}!` : `${nameOf(m.by)} levantou ${nameOf(m.id)}`); }
       return true;
     case 'bled':
-      if (m.id === net.myId) { meDown = false; meDead = true; banner('Você morreu… volta na próxima rodada', 4); }
+      if (m.id === net.myId) { meDown = false; meDead = true; banner('Você morreu… volta quando a rodada acabar', 4); }
       else { const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, true); } feed(`💀 ${nameOf(m.id)} não resistiu`); }
       return true;
     case 'zover': {
@@ -7698,7 +7758,7 @@ function startLocalZombie() {
   if (net.clients.length) leaveOnline(null);
   readSetup();
   Object.assign(net, { local: true, isHost: true, joined: true, myId: newId(), code: 'SOLO', players: {}, clients: [], winning: false });
-  net.cfg = cleanCfg({ modo: soloCfg.modo === 'missao' ? 'missao' : 'zumbi', mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima });
+  net.cfg = cleanCfg({ modo: soloCfg.modo === 'missao' ? 'missao' : 'zumbi', mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima, ckpt: soloCfg.ckpt === true });
   loadMap(net.cfg.mapa);
   const c = myNetChar();
   addPlayer(net.myId, myName, c.char, c.cor, c.lk);
@@ -8774,7 +8834,7 @@ const precoArma = (w, l = 1) => { let v = WPRECO[w]; for (let k = 1; k < l; k++)
 // força da arma por nível nas hordas (nível 1 = 60% do normal, cada nível +22%: nível 10 ≈ 3,6×)
 const zMult = l => 0.6 * 1.22 ** (Math.max(1, l) - 1);
 // intervalo entre as rodadas (dá para comprar de qualquer lugar)
-const INTERVALO_S = 15;
+const INTERVALO_S = 40;
 let zIntervaloAte = 0;
 // 2 ofertas sorteadas por rodada (armas que a pessoa ainda não tem)
 function lojaOfertas(p) {
@@ -9410,7 +9470,7 @@ function playerShoot() {
     }
     if (target) dir.copy(target);
   }
-  const color = W.arcoiris ? new THREE.Color().setHSL((performance.now() / 700) % 1, 1, 0.55).getHex() : myPaint() ?? PAINT[Math.floor(Math.random() * PAINT.length)];
+  const color = W.arcoiris ? new THREE.Color().setHSL(Math.floor((performance.now() / 700) % 1 * 24) / 24, 1, 0.55).getHex() : myPaint() ?? PAINT[Math.floor(Math.random() * PAINT.length)];
   // clarão no cano com a cor da tinta
   if (!player.zoom) { flashSprite.material.color.setHex(color); flashSprite.scale.setScalar(W.splash ? 0.9 : W.pellets ? 0.75 : 0.45 + Math.random() * 0.15); flashSprite.visible = true; flashT = 0.05; }
   const spread = W.spread * (player.zoom ? 0.15 : 1) * (player.crouch ? 0.7 : 1);
@@ -9792,7 +9852,7 @@ function hitEnemy(e, point, color, dir, dmg = 25, head = false) {
 // balde de tinta: explode e pinta todo mundo por perto (quem atirou avisa o dano)
 function explode(p, b) {
   const W = WEAPONS[b.w];
-  burst(p, b.color, 40, 9); sfx.boom();
+  burst(p, b.color, 28, 9); sfx.boom();
   addSplat(new THREE.Vector3(p.x, 0.02, p.z), new THREE.Vector3(0, 1, 0), b.color, null, W.splash * 0.9);
   if (b.owner === 'remote') botSplash(p, b);
   if (b.owner !== 'player') return;
@@ -9803,7 +9863,7 @@ function explode(p, b) {
     if (d > W.splash) continue;
     const f = Math.max(0.3, 1 - d / W.splash);
     acertou = true;
-    if (mode === 'online') { e.flash = 0.15; player.hits++; sendNet(e.isZ ? { t: 'zhit', id: e.id, w: b.w, f: r3(f) } : { t: 'hit', target: e.id, w: b.w, f: r3(f) }); }
+    if (mode === 'online') { e.flash = 0.15; player.hits++; if (e.isZ) zhitJunta(b.w, [e.id, r3(f)]); else sendNet({ t: 'hit', target: e.id, w: b.w, f: r3(f) }); }
     else hitEnemy(e, new THREE.Vector3(e.pos.x, e.pos.y + 1.4, e.pos.z), b.color, null, W.dmg * f);
   }
   if (acertou) { hitMarker(); if (mode === 'online') sfx.hit(); }
@@ -9891,7 +9951,7 @@ function updateBalls(dt) {
     } else b.mesh.position.copy(end);
 
     if (done && !hitInfo && b.w && WEAPONS[b.w].fuse) explode(b.mesh.position.clone(), b); // granada estoura no tempo
-    if (done) { scene.remove(b.mesh); b.mesh.material.dispose(); balls.splice(i, 1); }
+    if (done) { scene.remove(b.mesh); if (b.mesh.material.userData.solto) b.mesh.material.dispose(); balls.splice(i, 1); }
   }
 }
 
@@ -9901,7 +9961,7 @@ function updateParticles(dt) {
     p.vel.y -= 14 * dt; p.mesh.position.addScaledVector(p.vel, dt);
     if (p.mesh.position.y < 0.03) { p.mesh.position.y = 0.03; p.vel.multiplyScalar(0.3); }
     p.life -= dt; p.mesh.scale.multiplyScalar(0.985);
-    if (p.life <= 0) { scene.remove(p.mesh); p.mesh.material.dispose(); particles.splice(i, 1); }
+    if (p.life <= 0) { scene.remove(p.mesh); if (p.mesh.material.userData.solto) p.mesh.material.dispose(); particles.splice(i, 1); }
   }
 }
 
@@ -10048,7 +10108,7 @@ function frame() {
     if (net.isHost) { botTick(dt); ctfHostTick(dt); }
     updatePropsView();
     updateObjectives(dt, t);
-    updateBalls(dt);
+    updateBalls(dt); zhitEnvia();
     if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); corvosView(dt, t); npcAnim(dt); tratorView(); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
@@ -10064,7 +10124,7 @@ function frame() {
   } else if (state === 'play') {
     updatePlayer(dt);
     updateEnemies(dt, t);
-    updateBalls(dt);
+    updateBalls(dt); zhitEnvia();
     spawnPowerTick(dt); animPickups(t); checkPickupTouch();
     if (enemies.length === 0) {
       if (waveDelay <= 0) { waveDelay = 2.5; banner('Onda limpa! 🎨'); player.hp = Math.min(myMaxHp(), player.hp + 25); updateHud(); }
