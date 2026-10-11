@@ -937,7 +937,7 @@
             <b>Roleta de Armas</b>: de tempos em tempos a arma de todo mundo muda sozinha.
             <b>Pique-bandeira</b>: leve a bandeira do outro time até a sua base. <b>Rei do morro</b>: fique sozinho na área marcada.
             <b>Último de pé</b>: sem voltar, o último vivo ganha a rodada. <b>Esconde-esconde</b>: 3 de cada 4 viram objeto do cenário (cada mapa tem os seus) e o resto caça por 90 s; a cada 20 s os escondidos apitam 🎵.
-            <b>Zumbis</b>: todos juntos contra hordas, com chefão gigante a cada 5 rodadas.</section>
+            <b>Zumbis</b>: todos juntos contra hordas, com um chefão a cada 5 rodadas (são 12: 👹 Gigante, 🕷️ Aranha Rainha, 🤡 Palhaço, 🧑‍🚒 Bombeiro, 🍦 Sorveteiro, 🥁 Baterista, 🪓 Lenhador, 🤖 Robô, 👰 Noiva Fantasma, 🩺 Doutor, 🐻 Ursão e 🎃 Espantalho).</section>
           <section><h4>🧟 Hordas e lojinha</h4>
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
             Na <b>💰 Lojinha</b> (<b>B</b> perto do quiosque; no celular o botão 🛒 LOJA em cima) dá para comprar uma de 2 armas da vez ou melhorar a da mão até o nível 10; com o passar das rodadas as armas da loja já vêm melhoradas. Cada um carrega 2 armas.<br>
@@ -6367,7 +6367,14 @@ const CHEFES = [
   { id: 'espantalho', nome: 'Espantalho Gigante', ic: '🎃', tipo: 'comum',    desc: 'cospe sementes, chama os mortos do milharal e pega fogo quando fica furioso' },
   { id: 'mascote',  nome: 'Ursão Mascote',    ic: '🐻', tipo: 'comum',      desc: 'pula em cima de você com uma pancada no chão e chama os bonecos do parque' },
   { id: 'doutor',   nome: 'Doutor Monstro',   ic: '🩺', tipo: 'comum',      desc: 'joga seringas que deixam lento e cura os zumbis em volta dele' },
+  { id: 'sorveteiro', nome: 'Sorveteiro Congelado', ic: '🍦', tipo: 'comum',  desc: 'joga bolas de gelo que deixam lento; furioso, congela o chão em volta' },
+  { id: 'baterista', nome: 'Baterista da Fanfarra', ic: '🥁', tipo: 'tanque', desc: 'cada batida no bumbo empurra e machuca quem está perto e deixa a horda furiosa' },
+  { id: 'lenhador', nome: 'Lenhador Sem Cabeça', ic: '🪓', tipo: 'comum',     desc: 'arremessa machados e dá investidas; furioso, chama corredores' },
+  { id: 'robo',     nome: 'Robô de Sucata',   ic: '🤖', tipo: 'tanque',     desc: 'ímã que puxa todo mundo para perto e esmaga; furioso, solta Bombas de Tinta' },
+  { id: 'noiva',    nome: 'Noiva Fantasma',   ic: '👰', tipo: 'fantasma',   desc: 'atravessa paredes e dá um grito que deixa todo mundo lento; furiosa, cria cópias' },
 ];
+// ordem do rodízio no Zumbi (a cada 5 rodadas) e no modo Chefões
+const ORDEM_CHEFES = [0, 1, 2, 3, 7, 8, 9, 10, 11, 6, 5, 4];
 // na Missão o rodízio começa pelo Espantalho
 const CHEFES_MISSAO = [4, 1, 0, 2, 3];
 const chefeDe = b => CHEFES[Math.floor((b | 0) / 10)] || CHEFES[0]; // no online o boss vai como índice×10 + nível
@@ -6417,7 +6424,7 @@ const zRostos = () => [...GALERIA, ...SECRETOS, ...AMIGOS];
 function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const C = boss ? chefeDe(boss) : null; boss = boss % 10;
   const rostos = zRostos(), a = rostos[kind % rostos.length], T = ZTYPES[type] || ZTYPES[0];
-  const camisa = C?.id === 'espantalho' ? 0x3a4a8a : C?.id === 'mascote' ? 0x7a4a22 : C?.id === 'doutor' ? 0xe8ecf0 : boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
+  const camisa = C?.id === 'espantalho' ? 0x3a4a8a : C?.id === 'mascote' ? 0x7a4a22 : C?.id === 'doutor' ? 0xe8ecf0 : C?.id === 'sorveteiro' ? 0xf2f6ff : C?.id === 'baterista' ? 0xb81d2a : C?.id === 'lenhador' ? 0xa8322a : C?.id === 'robo' ? 0x6a7078 : C?.id === 'noiva' ? 0xf4f0f8 : boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
   const parts = buildFriend({ ...a, tex: zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
   parts.gun.visible = false;
   parts.root.position.set(x, y, z);
@@ -6443,6 +6450,37 @@ function makeZombie(id, kind, x, y, z, boss, type = 0) {
       add(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 14), L(0xd8e0e8, 0x203040), 0, 0.3, 0.36, parts.head).rotation.x = Math.PI / 2;
       add(new THREE.BoxGeometry(0.5, 0.22, 0.06), L(0x7ac8d8), 0, -0.18, 0.36, parts.head);
       add(new THREE.BoxGeometry(0.06, 0.5, 0.06), L(0x7ad7ff, 0x1a4a6a), 0.3, 1.5, 0.3).rotation.z = 0.6;
+    } else if (C?.id === 'sorveteiro') {
+      // chapéu de sorveteiro e uma casquinha enorme na mão
+      add(new THREE.CylinderGeometry(0.36, 0.4, 0.45, 14), L(0xffffff), 0, 0.85, -0.1, parts.head);
+      add(new THREE.CylinderGeometry(0.41, 0.41, 0.1, 14), L(0x7ad7ff), 0, 0.68, -0.1, parts.head);
+      add(new THREE.ConeGeometry(0.18, 0.5, 10), L(0xd8a060), 0.62, 1.2, 0.35).rotation.x = Math.PI;
+      add(new THREE.SphereGeometry(0.22, 10, 8), L(0xff9ad8, 0x401030), 0.62, 1.5, 0.35);
+    } else if (C?.id === 'baterista') {
+      // chapéu alto com pluma e bumbo no peito
+      add(new THREE.CylinderGeometry(0.34, 0.34, 0.8, 14), L(0x1d1d1d), 0, 1.0, -0.1, parts.head);
+      add(new THREE.CylinderGeometry(0.36, 0.36, 0.08, 14), L(0xffd23d), 0, 0.66, -0.1, parts.head);
+      add(new THREE.SphereGeometry(0.16, 8, 6), L(0xffd23d, 0x403000), 0, 1.55, -0.1, parts.head).scale.set(0.7, 1.8, 0.7);
+      const bumbo = add(new THREE.CylinderGeometry(0.55, 0.55, 0.45, 18), L(0xf2f2f2), 0, 1.0, 0.55); bumbo.rotation.x = Math.PI / 2;
+      add(new THREE.TorusGeometry(0.55, 0.05, 6, 18), L(0xd42a2a), 0, 1.0, 0.78);
+    } else if (C?.id === 'lenhador') {
+      // sem cabeça (só a gola) e um machado na mão
+      parts.head.visible = false;
+      add(new THREE.CylinderGeometry(0.32, 0.36, 0.12, 12), L(0x6a0f0f, 0x300000), 0, 1.98, 0);
+      add(new THREE.BoxGeometry(0.08, 1.2, 0.08), L(0x6b4a2b), 0.62, 1.2, 0.35);
+      add(new THREE.BoxGeometry(0.06, 0.45, 0.4), L(0xb8bcc4, 0x202020), 0.62, 1.7, 0.5);
+    } else if (C?.id === 'robo') {
+      // cabeça de lata com antena e ombreiras
+      add(new THREE.BoxGeometry(0.8, 0.14, 0.7), L(0x8a929c), 0, 0.62, -0.1, parts.head);
+      for (const x of [-0.56, 0.56]) add(new THREE.CylinderGeometry(0.13, 0.13, 0.16, 10), L(0x6a7078), x, 0.1, -0.05, parts.head).rotation.z = Math.PI / 2;
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), L(0x55595f), 0, 0.92, -0.1, parts.head);
+      const led = add(new THREE.SphereGeometry(0.09, 8, 6), L(0xff3030, 0xff0000), 0, 1.2, -0.1, parts.head); extra.glow.push(led.material);
+      for (const x of [-0.55, 0.55]) add(new THREE.BoxGeometry(0.4, 0.2, 0.5), L(0x6a7078), x, 1.75, 0);
+    } else if (C?.id === 'noiva') {
+      // véu e buquê
+      add(new THREE.ConeGeometry(0.66, 1.5, 16, 1, true), L(0xffffff, 0x202030, { transparent: true, opacity: 0.5, side: THREE.DoubleSide }), 0, -0.05, -0.28, parts.head);
+      add(new THREE.TorusGeometry(0.3, 0.05, 6, 16), L(0xe8e8ff, 0x303050), 0, 0.62, -0.05, parts.head).rotation.x = Math.PI / 2;
+      add(new THREE.SphereGeometry(0.2, 10, 8), L(0xff6ab0), 0.3, 1.1, 0.45);
     } else applyLook(parts, { h: 'chifre', m: 1 });
     if (boss >= 2) for (let k = 0; k < 5; k++) { const p = add(new THREE.SphereGeometry(0.12, 8, 6), L(0x7dff3a, 0x2a6a00), Math.cos(k) * 0.4, 1.1 + k * 0.12, 0.27); extra.glow.push(p.material); }
   } else if (T.id === 'corredor') { olhos(0xff3030); parts.body.scale.set(0.85, 1, 0.85); }
@@ -6750,7 +6788,7 @@ function zStartRound(r) {
   const np = nJog();
   Z.toSpawn = Math.max(3, Math.round(Math.min(6 + r * 4, 22 + r * 1.5) * zj(np).qtd * zd().qtd * (zMis()?.qtd ?? 1)));
   Z.boss = r % 5 === 0 ? Math.min(3, Math.ceil(r / 20)) : 0; // rodada do chefão (nível sobe a cada volta do rodízio)
-  Z.chefeI = r % 5 === 0 ? (FAZ ? (FAZ.chefes || CHEFES_MISSAO)[(r / 5 - 1) % (FAZ.chefes || CHEFES_MISSAO).length] : (r / 5 - 1) % 4) : 0;
+  Z.chefeI = r % 5 === 0 ? (FAZ ? (FAZ.chefes || CHEFES_MISSAO)[(r / 5 - 1) % (FAZ.chefes || CHEFES_MISSAO).length] : ORDEM_CHEFES[(r / 5 - 1) % ORDEM_CHEFES.length]) : 0;
   if (Z.boss) Z.toSpawn = Math.round(Z.toSpawn * 0.55) + 1;
   const evs = Object.keys(EVENTOS).filter(k => !EVENTOS[k].so || (isMissao() && FAZ && (!EVENTOS[k].mapa || FAZ.eventos?.includes(k)) && (k !== 'sabotagem' || FAZ.gens.some(G => G.ok))));
   Z.evento = !Z.boss && !Z.obj && r >= 3 && r % 3 === 0 ? randomFrom(evs) : null;
@@ -6956,7 +6994,7 @@ function zMove(z, alvos, dt) {
     }
   }
   // investida (brutamontes e chefão): dispara em linha reta e atropela
-  if ((T.id === 'tanque' || T.id === 'vaca' || z.chefe === 'gigante') && z.charge <= 0 && alvo && best > 3 && best < 13 && ve && (z.boss ? (z.abil2 -= dt) <= 0 : z.abil <= 0)) {
+  if ((T.id === 'tanque' || T.id === 'vaca' || z.chefe === 'gigante' || z.chefe === 'lenhador') && z.charge <= 0 && alvo && best > 3 && best < 13 && ve && (z.boss ? (z.abil2 -= dt) <= 0 : z.abil <= 0)) {
     z.charge = 1.1; z.cx = dx; z.cz = dz; if (z.boss) z.abil2 = 7; else z.abil = 5.5;
   }
   if (z.boss) zChefeTick(z, alvo, best, dx, dz, dt, ve);
@@ -7147,8 +7185,45 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     broadcast({ t: 'zfase', b: z.boss + 10 * (z.chefeI | 0) });
   }
   const f2 = z.fase2 ? 0.6 : 1;
+  // 🤖 depois de puxar com o ímã, o Robô esmaga quem ficou perto
+  if (z.esmaga > 0 && (z.esmaga -= dt) <= 0) {
+    broadcast({ t: 'zslam', x: r2(z.x), z: r2(z.z), s: 1.3 });
+    for (const a of Object.keys(net.players)) { const q = zPlayerPos(a); if (q && Math.hypot(q[0] - z.x, q[2] - z.z) < 4.5) zDamage(a, Math.round(22 * zd().dano)); }
+  }
   z.hab = (z.hab ?? 3) - dt;
   if (z.hab > 0 || !alvo) return;
+  const filhosDe = () => { let n = 0; for (const o of Z.sim.values()) if (o.mae === z.id) n++; return n; };
+  const capangas = (tipo, n, vida) => { for (let k = 0; k < n; k++) { const o = zAdd(tipo, z.x + (Math.random() - 0.5) * 4, 0, z.z + (Math.random() - 0.5) * 4); o.mae = z.id; o.hp = o.max = Math.round(o.hp * vida); } };
+  const perto = (R, fn) => { for (const a of Object.keys(net.players)) { const q = zPlayerPos(a); if (!q) continue; const vx = q[0] - z.x, vz = q[2] - z.z, d = Math.hypot(vx, vz); if (d < R) fn(a, vx / (d || 1), vz / (d || 1), d); } };
+  if (z.chefe === 'sorveteiro') {
+    if (ve && best < 24) zSpit(z, alvo, z.fase2 ? 4 : 2, { gelo: 1, c: 0xbfe8ff });
+    if (z.fase2) { broadcast({ t: 'zonda', k: 'gelo', x: r2(z.x), z: r2(z.z), s: 1.4, r: 7, l: 2 }); perto(7, a => zDamage(a, Math.round(6 * zd().dano))); }
+    z.hab = 4.5 * f2; return;
+  }
+  if (z.chefe === 'baterista') {
+    broadcast({ t: 'zonda', k: 'bumbo', x: r2(z.x), z: r2(z.z), s: 1.6, r: 9 });
+    perto(9, (a, ux, uz) => { zPush(a, ux, uz, 10); zDamage(a, Math.round(10 * zd().dano)); });
+    for (const o of Z.sim.values()) if (o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 18) o.raiva = Math.max(o.raiva || 0, 4);
+    z.hab = 5 * f2; return;
+  }
+  if (z.chefe === 'lenhador') {
+    if (ve && best > 4 && best < 26) zSpit(z, alvo, z.fase2 ? 3 : 1, { dmg: 26, c: 0x8a6a4a });
+    if (z.fase2 && filhosDe() < 6) capangas(ZT.corredor, 2, 0.5);
+    z.hab = 4 * f2; return;
+  }
+  if (z.chefe === 'robo') {
+    broadcast({ t: 'zonda', k: 'ima', x: r2(z.x), z: r2(z.z), s: 1.5, r: 16 });
+    perto(16, (a, ux, uz, d) => { if (d > 2) zPush(a, -ux, -uz, Math.min(14, d * 1.1)); });
+    z.esmaga = 1.1;
+    if (z.fase2 && filhosDe() < 4) capangas(ZT.bomba, 2, 1);
+    z.hab = 7 * f2; return;
+  }
+  if (z.chefe === 'noiva') {
+    broadcast({ t: 'zonda', k: 'grito', x: r2(z.x), z: r2(z.z), s: 1.2, r: 14, l: 2.5 });
+    perto(14, a => zDamage(a, Math.round(5 * zd().dano)));
+    if (z.fase2 && filhosDe() < 4) capangas(ZT.fantasma, 2, 0.35);
+    z.hab = 6 * f2; return;
+  }
   if (z.chefe === 'aranha') {
     // teia (cuspe que deixa bem lento) e filhotes rastejantes
     if (ve && best < 22) zSpit(z, alvo, z.fase2 ? 3 : 2);
@@ -7201,14 +7276,14 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     z.hab = 6 * f2;
   } else z.hab = 99;
 }
-function zSpit(z, alvo, volley = 1) {
+function zSpit(z, alvo, volley = 1, op = {}) {
   for (let k = 0; k < volley; k++) {
     const o = [z.x, z.y + 1.7 * (z.boss ? 2 : 1), z.z];
     const ex = alvo.x + (k ? (Math.random() - 0.5) * 3 : 0), ez = alvo.z + (k ? (Math.random() - 0.5) * 3 : 0), ey = alvo.y + 1.1;
     const d = Math.hypot(ex - o[0], ez - o[2]), tv = THREE.MathUtils.clamp(d / 15, 0.5, 1.4);
     const v = [(ex - o[0]) / tv, (ey - o[1]) / tv + 0.5 * ZG * tv, (ez - o[2]) / tv];
-    Z.spits.push({ x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], t: 3, dmg: Math.round(14 * zd().dano * (z.boss ? 1.4 : 1)) });
-    broadcast({ t: 'zspit', o: o.map(r2), v: v.map(r2) });
+    Z.spits.push({ x: o[0], y: o[1], z: o[2], vx: v[0], vy: v[1], vz: v[2], t: 3, dmg: Math.round((op.dmg || 14) * zd().dano * (z.boss ? 1.4 : 1)), gelo: op.gelo, c: op.c });
+    broadcast({ t: 'zspit', o: o.map(r2), v: v.map(r2), c: op.c });
   }
 }
 function zSpitTick(dt, alvos) {
@@ -7219,8 +7294,8 @@ function zSpitTick(dt, alvos) {
     for (const a of alvos) if (Math.hypot(a.x - s.x, a.z - s.z) < 0.8 && s.y > a.y && s.y < a.y + 2) bateu = true;
     if (!bateu) continue;
     Z.spits.splice(i, 1);
-    for (const a of alvos) { const d = Math.hypot(a.x - s.x, a.y + 1 - s.y, a.z - s.z); if (d < 2) { zDamage(a.id, Math.round(s.dmg * (d < 1 ? 1 : 0.6))); broadcast({ t: 'zacid', id: a.id }); } }
-    broadcast({ t: 'zsplash', x: r2(s.x), y: r2(Math.max(0.05, s.y)), z: r2(s.z) });
+    for (const a of alvos) { const d = Math.hypot(a.x - s.x, a.y + 1 - s.y, a.z - s.z); if (d < 2) { zDamage(a.id, Math.round(s.dmg * (d < 1 ? 1 : 0.6))); if (!s.c || s.gelo) broadcast({ t: 'zacid', id: a.id, g: s.gelo ? 1 : undefined }); } }
+    broadcast({ t: 'zsplash', x: r2(s.x), y: r2(Math.max(0.05, s.y)), z: r2(s.z), c: s.c });
   }
 }
 // bomba de tinta: estoura e pinta TODO MUNDO em volta (zumbis também, em cadeia)
@@ -7580,17 +7655,18 @@ function zOnNet(m) {
       return true;
     }
     case 'zspit': {
-      const mesh = new THREE.Mesh(ballGeo, spitMat); mesh.scale.setScalar(3.2); mesh.position.fromArray(m.o); scene.add(mesh);
+      const mesh = new THREE.Mesh(ballGeo, m.c ? corMat('b' + (m.c | 0), () => new THREE.MeshBasicMaterial({ color: m.c | 0 })) : spitMat); mesh.scale.setScalar(3.2); mesh.position.fromArray(m.o); scene.add(mesh);
       zSpitView.push({ mesh, v: new THREE.Vector3().fromArray(m.v), t: 3 });
       zsom('cuspe', mesh.position); return true;
     }
     case 'zsplash': {
       const p = new THREE.Vector3(+m.x, +m.y, +m.z);
-      burst(p, 0x7dff3a, 18, 4); addSplat(new THREE.Vector3(p.x, 0.03, p.z), new THREE.Vector3(0, 1, 0), 0x6adf2a, null, 1.6);
+      const cor = m.c ? m.c | 0 : 0x7dff3a; burst(p, cor, 18, 4); addSplat(new THREE.Vector3(p.x, 0.03, p.z), new THREE.Vector3(0, 1, 0), m.c ? cor : 0x6adf2a, null, 1.6);
       zsom('splash', p); return true;
     }
     case 'zacid':
-      if (m.id === net.myId) { acidT = 2.5; player.slowT = 2.2; $('acid').classList.add('on'); feed('🤢 Ácido! Você ficou lento'); }
+      if (m.id === net.myId && m.g) { player.slowT = 2.2; feed('🧊 Gelo! Você ficou lento'); }
+      else if (m.id === net.myId) { acidT = 2.5; player.slowT = 2.2; $('acid').classList.add('on'); feed('🤢 Ácido! Você ficou lento'); }
       return true;
     case 'zboom': {
       const p = new THREE.Vector3(+m.x, +m.y + 1, +m.z);
@@ -7604,6 +7680,19 @@ function zOnNet(m) {
       const p = new THREE.Vector3(+m.x, 0.05, +m.z);
       zOnda(p, +m.s || 1); zsom('slam', p);
       const d = p.distanceTo(player.pos); if (d < 16) shake = Math.max(shake, 0.45 * (+m.s || 1) * (1 - d / 16));
+      return true;
+    }
+    case 'zonda': { // onda dos chefões novos: gelo (Sorveteiro), bumbo (Baterista), ímã (Robô), grito (Noiva)
+      const K = { gelo: [0xbfe8ff, '🧊 O chão congelou! Você ficou lento'], bumbo: [0xffd23d], ima: [0x9aa3ad], grito: [0xe8e0ff, '👰 O grito da Noiva te deixou lento!'] }[m.k] || [0xffd23d];
+      const p = new THREE.Vector3(+m.x, 0.05, +m.z), d = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
+      zOnda(p, Math.min(2, +m.s || 1), K[0]); burst(p.clone().setY(1.2), K[0], 12, 5);
+      const v = longe(p);
+      if (m.k === 'bumbo') { tone(60, 0.35, { type: 'sine', vol: 0.25 * v, slide: -25 }); noise(0.25, { type: 'lowpass', f: 300, vol: 0.12 * v }); }
+      else if (m.k === 'ima') { tone(180, 0.9, { type: 'sawtooth', vol: 0.06 * v, slide: 220, lp: 900 }); }
+      else if (m.k === 'grito') { tone(1100, 0.8, { type: 'sawtooth', vol: 0.05 * v, slide: -500, lp: 2600 }); tone(1500, 0.6, { type: 'square', vol: 0.03 * v, slide: -700, delay: 0.1 }); }
+      else { noise(0.6, { type: 'highpass', f: 3000, vol: 0.06 * v }); tone(2600, 0.3, { type: 'sine', vol: 0.03 * v, slide: -1200 }); }
+      if (d < 16) shake = Math.max(shake, 0.3 * (1 - d / 16));
+      if (m.l && d < (+m.r || 8) && !meDead) { player.slowT = Math.max(player.slowT || 0, +m.l); if (K[1]) feed(K[1]); }
       return true;
     }
     case 'zpush':
@@ -7736,8 +7825,8 @@ function zOnNet(m) {
 }
 // onda de choque no chão (pancada do chefão / pouso do saltador)
 const ondas = [];
-function zOnda(p, s) {
-  const m = new THREE.Mesh(new THREE.RingGeometry(0.6, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffd23d, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+function zOnda(p, s, cor = 0xffd23d) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.6, 1, 40), new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.copy(p); scene.add(m);
   ondas.push({ m, t: 0, s });
   burst(p.clone().setY(0.3), 0x8a7a5a, Math.round(30 * s), 6 * s);
