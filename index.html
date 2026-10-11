@@ -2870,7 +2870,7 @@ const soloCfg = { modo: 'ondas', mapa: 'arena', dif: 1, clima: 'auto', ...(load(
 if (!MAPS[soloCfg.mapa]) soloCfg.mapa = 'arena';
 const OPT_DIF_SOLO = [0.5, 0.75, 1, 1.4, 1.8]; // mesmos níveis do OPT.dif
 if (!OPT_DIF_SOLO.includes(+soloCfg.dif)) soloCfg.dif = 1;
-if (!['zumbi', 'missao'].includes(soloCfg.modo)) soloCfg.modo = 'ondas';
+if (!['zumbi', 'missao', 'chefoes', 'defesa', 'sobrev'].includes(soloCfg.modo)) soloCfg.modo = 'ondas';
 if (soloCfg.modo === 'missao') { if (MAPS[soloCfg.mapa]?.so !== 'missao') soloCfg.mapa = 'fazenda'; } else if (MAPS[soloCfg.mapa]?.so) soloCfg.mapa = 'arena';
 loadMap(soloCfg.mapa);
 climaAvisa = true;
@@ -3558,9 +3558,11 @@ function updateHud() {
     const metaTxt = meta ? ` · até ${meta}` : '';
     if (isZumbi()) {
       const tipos = [...new Set([...zombies.values()].filter(o => !o.dead && o.T && o.T.id !== 'comum').map(o => o.T.ic))].slice(0, 6).join('');
-      $('score').textContent = Z.roundView ? `🧟 Rodada ${Z.roundView} · restam ${Z.left}${tipos ? ' · ' + tipos : ''}` : '🧟 Prepare-se…';
+      $('score').textContent = !Z.roundView ? '🧟 Prepare-se…' : net.cfg.modo === 'sobrev' ? `⏳ Minuto ${Z.roundView} · ${Z.left} zumbis${tipos ? ' · ' + tipos : ''}` : `${net.cfg.modo === 'chefoes' ? '👹' : '🧟'} Rodada ${Z.roundView} · restam ${Z.left}${tipos ? ' · ' + tipos : ''}`;
       const O = Z.objView, D = Z.dzView, linhas = [];
-      if (O) linhas.push(O.k === 'gen' ? (O.f ? '💥 Gerador quebrado' : `⚡ Proteja o gerador: ${O.max ? Math.round(O.hp / O.max * 100) : 0}%`) : O.ok ? '📍 Área segura!' : `📍 Segure a área: ${Math.floor(O.t)}/${O.meta} s`);
+      if (O?.k === 'tempo') { const resta = Math.max(0, Math.ceil(O.meta - O.t)); linhas.push(`⏳ Resgate em ${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, '0')}`); }
+      else if (O?.k === 'gen' && net.cfg.modo === 'defesa' && !O.f && zIntervaloAte > performance.now()) linhas.push(`🔧 Gerador ${O.max ? Math.round(O.hp / O.max * 100) : 0}%: fique perto para consertar`);
+      else if (O) linhas.push(O.k === 'gen' ? (O.f ? '💥 Gerador quebrado' : `⚡ Proteja o gerador: ${O.max ? Math.round(O.hp / O.max * 100) : 0}%`) : O.ok ? '📍 Área segura!' : `📍 Segure a área: ${Math.floor(O.t)}/${O.meta} s`);
       if (FAZ && isMissao()) { const zn = zonaInfo(fazZonaVista), ng = FAZ.gens.filter(G => G.ok).length; const E = FAZ.extr, resta = E ? Math.max(0, Math.ceil((E.ate - performance.now()) / 1000)) : 0, mmss = `${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, '0')}`, faltam = fazPecasFaltam();
         const nf = fusLivresView(), pecasRadio = pecasDoTipo('radio');
         linhas.unshift(`${fazHora()} · ${zn ? zn.nome : FAZ.txt.local} · ${E?.f === 'procurando' ? `🔥 Acendam a fogueira de sinal ao lado do H${temPecaView('gasolina') ? '' : ' (achem o ⛽ galão)'}!` : E?.f === 'vindo' ? `🚁 Helicóptero chega em ${mmss}${FAZ.fogoOk ? '' : ' · 🔥 fogueira apagada!'}` : E?.f === 'pousado' ? `🚁 EMBARQUE NO 🅷 ${FAZ.txt.heli.toUpperCase()}! Decola em ${mmss}` : !FAZ.portas[0].aberta ? `🎯 Abra ${FAZ.txt.porta0} (💰 ${FAZ.portas[0].preco})` : !FAZ.energia ? `🎯 Liguem os geradores ⚡ ${ng}/3 · 🔌 ${nf > 0 ? nf + ' na mão' : 'achem fusíveis'}` : faltam.length ? `🎯 Achem as peças do rádio: ${pecasRadio.map(k => (faltam.includes(k) ? '⬜' : '✅') + PECAS[k].ic).join(' ')}` : `🎯 Chamem o socorro no 📻 rádio ${FAZ.txt.radio}`}`); }
@@ -4275,10 +4277,14 @@ const MODOS = {
   ultimo: { nome: 'Último de pé', icone: '💀', desc: 'sem voltar: o último vivo ganha a rodada' },
   esconde:{ nome: 'Esconde-esconde', icone: '📦', desc: 'um time vira objeto do cenário, o outro caça' },
   zumbi:  { nome: 'Zumbis', icone: '🧟', desc: 'todos juntos contra hordas; chefão a cada 5 rodadas' },
+  chefoes: { nome: 'Chefões', icone: '👹', desc: 'só chefões, cada vez mais misturados: derrotem os 12' },
+  defesa: { nome: 'Defesa do Gerador', icone: '⚡', desc: 'protejam o gerador no meio do mapa: se ele quebrar, acabou' },
+  sobrev: { nome: 'Sobrevivência', icone: '⏳', desc: 'horda sem parar até o resgate chegar' },
   missao: { nome: 'Missão', icone: '🗺️', desc: 'mapas grandes à noite (fazenda, parque, hospital): abra caminho, ligue os geradores e fuja de helicóptero' },
 };
 // modos de hordas (o Missão é o Zumbi com a camada da fazenda por cima)
-const ehZumbi = m => m === 'zumbi' || m === 'missao';
+const MODOS_COOP = ['zumbi', 'missao', 'chefoes', 'defesa', 'sobrev'];
+const ehZumbi = m => MODOS_COOP.includes(m);
 // opções que o dono da sala pode escolher (0 = indeterminado / sem limite; rInt 0 = aleatório)
 const OPT = { tempo: [0, 3, 5, 10, 15, 20], kills: [0, 5, 10, 15, 20, 30, 50], vida: [0.5, 1, 2], respawn: [2, 3, 5, 8], dif: [0.5, 0.75, 1, 1.4, 1.8], rInt: [0, 10, 20, 30, 45, 60],
   caps: [0, 1, 3, 5, 7], hill: [0, 30, 60, 100, 150], rounds: [3, 5, 7], bots: [0, 2, 4, 6, 8],
@@ -4401,7 +4407,7 @@ function startMatch() {
   syncBots();
   for (const [id, p] of Object.entries(net.players)) Object.assign(p, { kills: 0, deaths: 0, pts: 0, hp: hpMax(id), dead: false, down: false });
   if (isTdm()) balanceTeams();
-  net.endAt = net.cfg.tempo && !['zumbi', 'missao', 'esconde'].includes(net.cfg.modo) ? performance.now() + net.cfg.tempo * 60000 : 0;
+  net.endAt = net.cfg.tempo && !ehZumbi(net.cfg.modo) && net.cfg.modo !== 'esconde' ? performance.now() + net.cfg.tempo * 60000 : 0;
   net.roll = {};
   if (net.cfg.modo === 'roleta') rollWeapons(true);
   modeStart();
@@ -5513,7 +5519,7 @@ function renderCfgForm() {
   $('rowBots').hidden = zb || es; $('rowDif').hidden = !(zb || c.bots > 0) || es;
   $('cfgDifTxt').textContent = zb ? '🧟 Dificuldade das hordas' : '🤖 Dificuldade dos bots';
   $('cfgKillsTxt').textContent = { tdm: '🎯 Abates do time para vencer', ctf: '🚩 Capturas para vencer', koth: '⛰️ Pontos no morro para vencer', ultimo: '💀 Rodadas para vencer', esconde: '📦 Rodadas para vencer' }[c.modo] || '🎯 Abates para vencer';
-  $('ggInfo').textContent = zb ? `Hordas em rodadas com 10 tipos de monstro, rodadas especiais e chefão a cada 5. Todo mundo começa com pistola fraca e compra armas na 💰 Lojinha com o dinheiro dos monstros (2 armas por pessoa, níveis até 5). Quem cai fica derrubado ${BLEED_S} s esperando um amigo levantar; a vida não volta sozinha.`
+  $('ggInfo').textContent = zb ? (INFO_COOP[c.modo] || '') + `Hordas em rodadas com 10 tipos de monstro, rodadas especiais e chefão a cada 5. Todo mundo começa com pistola fraca e compra armas na 💰 Lojinha com o dinheiro dos monstros (2 armas por pessoa, níveis até 5). Quem cai fica derrubado ${BLEED_S} s esperando um amigo levantar; a vida não volta sozinha.`
     : gg ? 'Cada abate troca sua arma: ' + ggOrderOf(c).map(id => WEAPONS[id].nome).join(' → ') + '. Um abate com a última arma vence!'
     : rol ? `A arma de todo mundo muda ${c.rInt ? `a cada ${c.rInt} s` : 'em momentos aleatórios (de 10 a 40 s)'}, ${c.rIgual ? 'todos ficam com a mesma' : 'cada um com uma diferente'}. Sorteio entre as armas liberadas abaixo.`
     : c.modo === 'ctf' ? 'Dois times. Encoste na bandeira do outro time e leve até a sua base (a sua bandeira precisa estar lá). Quem é pintado com a bandeira deixa ela cair; encoste na sua bandeira caída para devolver.'
@@ -5552,7 +5558,7 @@ function renderCfgForm() {
     ['cabecao', '🎈 Cabeção', 'todo mundo com a cabeça gigante (mais fácil de acertar)', true],
     ['quica', '🏀 Bolinha que quica', 'o tiro rebate uma vez na parede e no chão', true],
     ['raiz', '🥷 Modo raiz', 'sem mira na tela, sem números de dano e sem barra de vida dos outros', true],
-    ['ckpt', '💾 Checkpoint a cada 5 rodadas', 'se todos caírem, voltam da última rodada 5, 10, 15… (desligado: recomeça da rodada 1)', zb],
+    ['ckpt', '💾 Checkpoint a cada 5 rodadas', 'se todos caírem, voltam da última rodada 5, 10, 15… (desligado: recomeça da rodada 1)', zb && c.modo !== 'sobrev'],
     ['caca', '👑 Caçada ao líder', 'quem está ganhando fica com uma coroa visível através das paredes', !zb && !es],
   ];
   const regras = rules.filter(r => r[3]).map(([k, t, d]) => {
@@ -6285,11 +6291,11 @@ function showSolo() {
     if (k === 'modo') { const m = v === 'missao' ? (MAPS[soloCfg.mapa]?.so === 'missao' ? soloCfg.mapa : 'fazenda') : MAPS[soloCfg.mapa]?.so ? 'arena' : soloCfg.mapa; if (m !== soloCfg.mapa) { soloCfg.mapa = m; loadMap(m); } }
     save('pb-solo', soloCfg); if (k === 'mapa') loadMap(v); showSolo();
   };
-  choice($('soloModeSeg'), [{ v: 'ondas', t: 'Ondas de amigos', ic: '🎨', s: 'sobreviva às ondas atirando de volta' }, { v: 'zumbi', t: 'Zumbis', ic: '🧟', s: 'rodadas de hordas, quanto mais longe melhor' }, { v: 'missao', t: 'Missão', ic: '🗺️', s: 'mapas grandes à noite: abra caminho e fuja de helicóptero' }], v => v === soloCfg.modo, v => set('modo', v), 'card2');
+  choice($('soloModeSeg'), [{ v: 'ondas', t: 'Ondas de amigos', ic: '🎨', s: 'sobreviva às ondas atirando de volta' }, { v: 'zumbi', t: 'Zumbis', ic: '🧟', s: 'rodadas de hordas, quanto mais longe melhor' }, { v: 'missao', t: 'Missão', ic: '🗺️', s: 'mapas grandes à noite: abra caminho e fuja de helicóptero' }, { v: 'chefoes', t: 'Chefões', ic: '👹', s: 'só chefões, vários de uma vez e rodadas malucas' }, { v: 'defesa', t: 'Defesa do Gerador', ic: '⚡', s: 'proteja o gerador; no intervalo, conserte' }, { v: 'sobrev', t: 'Sobrevivência', ic: '⏳', s: 'horda sem parar até o resgate' }], v => v === soloCfg.modo, v => set('modo', v), 'card2');
   choice($('mapSel'), Object.entries(MAPS).filter(([v, m]) => soloCfg.modo === 'missao' ? m.so === 'missao' : !m.so).map(([v, m]) => ({ v, t: m.nome, s: m.desc, thumb: v })), v => v === soloCfg.mapa, v => set('mapa', v), 'card2');
   choice($('difSel'), OPT.dif.map(v => ({ v, t: `${ZDIF[v].ic} ${ZDIF[v].nome}` })), v => v === +soloCfg.dif, v => set('dif', v));
   choice($('soloClima'), Object.entries(CLIMAS).map(([v, m]) => ({ v, t: `${m.ic} ${m.nome}` })), v => v === (soloCfg.clima || 'auto'), v => { soloCfg.clima = v; save('pb-solo', soloCfg); applyClima(); showSolo(); });
-  $('soloCkpt').style.display = soloCfg.modo === 'ondas' ? 'none' : '';
+  $('soloCkpt').style.display = soloCfg.modo === 'ondas' || soloCfg.modo === 'sobrev' ? 'none' : '';
   choice($('soloCkpt'), [{ v: false, t: '🔁 Sem checkpoint' }, { v: true, t: '💾 Checkpoint a cada 5 rodadas' }], v => v === (soloCfg.ckpt === true), v => set('ckpt', v));
   if ($('soloScreen').style.display !== 'flex') { loadMap(soloCfg.mapa); showScreen('soloScreen'); }
 }
@@ -6568,6 +6574,7 @@ function clearZombies() { caesView?.([]); zObjView(null); Z.dzView = null; for (
 // 📍 objetivo da rodada no meu lado: gerador ou área
 let zObjMesh = null;
 function zObjView(o, fim) {
+  if (o?.k === 'tempo') { Z.objView = o; if (zObjMesh) { scene.remove(zObjMesh.g); zObjMesh = null; } updateHud(); return; } // relógio da Sobrevivência: sem nada no mapa
   Z.objView = o;
   if (!o) { if (zObjMesh) { scene.remove(zObjMesh.g); zObjMesh = null; } updateHud(); return; }
   if (!zObjMesh || zObjMesh.k !== o.k) {
@@ -6737,7 +6744,7 @@ function updateSpitView(dt) {
 
 // --- simulação (só o dono da sala) ---
 function zPlayerPos(id) { return id === net.myId ? player.pos.toArray() : net.ppos.get(id); }
-function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null }); }
+function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null, obj: null, bossFila: [], chOrdem: null, chPos: 0, chDerrot: new Set(), chMortos: 0, chVar: null, chVarAntes: null, sv: null, genLugar: null, defVar: null }); }
 function zBegin() {
   zReset(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
   for (const p of Object.values(net.players)) zEcoInit(p, true);
@@ -6780,8 +6787,8 @@ function zStartRound(r) {
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
   Z.desafio = r >= 2 ? { k: randomFrom(ks), n: 0 } : null; if (Z.desafio) Z.desafio.n = DESAFIOS[Z.desafio.k].n;
   for (const p of Object.values(net.players)) p.dz = { p: 0, ok: false };
-  Z.obj = null;
-  if (r >= 7 && r % 5 === 2) {
+  if (net.cfg.modo !== 'defesa') Z.obj = null;
+  if (r >= 7 && r % 5 === 2 && (net.cfg.modo === 'zumbi' || net.cfg.modo === 'missao')) {
     const q = lugarObjetivo(), gen = ((r - 7) / 5) % 2 === 0;
     Z.obj = gen ? { k: 'gen', x: q.x, z: q.z, hp: Math.round((400 + 40 * r) * zj().qtd), max: Math.round((400 + 40 * r) * zj().qtd) } : { k: 'area', x: q.x, z: q.z, t: 0, meta: 40 };
   }
@@ -6793,6 +6800,9 @@ function zStartRound(r) {
   const evs = Object.keys(EVENTOS).filter(k => !EVENTOS[k].so || (isMissao() && FAZ && (!EVENTOS[k].mapa || FAZ.eventos?.includes(k)) && (k !== 'sabotagem' || FAZ.gens.some(G => G.ok))));
   Z.evento = !Z.boss && !Z.obj && r >= 3 && r % 3 === 0 ? randomFrom(evs) : null;
   if (Z.evento === 'sabotagem') { const g = FAZ.gens.findIndex(G => G.ok && Math.random() < 0.6); const gi = g >= 0 ? g : FAZ.gens.findIndex(G => G.ok); const G = FAZ.gens[gi]; G.ok = false; G.prog = 0.5; FAZ.energia = false; broadcast({ t: 'gerador', g: gi, p: 0.5, sab: 1 }); }
+  if (net.cfg.modo === 'chefoes') zRodadaChefoes(r);
+  else if (net.cfg.modo === 'defesa') zRodadaDefesa(r);
+  else if (net.cfg.modo === 'sobrev') { Z.obj = Z.sv?.fim ? Z.obj : { k: 'tempo', t: Z.sv?.t || 0, meta: (SOBREV_MIN[net.cfg.dif] || 10) * 60 }; Z.toSpawn = Math.round(Z.toSpawn * 0.6); }
   Z.corvoT = 4;
   if (Z.evento === 'corredores' || Z.evento === 'bombas') Z.toSpawn = Math.round(Z.toSpawn * 1.2);
   Z.spawnT = 1.2;
@@ -6803,7 +6813,8 @@ function zStartRound(r) {
     if (r === 1) p.loja = lojaOfertas(p);
   }
   sendRoster();
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : 0, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ns: FAZ ? (Z.npcSolto ? 1 : 0) : undefined, tr: FAZ?.trator ? [r2(FAZ.trator.x), r2(FAZ.trator.z), r2(FAZ.trator.yaw), FAZ.trator.piloto || 0] : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  const bf = Z.bossFila || [];
+  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : bf.length ? bf[0].nivel + 10 * bf[0].i : 0, bs: bf.length > 1 ? bf.map(B => B.i) : undefined, vr: net.cfg.modo === 'chefoes' ? Z.chVar || undefined : net.cfg.modo === 'defesa' ? Z.defVar || undefined : undefined, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ns: FAZ ? (Z.npcSolto ? 1 : 0) : undefined, tr: FAZ?.trator ? [r2(FAZ.trator.x), r2(FAZ.trator.z), r2(FAZ.trator.yaw), FAZ.trator.piloto || 0] : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // 🏁 fim da rodada (começo do intervalo da loja): quem morreu ou está caído volta já (para dar tempo de comprar),
 // quem sobreviveu ganha CURA_FIM da vida máxima, todo mundo ganha o bônus da rodada e a lojinha sorteia armas novas
@@ -6827,10 +6838,95 @@ function zRenasce(id, frac) {
   zInvencivel(id); net.lastDmg.set(id, performance.now());
   broadcast({ t: 'respawn', id }); broadcast({ t: 'hp', id, hp: p.hp });
 }
+// ===== Modos cooperativos novos: 👹 Chefões, ⚡ Defesa do Gerador, ⏳ Sobrevivência =====
+const INFO_COOP = {
+  chefoes: '👹 Toda rodada é de chefão (os 12 em ordem sorteada). Quanto mais difícil, mais chefões ao mesmo tempo e mais fortes; de vez em quando vem uma rodada maluca (Dupla Dinâmica, Espelho, Mini-chefões, Chefão Supremo, Fúria Total, Chefão + Horda, Apagão). Derrotem os 12 para vencer. ',
+  defesa: '⚡ Um gerador no meio do mapa: parte dos zumbis vai direto nele. Se quebrar, acabou. No intervalo da loja, fique perto dele para consertar; a partir da rodada 5 ele dá choque em quem chega perto. A cada 3 rodadas: Sabotadores, Cerco ou Blindados. ',
+  sobrev: '⏳ A horda não para: cada minuto fica mais difícil (chefão no 5º, 10º…, e quem caiu volta a cada minuto). Caixas de suprimentos caem pelo mapa. Aguente o tempo (6 a 15 min, pela dificuldade) e segure a área do resgate. Loja só no quiosque. ',
+};
+const CH_VAR = {
+  dupla: { ic: '👯', nome: 'Dupla Dinâmica', desc: 'dois chefões parceiros: derrube um e o outro fica FURIOSO e se cura' },
+  espelho: { ic: '🪞', nome: 'Espelho', desc: 'o mesmo chefão… repetido!' },
+  mini: { ic: '🐜', nome: 'Mini-chefões', desc: 'um bando de chefões mais fracos de uma vez' },
+  supremo: { ic: '🗿', nome: 'Chefão Supremo', desc: 'um só, com o triplo de vida e já furioso' },
+  furia: { ic: '😡', nome: 'Fúria Total', desc: 'todos os chefões já chegam furiosos' },
+  horda: { ic: '🧟', nome: 'Chefão + Horda', desc: 'os chefões vieram com a horda inteira junto' },
+  apagao: { ic: '🌑', nome: 'Apagão', desc: 'luz apagada e chefão no escuro' },
+};
+const CHEFOES_META = CHEFES.length; // vence ao derrotar todos (cada um pelo menos uma vez)
+const zRodEfDe = r => net.cfg.modo === 'chefoes' ? 3 + r * 2 : r; // "força" da rodada: no Chefões cresce mais rápido
+const zRodEf = () => zRodEfDe(Z.round);
+function zRodadaChefoes(r) {
+  const dif = net.cfg.dif || 1, ritmo = { 0.5: 6, 0.75: 5, 1: 4, 1.4: 3, 1.8: 2 }[dif] || 4;
+  if (!Z.chOrdem) { Z.chOrdem = [...ORDEM_CHEFES].sort(() => Math.random() - 0.5); Z.chPos = 0; }
+  // falta algum dos 12? ele vem primeiro
+  const prox = () => { for (let k = 0; k < Z.chOrdem.length; k++) { const i = Z.chOrdem[(Z.chPos + k) % Z.chOrdem.length]; if (!Z.chDerrot.has(i) && !fila.includes(i)) { Z.chPos += k + 1; return i; } } return Z.chOrdem[Z.chPos++ % Z.chOrdem.length]; };
+  let n = Math.min(4, 1 + Math.floor((r - 1) / ritmo) + (dif >= 1.8 ? 1 : 0));
+  const nivel = Math.min(3, 1 + Math.floor((r - 1) / 4) + (dif >= 1.4 ? 1 : 0));
+  let vr = null;
+  if (r >= 3 && (dif >= 1.8 || r % 2 === 1)) vr = randomFrom(Object.keys(CH_VAR).filter(k => k !== Z.chVarAntes));
+  Z.chVarAntes = vr;
+  const fila = []; let vida = 1, fase2 = false, escolta = Math.round((2 + r) * zj().qtd * zd().qtd);
+  if (vr === 'dupla') n = Math.max(2, n);
+  if (vr === 'espelho') { n = Math.max(2, n); const i = prox(); for (let k = 0; k < n; k++) fila.push(i); vida = 0.8; }
+  if (vr === 'mini') { n = Math.min(6, n + 3); vida = 0.4; }
+  if (vr === 'supremo') { n = 1; vida = 3; fase2 = true; }
+  if (vr === 'furia') fase2 = true;
+  if (vr === 'horda') escolta = Math.round(Math.min(6 + r * 4, 30) * zj().qtd * zd().qtd);
+  while (fila.length < n) fila.push(prox());
+  if (vr !== 'mini' && vr !== 'supremo') vida *= (1 + 0.5 * (n - 1)) / n; // vários juntos: cada um um pouco mais fraco
+  Z.bossFila = fila.map(i => ({ i, nivel, vida, fase2, dupla: vr === 'dupla' }));
+  Z.boss = 0; Z.chefeI = fila[0]; Z.obj = null;
+  Z.toSpawn = escolta + fila.length;
+  Z.evento = vr === 'apagao' ? 'apagao' : null;
+  Z.chVar = vr;
+}
+// ⚡ Defesa: o gerador fica a partida inteira; cresce a cada rodada (mantendo a %)
+const DEF_VARS = { sabotadores: ['💣', 'Sabotadores', 'Bombas de Tinta correndo para o gerador!'], cerco: ['🏰', 'Cerco', 'muito mais zumbis indo direto no gerador'], blindados: ['🛡️', 'Blindados', 'Brutamontes por todo lado (mirem na cabeça)'] };
+function zRodadaDefesa(r) {
+  const max = Math.round((1500 + 180 * r) * zj().qtd);
+  if (!Z.obj || Z.obj.k !== 'gen') { const q = Z.genLugar ||= lugarObjetivo(); Z.obj = { k: 'gen', x: q.x, z: q.z, hp: max, max }; }
+  else { const O = Z.obj, fr = O.hp / O.max; O.max = max; O.hp = Math.round(max * fr); }
+  Z.defVar = r >= 3 && r % 3 === 0 && !Z.boss ? randomFrom(Object.keys(DEF_VARS)) : null;
+  if (Z.defVar) Z.evento = null;
+  if (Z.defVar === 'cerco') Z.toSpawn = Math.round(Z.toSpawn * 1.4);
+  Z.focoP = Math.min(0.7, 0.25 + 0.1 * (net.cfg.dif || 1) + (Z.defVar === 'cerco' ? 0.3 : 0));
+}
+// ⏳ Sobrevivência: cada minuto é uma "rodada"; no fim do tempo aparece a área do resgate
+const SOBREV_MIN = { 0.5: 6, 0.75: 8, 1: 10, 1.4: 12, 1.8: 15 };
+function zSobrevTick(dt) {
+  const S = Z.sv ||= { t: 0, min: 1, drop: 50, fim: false }, meta = SOBREV_MIN[net.cfg.dif] || 10;
+  S.t += dt;
+  if (!S.fim) {
+    if (Z.toSpawn < 4) Z.toSpawn += 4;
+    if (S.t >= S.min * 60) {
+      S.min++;
+      if (S.min > meta) {
+        S.fim = true; const q = lugarObjetivo(); Z.obj = { k: 'area', x: q.x, z: q.z, t: 0, meta: 20 };
+        broadcast({ t: 'zresgate', x: r2(q.x), z: r2(q.z) }); broadcast({ t: 'zobj', o: zObjMsg() });
+      } else zStartRound(S.min);
+    } else if (Z.obj?.k !== 'tempo' || !Z.obj) Z.obj = { k: 'tempo', t: 0, meta: meta * 60 };
+    if (Z.obj?.k === 'tempo') Z.obj.t = S.t;
+    if ((S.drop -= dt) <= 0) {
+      S.drop = 70; const q = lugarObjetivo();
+      zDrop('heal', q.x, q.z, 40000); zDrop('gren', q.x + 1.2, q.z, 40000); zDrop(randomFrom(Object.keys(ZPREMIOS)), q.x - 1.2, q.z, 40000);
+      broadcast({ t: 'zsup', x: r2(q.x), z: r2(q.z) });
+    }
+  } else if (Z.obj?.ok) zVitoria();
+}
+// vitória (Chefões e Sobrevivência)
+function zVitoria() {
+  const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
+  broadcast({ t: 'zwin', r: Z.round, kills, ch: Z.chMortos | 0, mn: Math.floor((Z.sv?.t || 0) / 60) });
+  Z.over = true; Z.overT = 14; Z.continua = false; Z.toSpawn = 0; if (net.local) Z.started = false;
+}
+const recKey = () => ({ chefoes: 'pb-recorde-chefoes', defesa: 'pb-recorde-defesa', sobrev: 'pb-recorde-sobrev' })[net.cfg.modo] || 'pb-recorde-zumbi';
 // sorteia o monstro: os especiais aparecem com o tempo e ficam mais comuns
 function zPickType(r) {
   const conta = {}; for (const z of Z.sim.values()) conta[z.type] = (conta[z.type] || 0) + 1;
   if (Z.evento === 'corredores') return Math.random() < 0.7 ? ZT.corredor : ZT.rastejante;
+  if (Z.defVar === 'sabotadores' && Math.random() < 0.35) return ZT.bomba;
+  if (Z.defVar === 'blindados' && Math.random() < 0.35) return ZT.tanque;
   if (Z.evento === 'bombas' && Math.random() < 0.45) return ZT.bomba;
   if (Z.evento === 'milharal' && Math.random() < 0.5) return ZT.rastejante;
   const ex = zj().extra, limite = { mae: 1 + (ex > 1 ? 1 : 0), gritador: 2 + ex, tanque: 2 + Math.floor(r / 6) + ex, bomba: 4 + ex * 2, vaca: 2 + ex, galinha: 4 + ex * 2 };
@@ -6879,7 +6975,14 @@ function zAdd(type, x, y, z, extra = {}) {
 }
 function zSpawn() {
   const best = zSpot(); if (!best) return;
-  const r = Z.round, dif = net.cfg.dif || 1;
+  const r = zRodEf(), dif = net.cfg.dif || 1;
+  if (Z.bossFila?.length) {
+    const B = Z.bossFila.shift(), C = CHEFES[B.i], nivel = B.nivel;
+    const hpB = Math.round(zVidaBase(r) * 8 * difHp() * zj().chefe * B.vida);
+    const o = zAdd(ZT[C.tipo] ?? 0, best.x, 0, best.z, { boss: nivel, chefe: C.id, chefeI: B.i, hp: hpB, max: hpB, speed: (2.4 + nivel * 0.25) * zd().vel, dmg: Math.round((30 + nivel * 6) * zd().dano), atkCd: 1, raiva: nivel >= 3 || B.fase2 ? 999 : 0, abil: 3, abil2: 6, abil3: 4, dupla: B.dupla || undefined });
+    if (B.fase2) { o.fase2 = true; o.speed *= 1.2; }
+    return;
+  }
   if (Z.boss) {
     // chefão: um amigo gigante com pancada no chão, investida e (depois) cuspe
     const nivel = Z.boss, C = CHEFES[Z.chefeI | 0]; Z.boss = 0;
@@ -6895,7 +6998,8 @@ function zSpawn() {
     broadcast({ t: 'zladrao', ev: 'chegou' });
     return;
   }
-  zAdd(zPickType(r), best.x, 0, best.z);
+  const o = zAdd(zPickType(r), best.x, 0, best.z);
+  if (net.cfg.modo === 'defesa' && o && Math.random() < (Z.focoP || 0.3)) o.foco = true; // vai direto no gerador
 }
 const zp = new THREE.Vector3(), zq = new THREE.Vector3(), zr = new THREE.Vector3();
 const zRaio = z => z.boss ? 0.9 : ZTYPES[z.type].id === 'tanque' || ZTYPES[z.type].id === 'mae' ? 0.65 : 0.45;
@@ -6919,6 +7023,7 @@ function zMove(z, alvos, dt) {
   const T = ZTYPES[z.type];
   let alvo = null, best = 1e9;
   for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < best) { best = d; alvo = a; } }
+  if (z.foco && alvo?.id !== 'gen') { const g = alvos.find(a => a.id === 'gen'); if (g) { alvo = g; best = Math.hypot(g.x - z.x, g.z - z.z); } }
   let dx = alvo ? alvo.x - z.x : -z.x, dz = alvo ? alvo.z - z.z : -z.z;
   const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
   z.yaw = Math.atan2(dx, dz);
@@ -7106,6 +7211,16 @@ const zObjMsg = () => Z.obj ? { k: Z.obj.k, x: r2(Z.obj.x), z: r2(Z.obj.z), hp: 
 function zObjTick(dt, alvos) {
   const O = Z.obj; if (!O) return;
   if (O.k === 'gen' && O.hp > 0) alvos.push({ id: 'gen', x: O.x, y: 0, z: O.z });
+  if (net.cfg.modo === 'defesa' && O.k === 'gen' && O.hp > 0) {
+    // 🔧 no intervalo, quem fica perto conserta (5% por segundo cada um)
+    if (Z.breakT > 0 && O.hp < O.max) for (const id of Object.keys(net.players)) { const q = zPlayerPos(id), p = net.players[id]; if (q && !p.dead && !p.down && Math.hypot(q[0] - O.x, q[2] - O.z) < 4.5) O.hp = Math.min(O.max, O.hp + O.max * 0.05 * dt); }
+    // ⚡ da rodada 5 em diante dá choque em volta de tempos em tempos
+    if (Z.round >= 5 && Z.breakT <= 0 && (O.choqueT = (O.choqueT ?? 8) - dt) <= 0) {
+      O.choqueT = 8; broadcast({ t: 'zonda', k: 'choque', x: r2(O.x), z: r2(O.z), s: 1.4 });
+      for (const z of [...Z.sim.values()]) if (Math.hypot(z.x - O.x, z.z - O.z) < 5.5) zFerir(z, null, Math.round(zVidaBase(Z.round) * (z.boss ? 0.15 : 0.6)), { semGrana: true, fx: 'raio' });
+    }
+  }
+  if (O.k === 'tempo') { O.sendT = (O.sendT || 0) - dt; if (O.sendT <= 0) { O.sendT = 1; broadcast({ t: 'zobj', o: zObjMsg() }); } return; }
   if (O.k === 'area' && !O.ok) {
     const dentro = Object.entries(net.players).some(([id, p]) => { if (p.dead || p.down) return false; const q = zPlayerPos(id); return q && Math.hypot(q[0] - O.x, q[2] - O.z) < AREA_R; });
     if (dentro) O.t += dt;
@@ -7127,12 +7242,14 @@ function zDanoGerador(dmg) {
     O.hp = 0; O.falhou = true;
     for (const [id, p] of Object.entries(net.players)) if (!p.dead && !p.down) zDamage(id, 25); // estoura e machuca todo mundo
     broadcast({ t: 'zobj', o: zObjMsg(), fim: 'quebrou' });
+    if (net.cfg.modo === 'defesa') zGameOver();
   }
 }
 // fim da rodada: gerador inteiro paga o time
 function zObjFim() {
   const O = Z.obj; if (!O) return;
   if (O.k === 'gen' && !O.falhou) { for (const id of Object.keys(net.players)) zPagar(id, 500 + 20 * Z.round); broadcast({ t: 'zobj', o: zObjMsg(), fim: 'ok' }); Z.rosterDirty = true; }
+  if (net.cfg.modo === 'defesa' && O.k === 'gen' && !O.falhou) { O.hp = Math.min(O.max, O.hp + O.max * 0.15); return; } // fica e se recupera um pouco
   Z.obj = null;
 }
 const AREA_R = 5;
@@ -7347,14 +7464,14 @@ function zGameOver() {
   Z.over = true; Z.overT = 9;
   const kills = {}; for (const [id, p] of Object.entries(net.players)) kills[id] = p.kills;
   const ck = net.cfg.ckpt && Z.ckptR > 0;
-  broadcast({ t: 'zover', r: Z.round, kills, ck: ck ? Z.ckptR : undefined });
+  broadcast({ t: 'zover', r: Z.round, kills, ck: ck ? Z.ckptR : undefined, ch: Z.chMortos | 0, mn: Math.floor((Z.sv?.t || 0) / 60), gen: Z.obj?.k === 'gen' && Z.obj.falhou ? 1 : undefined });
   if (ck) { Z.continua = true; Z.overT = 6; return; } // 💾 volta do checkpoint em vez de recomeçar do zero
   if (net.local) Z.started = false;
 }
 // 💾 todos caíram depois de um checkpoint: a rodada volta para a do checkpoint e o resto fica (dinheiro, armas; na Missão portas, geradores, peças e fogueira)
 const CKPT_S = 40, CKPT_AUTO = 5;
 function zContinuar() {
-  Z.over = false; Z.continua = false; Z.sim.clear(); Z.spits.length = 0; Z.caes.clear(); Z.extr = null; Z.radioProg = 0; Z.obj = null; Z.evento = null; Z.boss = 0;
+  Z.over = false; Z.continua = false; Z.sim.clear(); Z.spits.length = 0; Z.caes.clear(); Z.extr = null; Z.radioProg = 0; Z.obj = null; Z.evento = null; Z.boss = 0; Z.bossFila = [];
   Z.round = Math.max(0, Z.ckptR - 1); Z.toSpawn = 0; Z.breakT = CKPT_S;
   if (FAZ?.trator?.piloto) zTratorSai();
   if (Z.npc) Object.assign(Z.npc, { x: FAZ.inicio[0][0] + 1, z: FAZ.inicio[0][1], hp: Z.npc.max });
@@ -7363,7 +7480,7 @@ function zContinuar() {
   sendRoster();
 }
 function zRestart() {
-  zReset(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3;
+  zReset(); zObjView(null); broadcast({ t: 'zobj', o: null }); Z.retratos = new Set(); Z.started = true; Z.breakT = 3;
   for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { kills: 0, deaths: 0, dead: false, down: false, hp: hpMax(id) }); zEcoInit(p, true); broadcast({ t: 'respawn', id }); }
   broadcast({ t: 'zclear' });
   sendRoster();
@@ -7382,8 +7499,10 @@ function zHostTick(dt) {
   const ps = Object.values(net.players);
   if (Z.round > 0 && ps.length && ps.every(p => (p.down && !p.autoUp) || p.dead)) { zGameOver(); return; }
   // rodadas
-  if (Z.breakT > 0) { Z.breakT -= dt; if (Z.breakT <= 0) zStartRound(Z.round + 1); }
+  if (net.cfg.modo === 'sobrev' && Z.round > 0) zSobrevTick(dt);
+  else if (Z.breakT > 0) { Z.breakT -= dt; if (Z.breakT <= 0) zStartRound(Z.round + 1); }
   else if (Z.toSpawn === 0 && Z.sim.size === 0 && FAZ && isMissao() && Z.round >= AMANHECER_R && !Z.extr) zAmanhecer();
+  else if (Z.toSpawn === 0 && Z.sim.size === 0 && net.cfg.modo === 'chefoes' && Z.chDerrot.size >= CHEFOES_META) zVitoria();
   else if (Z.toSpawn === 0 && Z.sim.size === 0) { zObjFim(); Z.breakT = zMis()?.intervalo ?? INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: Z.breakT }); zFimRodada(); }
   Z.spawnT -= dt;
   if (Z.toSpawn > 0 && Z.spawnT <= 0 && Z.sim.size < ZMAXV()) { zSpawn(); Z.toSpawn--; Z.spawnT = Math.max(0.28, 1.25 - Z.round * 0.07) * (Z.evento === 'corredores' ? 0.6 : 1) / zj().qtd * (zMis()?.ritmo ?? 1); }
@@ -7439,6 +7558,11 @@ function zFerir(z, from, dmg, o = {}) {
   if (z.ladrao && z.roubou && sh) { zPagar(from, z.roubou * 2); broadcast({ t: 'zladrao', ev: 'pego', by: from, v: z.roubou * 2 }); } // devolve em dobro
   const premio = z.boss ? 600 + 100 * Z.round : Math.round((RECOMPENSA[T.id] || 50) * 0.8 * (1 + 0.04 * Z.round) * zj().grana * (z.elite ? 2 : 1)) + (head ? 20 : 0);
   Z.sim.delete(z.id); if (sh) sh.kills++; Z.rosterDirty = true;
+  if (z.boss && net.cfg.modo === 'chefoes') { Z.chMortos = (Z.chMortos | 0) + 1; Z.chDerrot.add(z.chefeI | 0); }
+  if (z.dupla) for (const o of Z.sim.values()) if (o.dupla && o.boss) { // 👯 o parceiro fica furioso e se cura
+    o.hp = Math.min(o.max, o.hp + o.max * 0.3);
+    if (!o.fase2) { o.fase2 = true; o.raiva = 999; o.speed *= 1.2; broadcast({ t: 'zfase', b: o.boss + 10 * (o.chefeI | 0) }); }
+  }
   broadcast({ t: 'zdie', id: z.id, by: from, h: head ? 1 : 0, b: z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, c: zPagar(from, premio) });
   zDesafioAbate?.(from, z, head, o);
   // o chefão solta 3 bolsas de sangue e um kit médico; elites e mães sempre soltam algo
@@ -7633,19 +7757,24 @@ function zOnNet(m) {
       Z.dzView = Array.isArray(m.dz) && DESAFIOS[m.dz[0]] ? { k: m.dz[0], n: +m.dz[1] || 1, p: 0, ok: false } : null;
       if (Z.dzView) feed(`${DESAFIOS[Z.dzView.k].ic} Desafio da rodada: ${DESAFIOS[Z.dzView.k].txt(Z.dzView.n)} (+${300 + 25 * m.r} 💰)`);
       zObjView(m.o || null);
-      if (m.o) { const gen = m.o.k === 'gen'; banner(gen ? `⚡ Rodada ${m.r}: PROTEJAM O GERADOR!` : `📍 Rodada ${m.r}: SEGUREM A ÁREA!`, 3.5); feed(gen ? '⚡ Os zumbis vão atrás do gerador. Se ele quebrar, explode em todo mundo; inteiro no fim, todos ganham dinheiro.' : `📍 Fiquem dentro do círculo por ${m.o.meta} s no total. Os zumbis não param de vir até vocês conseguirem!`); }
+      if (m.o && m.o.k !== 'tempo' && !(net.cfg.modo === 'defesa' && m.r > 1)) { const gen = m.o.k === 'gen'; banner(gen ? `⚡ Rodada ${m.r}: PROTEJAM O GERADOR!` : `📍 Rodada ${m.r}: SEGUREM A ÁREA!`, 3.5); feed(gen ? '⚡ Os zumbis vão atrás do gerador. Se ele quebrar, explode em todo mundo; inteiro no fim, todos ganham dinheiro.' : `📍 Fiquem dentro do círculo por ${m.o.meta} s no total. Os zumbis não param de vir até vocês conseguirem!`); }
       // horda ajustada pela quantidade de gente (avisa quando muda)
       if (m.n && m.n !== Z.nView) { if (m.n > 1 || Z.nView) feed(`👥 Horda ajustada para ${m.n} jogador${m.n > 1 ? 'es' : ''}: ${m.n > 1 ? `+${Math.round((zj(m.n).qtd - 1) * 100)}% zumbis, +${Math.round((zj(m.n).vida - 1) * 100)}% vida` : 'tamanho normal'}`); Z.nView = m.n; }
       if (FAZ && isMissao()) fazLuz();
-      if (m.b) { const C = chefeDe(m.b); banner(`${C.ic} Rodada ${m.r}: vem aí ${C.id === 'aranha' ? 'a' : 'o'} ${C.nome.toUpperCase()}!`, 3.5); feed(`${C.ic} ${C.nome}: ${C.desc}`); tone(60, 1.2, { type: 'sawtooth', vol: 0.12, slide: -20, lp: 500 }); tone(45, 1.4, { type: 'sawtooth', vol: 0.12, slide: -10, lp: 400, delay: 0.5 }); shake = 0.4; }
+      const V = net.cfg.modo === 'chefoes' ? CH_VAR[m.vr] : net.cfg.modo === 'defesa' && DEF_VARS[m.vr] ? { ic: DEF_VARS[m.vr][0], nome: DEF_VARS[m.vr][1], desc: DEF_VARS[m.vr][2] } : null;
+      if (Array.isArray(m.bs)) feed(`👹 Chefões da rodada: ${m.bs.map(i => CHEFES[i] ? CHEFES[i].ic + ' ' + CHEFES[i].nome : '').join(', ')}`);
+      if (V) { banner(`${V.ic} Rodada ${m.r}: ${V.nome.toUpperCase()}!`, 3.5); feed(`${V.ic} ${V.nome}: ${V.desc}`); tone(60, 1.2, { type: 'sawtooth', vol: 0.12, slide: -20, lp: 500 }); tone(90, 1, { type: 'square', vol: 0.05, lp: 900, delay: 0.3 }); shake = 0.4; }
+      else if (Array.isArray(m.bs)) { banner(`👹×${m.bs.length} Rodada ${m.r}: ${m.bs.length} CHEFÕES!`, 3.5); tone(60, 1.2, { type: 'sawtooth', vol: 0.12, slide: -20, lp: 500 }); shake = 0.4; }
+      else if (m.b) { const C = chefeDe(m.b); banner(`${C.ic} Rodada ${m.r}: vem aí ${C.id === 'aranha' ? 'a' : 'o'} ${C.nome.toUpperCase()}!`, 3.5); feed(`${C.ic} ${C.nome}: ${C.desc}`); tone(60, 1.2, { type: 'sawtooth', vol: 0.12, slide: -20, lp: 500 }); tone(45, 1.4, { type: 'sawtooth', vol: 0.12, slide: -10, lp: 400, delay: 0.5 }); shake = 0.4; }
       else if (m.ev && EVENTOS[m.ev]) { const E = EVENTOS[m.ev]; banner(`${E.ic} Rodada ${m.r}: ${E.nome}!`, 3.5); feed(`${E.ic} ${E.desc}`); noise(1.5, { f: 200, f2: 1200, q: 1, vol: 0.08 }); tone(98, 1.4, { type: 'sawtooth', vol: 0.07, lp: 600 }); }
-      else { banner(`Rodada ${m.r}`, 2.5); tone(110, 0.7, { type: 'sawtooth', vol: 0.08, slide: -40, lp: 700 }); tone(82, 0.9, { type: 'sawtooth', vol: 0.06, lp: 500, delay: 0.25 }); }
+      else { banner(net.cfg.modo === 'sobrev' ? `⏳ Minuto ${m.r}: a horda aumentou!` : `Rodada ${m.r}`, 2.5); tone(110, 0.7, { type: 'sawtooth', vol: 0.08, slide: -40, lp: 700 }); tone(82, 0.9, { type: 'sawtooth', vol: 0.06, lp: 500, delay: 0.25 }); }
       zEventoLook(m.ev || null);
       return true;
     }
     case 'zbreak':
       zIntervaloAte = performance.now() + (+m.s || 8) * 1000;
       banner(`Rodada ${m.r} concluída! 🎉 ${m.s ? `${m.s} s para comprar 🛒` : ''}`, 3); sfx.power(); if (Z.eventoView) zEventoLook(null);
+      if (net.cfg.modo === 'defesa') feed('🔧 Fiquem perto do gerador para consertar durante o intervalo!');
       if (m.s) feed(`🛒 Intervalo: dá para abrir a lojinha (${isTouch ? '🛒 LOJA' : 'B'}) de qualquer lugar até a próxima rodada`);
       return true;
     case 'znovo': {
@@ -7683,7 +7812,7 @@ function zOnNet(m) {
       return true;
     }
     case 'zonda': { // onda dos chefões novos: gelo (Sorveteiro), bumbo (Baterista), ímã (Robô), grito (Noiva)
-      const K = { gelo: [0xbfe8ff, '🧊 O chão congelou! Você ficou lento'], bumbo: [0xffd23d], ima: [0x9aa3ad], grito: [0xe8e0ff, '👰 O grito da Noiva te deixou lento!'] }[m.k] || [0xffd23d];
+      const K = { choque: [0x7ad7ff], gelo: [0xbfe8ff, '🧊 O chão congelou! Você ficou lento'], bumbo: [0xffd23d], ima: [0x9aa3ad], grito: [0xe8e0ff, '👰 O grito da Noiva te deixou lento!'] }[m.k] || [0xffd23d];
       const p = new THREE.Vector3(+m.x, 0.05, +m.z), d = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
       zOnda(p, Math.min(2, +m.s || 1), K[0]); burst(p.clone().setY(1.2), K[0], 12, 5);
       const v = longe(p);
@@ -7808,16 +7937,30 @@ function zOnNet(m) {
       if (m.id === net.myId) { meDown = false; meDead = true; banner('Você morreu… volta quando a rodada acabar', 4); }
       else { const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, true); } feed(`💀 ${nameOf(m.id)} não resistiu`); }
       return true;
+    case 'zresgate': banner('🚁 O RESGATE CHEGOU! Segurem a área azul por 20 s!', 4); feed('🚁 Fiquem dentro do círculo azul até encher: aí todo mundo vai embora!'); sfx.power(); return true;
+    case 'zsup': banner('📦 Suprimentos caíram no mapa!', 2.5); feed('📦 Kit médico, granada e um prêmio surpresa perto do centro (somem em 40 s)'); tone(523, 0.12, { type: 'triangle', vol: 0.05 }); tone(784, 0.16, { type: 'triangle', vol: 0.05, delay: 0.12 }); return true;
+    case 'zwin': {
+      if (Z.eventoView) zEventoLook(null);
+      sfx.win(); const meus = m.kills?.[net.myId] ?? player.kills, md = net.cfg.modo;
+      const tit = md === 'chefoes' ? 'VOCÊS VENCERAM TODOS OS CHEFÕES!' : 'RESGATE CONCLUÍDO!';
+      const sub = md === 'chefoes' ? `Os ${CHEFOES_META} chefões caíram em ${m.r} rodadas (${m.ch} chefões derrotados).` : `Vocês aguentaram ${m.mn} minutos de horda e foram resgatados.`;
+      banner('🏆 ' + tit, 5);
+      if (net.local) { recorde(recKey(), md === 'chefoes' ? m.ch : m.mn); checkUnlocks(); setTimeout(() => showResults(tit, sub, md === 'chefoes' ? [[m.ch, 'chefões'], [m.r, 'rodadas'], [meus, 'monstros pintados']] : [[m.mn, 'minutos'], [meus, 'monstros pintados'], ['🚁', 'resgate']]), 2500); }
+      else feed('🏆 ' + sub + ' Nova partida em instantes…');
+      return true;
+    }
     case 'zover': {
-      if (m.ck) { if (net.local) recorde('pb-recorde-zumbi', m.r); banner(`💀 Todos caíram! Voltando do checkpoint (rodada ${m.ck})…`, 5); return true; }
+      if (m.ck) { if (net.local) recorde(recKey(), net.cfg.modo === 'chefoes' ? m.ch : m.r); banner(`💀 Todos caíram! Voltando do checkpoint (rodada ${m.ck})…`, 5); return true; }
       const meus = m.kills?.[net.myId] ?? player.kills;
       if (Z.eventoView) zEventoLook(null);
       if (net.local) {
         const acc = player.shots ? Math.round(player.hits / player.shots * 100) : 0;
-        const novo = recorde('pb-recorde-zumbi', m.r); checkUnlocks();
-        showResults('Os zumbis venceram!', novo ? `🏆 Novo recorde: rodada ${m.r}!` : `Você sobreviveu até a rodada ${m.r}.`,
-          [[m.r, 'rodada'], [meus, 'monstros pintados'], [acc + '%', 'precisão']]);
-      } else banner(`FIM DE JOGO! Vocês chegaram à rodada ${m.r}`, 8);
+        const md = net.cfg.modo, val = md === 'chefoes' ? m.ch | 0 : md === 'sobrev' ? m.mn | 0 : m.r;
+        const novo = recorde(recKey(), val); checkUnlocks();
+        const oque = md === 'chefoes' ? `${val} chefões derrotados` : md === 'sobrev' ? `${val} minuto${val === 1 ? '' : 's'} de horda` : `rodada ${val}`;
+        showResults(md === 'defesa' && m.gen ? 'O gerador caiu!' : 'Os zumbis venceram!', novo ? `🏆 Novo recorde: ${oque}!` : `Vocês chegaram a: ${oque}.`,
+          [md === 'chefoes' ? [val, 'chefões'] : md === 'sobrev' ? [val, 'minutos'] : [m.r, 'rodada'], [meus, 'monstros pintados'], [acc + '%', 'precisão']]);
+      } else banner(net.cfg.modo === 'defesa' && m.gen ? `💥 O GERADOR CAIU! Vocês chegaram à rodada ${m.r}` : `FIM DE JOGO! Vocês chegaram à rodada ${m.r}`, 8);
       return true;
     }
   }
@@ -7911,11 +8054,11 @@ function zClientTick(dt) {
 
 // partida de zumbi sozinho: uma "sala local" sem internet, eu mesmo sou o dono
 function startLocalZombie() {
-  initAudio(); lastSolo = soloCfg.modo === 'missao' ? 'missao' : 'zumbi';
+  initAudio(); lastSolo = soloCfg.modo;
   if (net.clients.length) leaveOnline(null);
   readSetup();
   Object.assign(net, { local: true, isHost: true, joined: true, myId: newId(), code: 'SOLO', players: {}, clients: [], winning: false });
-  net.cfg = cleanCfg({ modo: soloCfg.modo === 'missao' ? 'missao' : 'zumbi', mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima, ckpt: soloCfg.ckpt === true });
+  net.cfg = cleanCfg({ modo: soloCfg.modo, mapa: soloCfg.mapa, dif: soloCfg.dif, vida: 1, power: true, clima: soloCfg.clima, ckpt: soloCfg.ckpt === true });
   loadMap(net.cfg.mapa);
   const c = myNetChar();
   addPlayer(net.myId, myName, c.char, c.cor, c.lk);
@@ -9009,7 +9152,7 @@ const RECOMPENSA = { galinha: 40, cao: 60, vaca: 130, comum: 50, corredor: 60, r
 const INV_INICIAL = () => [{ w: 'pistola', l: zd().nivel }]; // nos níveis fáceis a pistola já começa melhor
 const upPreco = (w, l) => Math.round((WPRECO[w] * 0.4 + 250) * 1.6 ** (l - 1));
 // as armas da lojinha vêm melhores com o passar das rodadas (nível 1 até a 4ª, 2 até a 8ª…)
-const zNivelLoja = () => Math.min(NIVEL_MAX, 1 + Math.floor((Math.max(1, (net.isHost ? Z.round : Z.roundView) | 0) - 1) / 4));
+const zNivelLoja = () => Math.min(NIVEL_MAX, 1 + Math.floor((Math.max(1, zRodEfDe((net.isHost ? Z.round : Z.roundView) | 0)) - 1) / 4));
 // ⚙️ Máquina de Turbinar: arma no nível máximo vira dourada (+60% de dano, pente 1,5×) com o efeito do elemento dela
 const TURBO = {
   fogo: { ic: '🔥', nome: 'de Fogo', desc: 'o zumbi pega fogo e continua perdendo vida' },
@@ -9507,7 +9650,7 @@ function endTick() {
 // atiram bolinhas de verdade e vão atrás dos objetivos (bandeira, morro).
 function syncBots() {
   if (!net.isHost || net.local) return;
-  const quer = ['zumbi', 'missao', 'esconde'].includes(net.cfg.modo) ? 0 : net.cfg.bots;
+  const quer = ehZumbi(net.cfg.modo) || net.cfg.modo === 'esconde' ? 0 : net.cfg.bots;
   const humanos = Object.values(net.players).filter(p => !p.bot).length;
   const alvo = Math.max(0, quer - humanos);
   const ids = [...net.bots.keys()];
