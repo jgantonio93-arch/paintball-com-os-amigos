@@ -960,6 +960,7 @@
           <div class="opt"><span>Música dos menus</span><span class="optR"><input type="range" id="setMus" min="0" max="1" step="0.05"><output id="setMusV"></output></span></div>
           <div class="opt"><span>Campo de visão</span><span class="optR"><input type="range" id="setFov" min="65" max="100" step="1"><output id="setFovV"></output></span></div>
           <div class="opt"><span>Tamanho dos botões<small>só no celular</small></span><span class="optR"><input type="range" id="setBtn" min="0.75" max="1.3" step="0.05"><output id="setBtnV"></output></span></div>
+          <label class="opt"><span>Controles<small>automático: mexeu o mouse, vira mouse e teclado; tocou na tela, volta o toque</small></span><select id="setCtrl"><option value="auto">Automático</option><option value="toque">Toque</option><option value="mouse">Mouse e teclado</option></select></label>
           <label class="opt"><span>Qualidade gráfica<small>baixa roda melhor em celular fraco</small></span><select id="setQual"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
           <label class="opt"><span>Mira assistida<small>só no celular</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
           <label class="opt">Inverter eixo vertical <select id="setInv"><option value="0">Não</option><option value="1">Sim</option></select></label>
@@ -1068,7 +1069,10 @@ let SECRETOS = [], GALERIA = [];
 const adm = { on: false, ban: { gal: [], rank: [], sala: [], ts: 0 }, aviso: null };
 const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou arte moderna!', 'levou um splash!', 'tá todo manchado!'];
 
-const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+// aparelho com tela de toque; o modo de controle (toque ou mouse+teclado) pode mudar durante o jogo:
+// num tablet/celular com mouse, mexer o mouse liga mouse e teclado; encostar na tela volta para o toque
+const toqueDoAparelho = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+let isTouch = toqueDoAparelho;
 const load = (k, padrao) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? padrao; } catch { return padrao; } };
 // salvar no aparelho; o que é progresso também vai para a conta na nuvem (sync = veio da própria nuvem)
 const SYNC_EARLY = new Set(['pb-stats', 'pb-look', 'pb-custom', 'pb-segredo', 'pb-nick', 'pb-char', 'pb-unl', 'pb-recorde-ondas', 'pb-recorde-onda', 'pb-recorde-zumbi']);
@@ -1096,12 +1100,14 @@ function charList() {
 const amigoDe = c => AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
-const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: isTouch ? 'media' : 'alta', aim: true, inv: false, fps: false, btn: 1 };
+const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: isTouch ? 'media' : 'alta', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto' };
 const settings = { ...SET_PADRAO };
 Object.assign(settings, load('pb-settings', {}) || {});
 const saveSettings = () => save('pb-settings', settings);
-if (isTouch) { document.body.classList.add('touch'); helpDesk.style.display = 'none'; }
-else helpTouch.style.display = 'none';
+if (!['auto', 'toque', 'mouse'].includes(settings.ctrl)) settings.ctrl = 'auto';
+isTouch = settings.ctrl === 'auto' ? toqueDoAparelho : settings.ctrl === 'toque';
+document.body.classList.toggle('touch', isTouch);
+helpDesk.style.display = isTouch ? 'none' : ''; helpTouch.style.display = isTouch ? '' : 'none';
 const applyBtnSize = () => document.documentElement.style.setProperty('--B', `calc(clamp(52px,14vmin,74px) * ${settings.btn || 1})`);
 applyBtnSize();
 
@@ -3705,6 +3711,7 @@ const typing = e => e.target instanceof HTMLInputElement || e.target instanceof 
 addEventListener('keydown', e => {
   if (typing(e)) return; // digitando nome, código ou chat: o jogo não escuta
   if (e.code === 'Escape' && shopOpen) { toggleShop(false); return; }
+  if (e.code === 'Escape' && state === 'play' && document.pointerLockElement !== canvas && !chatOpen) { pauseGame(); return; } // teclado sem o mouse travado (tablet)
   keys[e.code] = true;
   if (e.code === 'Tab') { e.preventDefault(); if (state === 'play') renderBoard(); }
   if (state !== 'play') return;
@@ -3736,10 +3743,26 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDow
 
 const canvas = renderer.domElement;
 function lockPointer() { if (!isTouch) canvas.requestPointerLock?.(); }
+// troca entre toque e mouse+teclado (avisa=true quando foi automático)
+function setInputMode(toque, avisa) {
+  if (toque === isTouch) return;
+  isTouch = toque;
+  document.body.classList.toggle('touch', toque);
+  helpDesk.style.display = toque ? 'none' : ''; helpTouch.style.display = toque ? '' : 'none';
+  touchFire = false; touchMove.x = touchMove.y = 0; mouseDown = false;
+  try { atualizaFsBtn(); } catch {}
+  if (toque) { if (document.pointerLockElement) document.exitPointerLock(); }
+  else if (state === 'play' && document.pointerLockElement !== canvas) pauseGame(true); // "Pronto?": o clique trava o mouse na tela
+  if (avisa) feed(toque ? '👆 Controles de toque' : '🖱️ Mouse e teclado ligados (clique na tela para mirar, Esc pausa)');
+}
+addEventListener('pointermove', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse' && (e.movementX || e.movementY)) setInputMode(false, true); }, { passive: true });
+addEventListener('pointerdown', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse') setInputMode(false, true); }, { capture: true, passive: true });
+addEventListener('touchstart', () => { if (settings.ctrl === 'auto' && !isTouch) setInputMode(true, true); }, { capture: true, passive: true });
 document.addEventListener('pointerlockchange', () => {
   if (!isTouch && state === 'play' && document.pointerLockElement !== canvas && !chatOpen && !shopOpen) pauseGame();
 });
 canvas.addEventListener('mousedown', e => {
+  if (state === 'play' && !isTouch && document.pointerLockElement !== canvas && !chatOpen && !shopOpen) { lockPointer(); return; } // clique trava o mouse (ex.: mouse no tablet)
   if (state !== 'play' || document.pointerLockElement !== canvas) return;
   if (armaOpen) { if (e.button === 2) toggleArmaMenu(false); else pegarArma(armaHl); return; }
   if (assistindo()) { specProximo(); return; }
@@ -3928,7 +3951,7 @@ function closeControls() {
 function loadSettingsForm() {
   const set = (id, v) => { $(id).value = v; };
   set('setSens', settings.sens); set('setTouch', settings.touch); set('setVol', settings.vol); set('setMus', settings.mus ?? 0.5); set('setFov', settings.fov); set('setBtn', settings.btn || 1);
-  set('setQual', settings.qual); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0');
+  set('setQual', settings.qual); set('setCtrl', settings.ctrl || 'auto'); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0');
   showSettingValues();
 }
 function showSettingValues() {
@@ -3943,7 +3966,7 @@ function readSettings() {
   const qualAntes = settings.qual;
   Object.assign(settings, {
     sens: +$('setSens').value, touch: +$('setTouch').value, vol: +$('setVol').value, mus: +$('setMus').value, fov: +$('setFov').value, btn: +$('setBtn').value,
-    qual: $('setQual').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1',
+    qual: $('setQual').value, ctrl: $('setCtrl').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1',
   });
   saveSettings();
   showSettingValues();
@@ -3954,6 +3977,7 @@ function readSettings() {
   $('fps').style.display = settings.fps ? 'block' : 'none';
   applyBtnSize(); stickRest();
   if (qualAntes !== settings.qual) applyQuality();
+  if (settings.ctrl !== 'auto') setInputMode(settings.ctrl === 'toque');
 }
 function applyQuality() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5));
@@ -6260,7 +6284,7 @@ $('pauseSettingsBtn').onclick = () => openControls('pauseScreen');
 $('pauseRoomBtn').onclick = () => showRoomScreen('pauseScreen');
 $('controlsBackBtn').onclick = closeControls;
 for (const id of ['setSens', 'setTouch', 'setVol', 'setMus', 'setFov', 'setBtn']) $(id).oninput = readSettings;
-for (const id of ['setQual', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
+for (const id of ['setQual', 'setCtrl', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
 $('settingsResetBtn').onclick = () => { Object.assign(settings, SET_PADRAO); saveSettings(); loadSettingsForm(); readSettings(); };
 $('resumeBtn').onclick = resumeGame;
 $('quitBtn').onclick = () => { if (mode === 'online') leaveOnline(net.local ? null : 'Você saiu da sala.'); else backToMenu(); };
