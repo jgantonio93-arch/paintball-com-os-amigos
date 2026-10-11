@@ -611,6 +611,18 @@
   }
   /* fica no fim para vencer as regras acima */
   body.inmenu #hud, body.inmenu #touch { display:none !important; }
+  /* janelas por cima do jogo: centralizadas quando cabem e roladas inteiras quando não cabem
+     (com align-items:center o topo ficava fora da tela no celular deitado: loja, fim de partida, convite) */
+  #admVida, #fsAjuda, #criarBox, #endBox, #shopBox { align-items:flex-start !important; }
+  #admVida > div, #fsAjuda > div, #criarBox > div, #endBox > div, #shopBox > div { margin:auto; }
+  @media (max-height:420px) {
+    body.touch #shopDica { display:none; }
+    .cvFace { font-size:40px; }
+    #shopBox { padding:8px; } .shopIn { padding:10px 12px; }
+  }
+  /* placar aberto no celular: fica por cima dos botões de toque, que apagam enquanto ele está aberto */
+  body.placar #hud { z-index:6; }
+  body.placar #touch .tbtn:not(#boardBtn) { opacity:.15; pointer-events:none; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="amigos.secreto.js"></script>
@@ -3645,8 +3657,9 @@ function updateHud() {
   $('ammoNum').classList.toggle('low', player.reloading <= 0 && !W.semMuni && a <= Math.ceil(W.mag / 4));
   const itens = itensOn() && !amProp();
   const grana = isZumbi() ? `💰 ${net.players[net.myId]?.cash | 0}${(net.players[net.myId]?.vant || []).map(k => VANTAGENS[k]?.ic || '').join('')}` : '';
-  $('itemLine').textContent = [grana, itens ? `💣 ${player.gren | 0}  ·  🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ');
-  $('grenBtn').style.display = $('shieldBtn').style.display = itens ? 'flex' : 'none';
+  const gren = itens && granadaOn();
+  $('itemLine').textContent = [grana, itens ? `${gren ? `💣 ${player.gren | 0}  ·  ` : ''}🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ');
+  $('shieldBtn').style.display = itens ? 'flex' : 'none'; $('grenBtn').style.display = gren ? 'flex' : 'none';
 }
 function feed(text) {
   const d = document.createElement('div'); d.className = 'msg'; d.textContent = text;
@@ -3956,10 +3969,11 @@ function pauseGame(primeira) {
   if (state !== 'play' && !primeira) return;
   closeChat();
   state = 'paused'; touchFire = false; mouseDown = false; player.zoom = false;
+  if (mode === 'online' && net.local && !pausaDesde) pausaDesde = performance.now(); // solo: o relógio das hordas para junto
   const online = mode === 'online' && !net.local;
   $('pauseTag').textContent = online ? `Sala ${net.code} · ${MODOS[net.cfg.modo]?.nome || ''}` : 'Pausado';
   $('pauseTitle').textContent = primeira ? 'Pronto?' : 'Pausado';
-  $('pauseSub').textContent = online ? 'O jogo continua para os outros enquanto você está aqui.' : '';
+  $('pauseSub').textContent = online ? 'O jogo continua para os outros enquanto você está aqui.' : mode === 'online' && net.local ? 'Os zumbis estão parados esperando você.' : '';
   $('resumeBtn').textContent = primeira ? 'ENTRAR NO JOGO' : 'CONTINUAR';
   $('quitBtn').textContent = online ? 'Sair da sala' : 'Sair para o menu';
   $('pauseRoomBtn').hidden = !(online && net.isHost);
@@ -3967,14 +3981,30 @@ function pauseGame(primeira) {
   showScreen('pauseScreen');
   document.exitPointerLock?.();
 }
+// pausa do solo: na volta, todos os relógios que usam a hora do aparelho andam o tempo que ficou pausado
+let pausaDesde = 0;
+// saiu do app (WhatsApp, ligação): no solo pausa sozinho
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play' && (mode === 'solo' || net.local)) pauseGame(); });
+function deslocaRelogios(d) {
+  if (zIntervaloAte) zIntervaloAte += d;
+  if (downEnd) downEnd += d;
+  for (const p of Object.values(net.players)) { if (p.downUntil) p.downUntil += d; if (p.autoUp) p.autoUp += d; }
+  for (const [k, v] of net.inv) net.inv.set(k, v + d);
+  for (const k in zBuff) zBuff[k] += d;
+  for (const id of net.lastDmg.keys()) net.lastDmg.set(id, net.lastDmg.get(id) + d);
+  if (FAZ?.extr?.ate) FAZ.extr.ate += d;
+  for (const A of FAZ?.arms || []) for (const k of ['ate', 'cd', 'ateV', 'cdV', 'iniV']) if (A[k]) A[k] += d;
+}
 function resumeGame() {
   if (state !== 'paused') return;
+  if (pausaDesde) { deslocaRelogios(performance.now() - pausaDesde); pausaDesde = 0; }
   initAudio(); hideScreens();
   state = 'play'; clock.getDelta(); bannerT = 0.01;
   lockPointer();
 }
 // volta para o menu principal
 function backToMenu() {
+  pausaDesde = 0;
   if (net.code) resetNet();
   state = 'menu'; mode = 'solo'; meDead = false;
   document.exitPointerLock?.(); closeChat();
@@ -4184,6 +4214,9 @@ const ZPREMIOS = {
 };
 Object.assign(POWERS, ZPREMIOS);
 const zBuff = {}; // prêmio → até quando vale (performance.now), no dono e em todos
+// dono, nas hordas: o que cada um tinha quando caiu da sala (internet, WhatsApp). Voltando com o mesmo nome,
+// recupera dinheiro, armas, vantagens e abates em vez de recomeçar com a pistola
+const zGuarda = new Map();
 const buffOn = k => (zBuff[k] || 0) > performance.now();
 const pickups = new Map(); // id -> { id, k, mesh, x, z }
 let puTimer = 4, puSeq = 0;
@@ -4414,7 +4447,20 @@ function addPlayer(id, name, char, cor, lk) {
   // em modos sem renascer, quem chega no meio da rodada espera a próxima
   const espera = net.isHost && semVolta() && rodadaRolando();
   net.players[id] = { name: n, char: c, cor: Number.isInteger(cor) ? cor & 0xffffff : 0x3db8ff, lk: cleanLook(lk), hp: hpMax(), kills: 0, deaths: 0, pts: 0, dead: espera, team: net.cfg.modo === 'esconde' ? 0 : cnt[0] <= cnt[1] ? 0 : 1 };
-  if (ehZumbi(net.cfg.modo)) zEcoInit(net.players[id], true);
+  if (ehZumbi(net.cfg.modo)) {
+    const p = net.players[id], g = zGuarda.get(normUser(n));
+    zEcoInit(p, true);
+    if (g) { // voltou: recupera o que tinha
+      zGuarda.delete(normUser(n));
+      Object.assign(p, { cash: g.cash, inv: Array.isArray(g.inv) && g.inv.length ? g.inv : p.inv, vant: Array.isArray(g.vant) ? g.vant : [], kills: g.kills, deaths: g.deaths, caixa: g.caixa });
+      p.loja = lojaOfertas(p);
+      feed(`🔄 ${n} voltou com o dinheiro e as armas`);
+    } else if (net.isHost && Z.round > 1) { // chegou no meio: pistola do nível da loja e metade do dinheiro médio do time
+      const outros = Object.values(net.players).filter(o => o !== p && !o.bot);
+      p.inv[0].l = Math.max(p.inv[0].l, zNivelLoja());
+      if (outros.length) p.cash = Math.round(outros.reduce((s, o) => s + (o.cash | 0), 0) / outros.length * 0.5);
+    }
+  }
   if (net.cfg.modo === 'roleta') net.roll[id] = net.cfg.rIgual ? (net.roll[net.myId] || randomFrom(net.cfg.armas)) : randomFrom(net.cfg.armas);
 }
 const randomFrom = list => list[Math.floor(Math.random() * list.length)];
@@ -4600,6 +4646,7 @@ function hostHandle(from, m) {
       const amigo = isTdm() && sh.team === tg.team;
       if (amigo && !net.cfg.ff) return; // sem fogo amigo
       if ((net.inv.get(m.target) || 0) > performance.now()) return; // invencível
+      if (m.w === 'granada' && (net.cfg.modo === 'gg' || net.cfg.modo === 'esconde')) return; // granada não vale nesses modos
       const wid = m.w === 'granada' && net.cfg.itens !== false ? 'granada' : hostWeaponOf(from, m.w), W = WEAPONS[wid];
       const f = W.splash ? Math.min(1, Math.max(0.3, +m.f || 1)) : 1;
       const naCabeca = !W.splash && m.h === 1;
@@ -4924,6 +4971,7 @@ function renderBoard() {
   const on = mode === 'online' && state !== 'menu' && (keys.Tab || boardTouch || (net.showBoardT || 0) > 0);
   b.classList.toggle('on', on);
   $('boardBtn').classList.toggle('on', boardTouch);
+  document.body.classList.toggle('placar', on && isTouch);
   if (!on) return;
   const tdm = isTdm(), zb = isZumbi();
   const list = Object.entries(net.players).sort((a, c) => scoreOf(c[1]) - scoreOf(a[1]) || c[1].kills - a[1].kills || a[1].deaths - c[1].deaths);
@@ -5117,7 +5165,8 @@ function sendMyFace() { const c = myNetChar(); if (c.face && !net.local) sendNet
 
 function dropPlayer(id) {
   if (!net.players[id] || id === net.myId) return;
-  const n = nameOf(id);
+  const n = nameOf(id), q = net.players[id];
+  if (ehZumbi(net.cfg.modo) && !q.bot) zGuarda.set(normUser(q.name), { cash: q.cash | 0, inv: q.inv, vant: q.vant, kills: q.kills | 0, deaths: q.deaths | 0, caixa: q.caixa || null });
   delete net.players[id]; net.lastSeen.delete(id); net.ppos.delete(id); net.faces.delete(id); delete net.roll[id];
   syncBots(); net.flags?.forEach(f => { if (f.by === id) Object.assign(f, { s: 'base', by: null }); });
   sendRoster(); feed(`${n} saiu`); checkRoundEnd();
@@ -5589,7 +5638,7 @@ function renderCfgForm() {
     ['regen', '❤️ Regeneração de vida', 'no PvP a vida volta após 5 s sem levar dano', !zb],
     ['power', '⚡ Power-ups e kits médicos', 'velocidade, invencível e kit médico pelo mapa', true],
     ['hs', '🎯 Dano extra na cabeça', 'headshot vale mais (cada arma tem o seu bônus)', true],
-    ['itens', '💣 Granada e escudo', 'G joga granada de tinta · F levanta um escudo de madeira', !es],
+    ['itens', '💣 Granada e escudo', gg ? 'no Gun Game só vale o escudo (a granada pularia a arma da vez)' : 'G joga granada de tinta · F levanta um escudo de madeira', !es],
     ['ff', '🤝 Fogo amigo', 'nos times dá para pintar o colega (e perde ponto)', c.modo === 'tdm' || c.modo === 'ctf'],
     ['muni', '♾️ Munição infinita', 'nunca precisa recarregar', true],
     ['cabecao', '🎈 Cabeção', 'todo mundo com a cabeça gigante (mais fácil de acertar)', true],
@@ -6884,7 +6933,7 @@ function updateSpitView(dt) {
 function zPlayerPos(id) { return id === net.myId ? player.pos.toArray() : net.ppos.get(id); }
 function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null, obj: null, bossFila: [], chOrdem: null, chPos: 0, chDerrot: new Set(), chMortos: 0, chVar: null, chVarAntes: null, sv: null, genLugar: null, defVar: null }); }
 function zBegin() {
-  zReset(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
+  zReset(); zGuarda.clear(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
   for (const p of Object.values(net.players)) zEcoInit(p, true);
   sendRoster();
   broadcast({ t: 'zclear' });
@@ -7043,7 +7092,11 @@ function zSobrevTick(dt) {
       if (S.min > meta) {
         S.fim = true; const q = lugarObjetivo(); Z.obj = { k: 'area', x: q.x, z: q.z, t: 0, meta: 20 };
         broadcast({ t: 'zresgate', x: r2(q.x), z: r2(q.z) }); broadcast({ t: 'zobj', o: zObjMsg() });
-      } else zStartRound(S.min);
+      } else {
+        for (const [id, p] of Object.entries(net.players)) { if (!Array.isArray(p.inv)) zEcoInit(p, true); zPagar(id, 100 + 15 * S.min); p.loja = lojaOfertas(p); }
+        broadcast({ t: 'zsup', loja: 1 });
+        zStartRound(S.min);
+      }
     } else if (Z.obj?.k !== 'tempo' || !Z.obj) Z.obj = { k: 'tempo', t: 0, meta: meta * 60 };
     if (Z.obj?.k === 'tempo') Z.obj.t = S.t;
     if ((S.drop -= dt) <= 0) {
@@ -7623,7 +7676,7 @@ function zContinuar() {
   sendRoster();
 }
 function zRestart() {
-  zReset(); zObjView(null); broadcast({ t: 'zobj', o: null }); Z.retratos = new Set(); Z.started = true; Z.breakT = 3;
+  zReset(); zGuarda.clear(); zObjView(null); broadcast({ t: 'zobj', o: null }); Z.retratos = new Set(); Z.started = true; Z.breakT = 3;
   for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { kills: 0, deaths: 0, dead: false, down: false, hp: hpMax(id) }); zEcoInit(p, true); broadcast({ t: 'respawn', id }); }
   broadcast({ t: 'zclear' });
   sendRoster();
@@ -7921,6 +7974,7 @@ function zOnNet(m) {
       zIntervaloAte = performance.now() + (+m.s || 8) * 1000;
       banner(`Rodada ${m.r} concluída! 🎉 ${m.s ? `${m.s} s para comprar 🛒` : ''}`, 3); sfx.power(); if (Z.eventoView) zEventoLook(null);
       if (net.cfg.modo === 'defesa') feed('🔧 Fiquem perto do gerador para consertar durante o intervalo!');
+      if (+m.r > 0 && net.cfg.modo !== 'chefoes' && net.cfg.modo !== 'sobrev') { recorde(recKey(), +m.r); checkUnlocks?.(); } // vale online também
       if (m.s) feed(`🛒 Intervalo: dá para abrir a lojinha (${isTouch ? '🛒 LOJA' : 'B'}) de qualquer lugar até a próxima rodada`);
       return true;
     case 'znovo': {
@@ -8084,7 +8138,8 @@ function zOnNet(m) {
       else { const r = remotes.get(m.id); if (r) { r.down = false; setRemoteDead(r, true); } feed(`💀 ${nameOf(m.id)} não resistiu`); }
       return true;
     case 'zresgate': banner('🚁 O RESGATE CHEGOU! Segurem a área azul por 20 s!', 4); feed('🚁 Fiquem dentro do círculo azul até encher: aí todo mundo vai embora!'); sfx.power(); return true;
-    case 'zsup': banner('📦 Suprimentos caíram no mapa!', 2.5); feed('📦 Kit médico, granada e um prêmio surpresa perto do centro (somem em 40 s)'); tone(523, 0.12, { type: 'triangle', vol: 0.05 }); tone(784, 0.16, { type: 'triangle', vol: 0.05, delay: 0.12 }); return true;
+    case 'zsup': if (m.loja) { feed('🛒 Loja renovada e bônus do minuto pago (abra no quiosque)'); return true; }
+      banner('📦 Suprimentos caíram no mapa!', 2.5); feed('📦 Kit médico, granada e um prêmio surpresa perto do centro (somem em 40 s)'); tone(523, 0.12, { type: 'triangle', vol: 0.05 }); tone(784, 0.16, { type: 'triangle', vol: 0.05, delay: 0.12 }); return true;
     case 'zwin': {
       if (Z.eventoView) zEventoLook(null);
       sfx.win(); const meus = m.kills?.[net.myId] ?? player.kills, md = net.cfg.modo;
@@ -8092,7 +8147,7 @@ function zOnNet(m) {
       const sub = md === 'chefoes' ? (net.cfg.esc ? `📈 Escalada vencida: vocês aguentaram ${CHEFOES_META} chefões de uma vez (${m.ch} derrotados no total).` : `Os ${CHEFOES_META} chefões caíram em ${m.r} rodadas (${m.ch} chefões derrotados).`) : `Vocês aguentaram ${m.mn} minutos de horda e foram resgatados.`;
       banner('🏆 ' + tit, 5);
       if (net.local) { recorde(recKey(), md === 'chefoes' ? m.ch : m.mn); checkUnlocks(); setTimeout(() => showResults(tit, sub, md === 'chefoes' ? [[m.ch, 'chefões'], [m.r, 'rodadas'], [meus, 'monstros pintados']] : [[m.mn, 'minutos'], [meus, 'monstros pintados'], ['🚁', 'resgate']]), 2500); }
-      else feed('🏆 ' + sub + ' Nova partida em instantes…');
+      else { recorde(recKey(), md === 'chefoes' ? +m.ch || 0 : +m.mn || 0); checkUnlocks?.(); feed('🏆 ' + sub + ' Nova partida em instantes…'); }
       return true;
     }
     case 'zover': {
@@ -8106,7 +8161,10 @@ function zOnNet(m) {
         const oque = md === 'chefoes' ? `${val} chefões derrotados` : md === 'sobrev' ? `${val} minuto${val === 1 ? '' : 's'} de horda` : `rodada ${val}`;
         showResults(md === 'defesa' && m.gen ? 'O gerador caiu!' : 'Os zumbis venceram!', novo ? `🏆 Novo recorde: ${oque}!` : `Vocês chegaram a: ${oque}.`,
           [md === 'chefoes' ? [val, 'chefões'] : md === 'sobrev' ? [val, 'minutos'] : [m.r, 'rodada'], [meus, 'monstros pintados'], [acc + '%', 'precisão']]);
-      } else banner(net.cfg.modo === 'defesa' && m.gen ? `💥 O GERADOR CAIU! Vocês chegaram à rodada ${m.r}` : `FIM DE JOGO! Vocês chegaram à rodada ${m.r}`, 8);
+      } else {
+        const md = net.cfg.modo; recorde(recKey(), md === 'chefoes' ? +m.ch || 0 : md === 'sobrev' ? +m.mn || 0 : +m.r || 0); checkUnlocks?.();
+        banner(net.cfg.modo === 'defesa' && m.gen ? `💥 O GERADOR CAIU! Vocês chegaram à rodada ${m.r}` : `FIM DE JOGO! Vocês chegaram à rodada ${m.r}`, 8);
+      }
       return true;
     }
   }
@@ -9954,19 +10012,28 @@ function playerShoot() {
   const aim = raycaster.ray.at(60, new THREE.Vector3());
   const origin = player.zoom ? camera.position.clone().addScaledVector(raycaster.ray.direction, 0.6) : muzzle.getWorldPosition(new THREE.Vector3());
   const dir = aim.sub(origin).normalize();
-  if (isTouch && settings.aim && !W.splash) {
-    // mira assistida: puxa o tiro para o amigo mais próximo do centro da tela
-    let best = player.zoom ? 0.04 : 0.13, target = null;
+  if (isTouch && settings.aim && !W.splash && !regra('raiz')) {
+    // mira assistida: puxa o tiro para a parte do corpo mais perto da mira (cabeça ou tronco; na regra
+    // "só cabeça", só a cabeça), com puxão parcial e cone que fecha com a distância (antes puxava sempre
+    // para o peito e quem jogava no celular nunca acertava a cabeça)
+    const soCabeca = regra('alvo') === 'cabeca';
+    let best = Infinity, target = null;
     for (const e of shootTargets()) {
       if (e.dead) continue;
-      const c = new THREE.Vector3(e.pos.x, e.pos.y + (e.crawl ? 0.6 * (e.scale || 1) : e.crouch ? 1.0 : 1.6), e.pos.z);
-      const dist = c.distanceTo(origin);
-      c.addScaledVector(e.vel, dist / W.speed); // antecipa o movimento
-      const to = c.clone().sub(origin).normalize();
-      const ang = to.angleTo(raycaster.ray.direction);
-      if (ang < best && hasLineOfSight(camera.position, c)) { best = ang; target = to; }
+      const sc = e.scale || 1;
+      const alturas = e.prop ? [0.7] : e.crawl ? [0.5 * sc] : e.crouch ? [0.6, 1.6] : [1.35 * sc, 2.4 * sc];
+      alturas.forEach((h, k) => {
+        if (soCabeca && alturas.length > 1 && k !== 1) return;
+        const c = new THREE.Vector3(e.pos.x, e.pos.y + h, e.pos.z);
+        const dist = c.distanceTo(origin);
+        const cone = Math.min(player.zoom ? 0.04 : 0.13, Math.atan(1.1 / Math.max(1, dist)));
+        c.addScaledVector(e.vel, dist / W.speed); // antecipa o movimento
+        const to = c.clone().sub(origin).normalize();
+        const ang = to.angleTo(raycaster.ray.direction);
+        if (ang < cone && ang < best && hasLineOfSight(camera.position, c)) { best = ang; target = to; }
+      });
     }
-    if (target) dir.copy(target);
+    if (target) dir.lerp(target, 0.7).normalize();
   }
   const color = W.arcoiris ? new THREE.Color().setHSL(Math.floor((performance.now() / 700) % 1 * 24) / 24, 1, 0.55).getHex() : myPaint() ?? PAINT[Math.floor(Math.random() * PAINT.length)];
   // clarão no cano com a cor da tinta
@@ -10015,9 +10082,12 @@ function hasLineOfSight(from, to) {
 
 // ===== Granada de tinta, escudo de madeira e frases rápidas =====
 const GREN_MAX = 3, SHIELD_CD = 15, SHIELD_LIFE = 15;
-const itensOn = () => mode !== 'online' || net.cfg.itens !== false;
+// esconde-esconde sem granada nem escudo (a granada virava radar de esconderijo); Gun Game sem granada
+// (pulava a arma da vez e dava para vencer sem o Rolo), mas com escudo
+const itensOn = () => mode !== 'online' || (net.cfg.itens !== false && net.cfg.modo !== 'esconde');
+const granadaOn = () => itensOn() && !(mode === 'online' && net.cfg.modo === 'gg');
 function throwGrenade() {
-  if (state !== 'play' || meDead || meDown || !itensOn() || amProp()) return;
+  if (state !== 'play' || meDead || meDown || !granadaOn() || amProp() || amBlind()) return;
   if ((player.gren | 0) <= 0) { feed('Sem granadas 💣 (pegue no mapa)'); return; }
   if ((player.grenCd || 0) > 0) return;
   player.gren--; player.grenCd = 0.8; player.switchT = 0.28;
@@ -10609,7 +10679,7 @@ function frame() {
   if (state === 'menu') { menuScene(t); updateEnemies(dt, t); }
   const assist = state !== 'menu' && state !== 'over' && assistindo();
   if (assist !== frame.assist) { frame.assist = assist; document.body.classList.toggle('assistindo', assist); }
-  if (mode === 'online' && state !== 'menu') {
+  if (mode === 'online' && state !== 'menu' && !(net.local && state === 'paused')) { // sala local (solo) pausada: tudo para
     if (state === 'play' && !meDead) updatePlayer(dt);
     else if (meDead) deadCam(dt);
     else {
