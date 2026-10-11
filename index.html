@@ -1073,6 +1073,9 @@ const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou
 // num tablet/celular com mouse, mexer o mouse liga mouse e teclado; encostar na tela volta para o toque
 const toqueDoAparelho = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 let isTouch = toqueDoAparelho;
+// escreve no DOM só quando o valor muda (escrever todo quadro faz o navegador recalcular a tela)
+const css = (el, k, v) => { if (el && el.style[k] !== v) el.style[k] = v; };
+const txt = (el, v) => { if (el && el.textContent !== v) el.textContent = v; };
 const load = (k, padrao) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? padrao; } catch { return padrao; } };
 // salvar no aparelho; o que é progresso também vai para a conta na nuvem (sync = veio da própria nuvem)
 const SYNC_EARLY = new Set(['pb-stats', 'pb-look', 'pb-custom', 'pb-segredo', 'pb-nick', 'pb-char', 'pb-unl', 'pb-recorde-ondas', 'pb-recorde-onda', 'pb-recorde-zumbi']);
@@ -1100,7 +1103,7 @@ function charList() {
 const amigoDe = c => AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
-const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: isTouch ? 'media' : 'alta', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto' };
+const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto' };
 const settings = { ...SET_PADRAO };
 Object.assign(settings, load('pb-settings', {}) || {});
 const saveSettings = () => save('pb-settings', settings);
@@ -1112,11 +1115,12 @@ const applyBtnSize = () => document.documentElement.style.setProperty('--B', `ca
 applyBtnSize();
 
 // ===== Cena =====
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// antialias e sombra suave só na qualidade alta (pesam muito em celular e PC fraco)
+const renderer = new THREE.WebGLRenderer({ antialias: settings.qual === 'alta', powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = settings.qual === 'alta' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -1981,8 +1985,11 @@ function montarMissao({ fogueira, radio, heli }) {
   for (const x of [-1, 1]) { const esqui = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 3.6), mat('metal', () => lam(0x55595f))); esqui.position.set(x, -1.45, 0.2); heliG.add(esqui); }
   const farol = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b })); farol.position.set(0, -0.6, -6.3);
   const holofote = new THREE.SpotLight(0xffffff, 0, 60, 0.45, 0.5, 1); holofote.position.set(0, -1.2, 1); holofote.target.position.set(0, -20, 4); heliG.add(holofote, holofote.target);
-  heliG.add(corpo, cabine, cauda, rotor, rotorT, farol); heliG.visible = false; mapGroup.add(heliG);
-  FAZ.heli = { g: heliG, rotor, rotorT, farol, holofote };
+  heliG.add(corpo, cabine, cauda, rotor, rotorT, farol);
+  // o grupo fica sempre "visível" (só o corpo some): a luz do holofote não pode entrar/sair da cena
+  const corpoH = new THREE.Group(); for (const o of [...heliG.children]) if (o !== holofote && o !== holofote.target) corpoH.add(o);
+  heliG.add(corpoH); corpoH.visible = false; mapGroup.add(heliG);
+  FAZ.heli = { g: heliG, corpo: corpoH, rotor, rotorT, farol, holofote };
   FAZ.heliFeixe = deco(meshAt(new THREE.CylinderGeometry(FAZ.heliR, FAZ.heliR, 30, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0x3dff8b, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false }), hx, 15, hz), false);
   FAZ.heliFeixe.visible = false;
   // 🪵 barricadas: 5 tábuas em cada janela (FAZ.tab = quantas ainda estão pregadas), do lado de fora
@@ -2763,14 +2770,14 @@ function ajustaLanterna(dt) {
   if (lantT <= 0) {
     lantT = 0.12;
     camera.getWorldDirection(lantDir); lantRay.set(camera.getWorldPosition(new THREE.Vector3()), lantDir); lantRay.far = 9;
-    const hit = lantRay.intersectObjects(obstacles.filter(o => o.mesh).map(o => o.mesh), false)[0];
+    const hit = lantRay.intersectObjects(meshesObstaculos(), false)[0];
     ajustaLanterna.alvo = THREE.MathUtils.clamp(((hit ? hit.distance : 9) - 0.4) / 9, 0.08, 1);
   }
   lantK += ((ajustaLanterna.alvo ?? 1) - lantK) * Math.min(1, dt * 8);
   lanterna.intensity = lantBase * lantK;
 }
 const chuva = (() => {
-  const n = 1400, pos = new Float32Array(n * 6);
+  const n = { baixa: 450, media: 900 }[settings.qual] ?? 1400, pos = new Float32Array(n * 6);
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xaac8e8, transparent: true, opacity: 0.45 }));
   lines.frustumCulled = false; lines.visible = false; scene.add(lines);
@@ -2795,6 +2802,7 @@ function applyClima() {
   setLookRaw(L);
   const antes = lanterna.intensity;
   lanterna.intensity = lantBase = noite ? LANTERNA_I : 0;
+  sun.castShadow = !noite; // à noite o sol é fraquinho: sombra invisível que custa uma renderização inteira
   if (noite && !antes && climaAvisa && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
   chuva.lines.visible = molhado;
 }
@@ -2843,10 +2851,20 @@ function loadMap(id) {
   mapGroup = new THREE.Group(); scene.add(mapGroup);
   obstacles.length = 0; mapTick = null; doors.length = 0; FAZ = null;
   MAPS[id].build();
+  limitaLuzes();
   applyClima(); try { placeObjectives(); } catch {} // na 1ª carga os objetivos ainda não existem
   if (!first) onMapChanged();
 }
 
+// cada luz pontual pesa em TODA superfície iluminada: na qualidade baixa/média só ficam as mais fortes
+// (as outras continuam existindo para o código que mexe na intensidade, só fora da cena)
+function limitaLuzes() {
+  const max = { baixa: 2, media: 6 }[settings.qual] ?? 99;
+  const ls = []; mapGroup.traverse(o => { if (o.isPointLight) ls.push(o); });
+  if (ls.length <= max) return;
+  ls.sort((a, b) => b.intensity * b.distance - a.intensity * a.distance);
+  for (const l of ls.slice(max)) l.parent.remove(l);
+}
 // treino solo: modo, mapa e dificuldade escolhidos (salvos no aparelho)
 const soloCfg = { modo: 'ondas', mapa: 'arena', dif: 1, clima: 'auto', ...(load('pb-solo', {}) || {}) };
 if (!MAPS[soloCfg.mapa]) soloCfg.mapa = 'arena';
@@ -3345,7 +3363,7 @@ function addSplat(point, normal, color, parent, size = 0.6) {
   scene.add(m);
   if (parent) parent.attach(m); // gruda a tinta no amigo, acompanhando o movimento
   decals.push(m);
-  if (decals.length > 160) { const old = decals.shift(); old.parent?.remove(old); old.geometry.dispose(); old.material.dispose(); }
+  if (decals.length > ({ baixa: 50, media: 100 }[settings.qual] ?? 160)) { const old = decals.shift(); old.parent?.remove(old); old.geometry.dispose(); old.material.dispose(); }
 }
 
 const particles = [];
@@ -3979,9 +3997,14 @@ function readSettings() {
   if (qualAntes !== settings.qual) applyQuality();
   if (settings.ctrl !== 'auto') setInputMode(settings.ctrl === 'toque');
 }
+const baseRatio = () => Math.min(devicePixelRatio, { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5);
 function applyQuality() {
-  renderer.setPixelRatio(Math.min(devicePixelRatio, { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5));
+  autoRes.k = 1;
+  renderer.setPixelRatio(baseRatio());
   renderer.setSize(innerWidth, innerHeight);
+  const ms = settings.qual === 'alta' ? 2048 : 1024;
+  if (sun.shadow.mapSize.x !== ms) { sun.shadow.mapSize.set(ms, ms); sun.shadow.map?.dispose(); sun.shadow.map = null; }
+  renderer.shadowMap.type = settings.qual === 'alta' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
   const sombras = settings.qual !== 'baixa';
   if (renderer.shadowMap.enabled !== sombras) {
     renderer.shadowMap.enabled = sombras;
@@ -3989,6 +4012,16 @@ function applyQuality() {
   }
 }
 
+// resolução automática: se o jogo estiver lento (quadro médio > 28 ms) baixa a resolução aos poucos; se sobrar, volta
+function autoRes(d) {
+  const a = autoRes; a.m = (a.m ?? 0.016) * 0.94 + Math.min(d, 0.2) * 0.06; a.t = (a.t || 0) + d; a.k ??= 1;
+  if (a.t < 2.5) return; a.t = 0;
+  if (a.m > 0.028 && a.k > 0.55) a.k = Math.max(0.55, a.k - 0.15);
+  else if (a.m < 0.0145 && a.k < 1) a.k = Math.min(1, a.k + 0.1);
+  else return;
+  const pr = Math.max(Math.min(0.75, baseRatio()), baseRatio() * a.k);
+  if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) { renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); }
+}
 function reload() {
   if (state !== 'play' || player.reloading > 0 || ammoOf(player.weapon) >= curW().mag) return;
   player.reloading = curW().reload; player.zoom = false; sfx.reload(); updateHud();
@@ -4359,7 +4392,7 @@ function broadcast(m, exceptId) {
 }
 const timeLeft = () => net.endAt ? Math.max(0, Math.round((net.endAt - performance.now()) / 1000)) : -1;
 const rollLeft = () => net.cfg.modo === 'roleta' && net.cfg.rInt && net.rollAt ? Math.max(0, Math.round((net.rollAt - performance.now()) / 1000)) : -1;
-const sendRoster = () => { broadcast({ t: 'roster', h: net.myId, players: net.players, cfg: net.cfg, roll: net.roll, tl: timeLeft(), rn: rollLeft(), tp: net.tpts, fl: net.flags, hs: net.hs, dr: doors.map((d, i) => d.open ? i : -1).filter(i => i >= 0) }); announceRoom(); };
+const sendRoster = () => { broadcast({ t: 'roster', h: net.myId, players: net.players, cfg: net.cfg, roll: net.roll, tl: timeLeft(), rn: rollLeft(), tp: net.tpts, fl: net.flags, hs: net.hs, dr: doors.map((d, i) => d.open ? i : -1).filter(i => i >= 0) }); };
 
 // --- partida: começo, fim por tempo/abates, roleta (só o dono da sala) ---
 function startMatch() {
@@ -5103,7 +5136,9 @@ function connectAll(subs, onMsg, onReady, onFail) {
     });
     c.on('message', (tp, buf) => {
       if (net.clients !== clients) return;
-      let m; try { m = JSON.parse(buf.toString()); } catch { return; }
+      const txt = buf.toString(), qi = txt.lastIndexOf('"q":"');
+      if (qi > 0 && net.seen.has(txt.slice(qi + 5, -2))) return; // mesma mensagem por outro servidor: nem abre
+      let m; try { m = JSON.parse(txt); } catch { return; }
       if (!m || typeof m !== 'object' || typeof m.q !== 'string' || net.seen.has(m.q)) return;
       net.seen.add(m.q);
       if (net.seen.size > 3000) net.seen = new Set([...net.seen].slice(-1500));
@@ -6581,8 +6616,8 @@ function zApply(m) {
 }
 function updateZombiesView(dt, t) {
   let chefe = null; for (const o of zombies.values()) if (o.boss && !o.dead) chefe = o;
-  $('bossBar').style.display = chefe ? 'block' : 'none';
-  if (chefe) { const C = chefe.chefe || CHEFES[0]; $('bossName').textContent = `${C.ic} ${chefe.nome}, ${C.id === 'gigante' ? BOSS_TITULOS[chefe.boss] || 'Gigante' : C.nome}${chefe.flags & 2 ? ' 😡' : ''}`; $('bossFill').style.width = Math.max(0, chefe.hpPct) + '%'; }
+  css($('bossBar'), 'display', chefe ? 'block' : 'none');
+  if (chefe) { const C = chefe.chefe || CHEFES[0]; txt($('bossName'), `${C.ic} ${chefe.nome}, ${C.id === 'gigante' ? BOSS_TITULOS[chefe.boss] || 'Gigante' : C.nome}${chefe.flags & 2 ? ' 😡' : ''}`); css($('bossFill'), 'width', Math.max(0, Math.round(chefe.hpPct)) + '%'); }
   for (const [id, o] of zombies) {
     if (o.dead) {
       o.deadT += dt;
@@ -6699,6 +6734,7 @@ function zj(n = nJog()) {
   const qtd = 1 + 0.5 * (n - 1);
   return { n, qtd, vida: 1 + 0.15 * (n - 1), chefe: 1 + 0.75 * (n - 1), grana: n / qtd, extra: Math.floor((n - 1) / 2) };
 }
+const zVeAlvo = new THREE.Vector3();
 function zStartRound(r) {
   if (net.cfg.ckpt && r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', r }); } // 💾 checkpoint na 5ª, 10ª… rodada
   Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now();
@@ -6849,7 +6885,6 @@ function zMove(z, alvos, dt) {
   const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
   z.yaw = Math.atan2(dx, dz);
   z.raiva = Math.max(0, z.raiva - dt); z.abil -= dt; z.grito = Math.max(0, z.grito - dt);
-  const gh0 = groundHeight(zq.set(z.x, z.y, z.z), zRaio(z));
   if (z.ladrao) return zLadraoTick(z, alvos, dt);
   // no ar (saltador / pulo do chefão): segue a parábola e cai em cima
   if (z.air) {
@@ -6898,7 +6933,8 @@ function zMove(z, alvos, dt) {
   }
   let spd = z.speed * (z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4) * (buffOn('zgelo') ? 0.15 : 1) * (z.lentoT > 0 ? 0.4 : 1);
   let ir = 1; // 1 = vem, -1 = foge, 0 = fica rodeando
-  const ve = alvo && best < 24 && hasLineOfSight(zq.set(z.x, z.y + 1.6, z.z), new THREE.Vector3(alvo.x, alvo.y + 1.4, alvo.z));
+  if ((z.veT = (z.veT || 0) - dt) <= 0 || z.veA !== alvo?.id) { z.veT = 0.2; z.veA = alvo?.id; z.veV = !!alvo && best < 24 && hasLineOfSight(zq.set(z.x, z.y + 1.6, z.z), zVeAlvo.set(alvo.x, alvo.y + 1.4, alvo.z)); }
+  const ve = z.veV && best < 24;
   if (T.id === 'cuspidor' || (z.chefe === 'gigante' && z.boss >= 2 && best > 7)) {
     if (!z.boss) ir = best < 8 ? -1 : best < 15 ? 0 : 1;
     if (z.abil <= 0 && alvo && best < 24 && ve) { z.abil = (z.boss ? 3.2 : 2.6) / (0.8 + 0.2 * (net.cfg.dif || 1)); zSpit(z, alvo, z.boss ? 3 : 1); }
@@ -7312,7 +7348,7 @@ function zHostTick(dt) {
     for (const z of vivos) z.atkFlag = false;
   }
   Z.rosterT -= dt;
-  if (Z.rosterDirty && Z.rosterT <= 0) { Z.rosterDirty = false; Z.rosterT = 0.5; sendRoster(); }
+  if (Z.rosterDirty && Z.rosterT <= 0) { Z.rosterDirty = false; Z.rosterT = 1; sendRoster(); }
 }
 // dono: dano num zumbi (tiro, fogo, choque em cadeia, cachorro…) e o que acontece se ele cair
 function zFerir(z, from, dmg, o = {}) {
@@ -7502,7 +7538,7 @@ function zOnNet(m) {
     case 'ckpt': feed(`💾 Checkpoint salvo na rodada ${m.r}: se todo mundo cair, vocês voltam daqui em vez de recomeçar`); tone(784, 0.12, { type: 'triangle', vol: 0.05 }); tone(1175, 0.18, { type: 'triangle', vol: 0.05, delay: 0.1 }); return true;
     case 'zcont': {
       clearZombies(); if (Z.eventoView) zEventoLook(null); zObjView(null);
-      if (FAZ) { FAZ.extr = null; FAZ.radioProg = 0; FAZ.heli.g.visible = false; FAZ.heliFeixe.visible = false; FAZ.radioLed.material.color.setHex(0x552222); }
+      if (FAZ) { FAZ.extr = null; FAZ.radioProg = 0; FAZ.heli.corpo.visible = false; FAZ.heli.holofote.intensity = 0; FAZ.heliFeixe.visible = false; FAZ.radioLed.material.color.setHex(0x552222); }
       Z.roundView = m.r - 1; if (FAZ) fazLuz(); zIntervaloAte = performance.now() + (+m.s || 15) * 1000;
       banner(`💾 De volta do checkpoint! Rodada ${m.r} em ${m.s} s`, 4); feed(FAZ ? '💾 Portas, geradores, peças, fogueira, dinheiro e armas continuam como estavam. Se chamaram o helicóptero, chamem de novo.' : '💾 Dinheiro e armas continuam como estavam.'); sfx.power(); updateHud();
       return true;
@@ -8368,7 +8404,7 @@ function fazTabuasView(j) { FAZ.tabMesh[j].forEach((t, k) => { t.visible = k < F
 function fazFecharTudo() {
   fazLimparPecas();
   if (!FAZ) return;
-  FAZ.extr = null; FAZ.heliSaiu = 0; FAZ.radioProg = 0; FAZ.fogoOk = false; FAZ.fogoProg = 0; FAZ.fogoMesh.visible = false; FAZ.fogoLuz.intensity = 0; for (const G of FAZ.gens) G.fus = false; FAZ.heliFeixe.visible = false; FAZ.heli.g.visible = false; FAZ.radioLed.material.color.setHex(0x552222);
+  FAZ.extr = null; FAZ.heliSaiu = 0; FAZ.radioProg = 0; FAZ.fogoOk = false; FAZ.fogoProg = 0; FAZ.fogoMesh.visible = false; FAZ.fogoLuz.intensity = 0; for (const G of FAZ.gens) G.fus = false; FAZ.heliFeixe.visible = false; FAZ.heli.corpo.visible = false; FAZ.heli.holofote.intensity = 0; FAZ.radioLed.material.color.setHex(0x552222);
   fazMaqLuz(false); for (const A of FAZ.arms || []) A.ate = A.cd = A.ateV = A.cdV = 0;
   FAZ.npcSolto = false; npcView(0);
   if (FAZ.trator) { const T = FAZ.trator; T.piloto = null; T.x = T.x0; T.z = T.z0; T.yaw = 0; tratorParado(); if (player.trator) { player.trator = false; player.pos.y = 0; } }
@@ -8870,7 +8906,7 @@ function animHeli(dt, t) {
     }
   } else if (E?.f === 'pousado') { vis = true; H.g.position.set(hx, 1.55 + Math.sin(t * 3) * 0.05, hz); }
   if (FAZ.heliSaiu && performance.now() - FAZ.heliSaiu < 9000) { vis = true; const k = (performance.now() - FAZ.heliSaiu) / 9000; H.g.position.set(hx + 160 * k * k, 1.5 + 60 * k, hz - 80 * k * k); }
-  H.g.visible = vis; H.holofote.intensity = vis ? 30 : 0;
+  H.corpo.visible = vis; H.holofote.intensity = vis ? 30 : 0;
 }
 
 
@@ -9576,10 +9612,17 @@ function remoteTargetsFor(sid) {
   if (isZumbi()) return shootTargets();
   return [...remotes.values()].filter(r => r.seen && r.id !== sid && !(isTdm() && !net.cfg.ff && teamOf(r.id) === teamOf(sid)));
 }
+// meshes dos obstáculos (refeita quando a lista muda ou a cada 1 s: portas e escudos mexem nela)
+let obsMeshes = [], obsMeshesN = -1, obsMeshesT = 0;
+function meshesObstaculos() {
+  const now = performance.now();
+  if (obsMeshesN !== obstacles.length || now - obsMeshesT > 1000) { obsMeshes = obstacles.filter(o => o.mesh).map(o => o.mesh); obsMeshesN = obstacles.length; obsMeshesT = now; }
+  return obsMeshes;
+}
 function hasLineOfSight(from, to) {
   const dir = tmpV2.copy(to).sub(from); const dist = dir.length(); dir.normalize();
   raycaster.set(from, dir); raycaster.far = dist;
-  const hit = raycaster.intersectObjects(obstacles.filter(o => o.mesh).map(o => o.mesh), false);
+  const hit = raycaster.intersectObjects(meshesObstaculos(), false);
   raycaster.far = Infinity;
   return hit.length === 0;
 }
@@ -9886,7 +9929,7 @@ function updateEnemies(dt, t) {
 
     // atira tinta no jogador
     e.shootCd -= dt;
-    if (e.shootCd <= 0 && dist < 32) {
+    if (e.shootCd <= 0 && dist < 32 && state !== 'menu') {
       e.shootCd = (Math.max(0.9, 2.6 - wave * 0.12) + Math.random() * 1.5) / soloDif;
       const from = new THREE.Vector3(e.pos.x, e.pos.y + 1.5, e.pos.z).addScaledVector(toP, 0.7);
       if (hasLineOfSight(from, eye)) {
@@ -9947,7 +9990,9 @@ function explode(p, b) {
 }
 
 const ballRay = new THREE.Ray();
+const ballLo = new THREE.Vector3(), ballHi = new THREE.Vector3(), ballHit = new THREE.Vector3();
 function updateBalls(dt) {
+  let meusAlvos = null; const alvosDe = new Map();
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
     const start = b.mesh.position.clone();
@@ -9964,7 +10009,8 @@ function updateBalls(dt) {
 
     // inimigos: esfera no tronco + esfera na cabeça
     if (b.owner === 'player' || b.owner === 'remote') {
-      for (const e of (b.owner === 'remote' ? remoteTargetsFor(b.shooter) : shootTargets())) {
+      const alvos = b.owner === 'remote' ? (alvosDe.get(b.shooter) || alvosDe.set(b.shooter, remoteTargetsFor(b.shooter)).get(b.shooter)) : (meusAlvos ||= shootTargets());
+      for (const e of alvos) {
         if (e.dead || (b.shooter && e.id === b.shooter)) continue;
         const sc = e.scale || 1;
         // [altura, raio, à frente]: o rastejante deitado tem tronco, cabeça (à frente) e pernas (atrás)
@@ -9988,10 +10034,12 @@ function updateBalls(dt) {
       if (p && p.distanceTo(start) < best) { best = p.distanceTo(start); hitInfo = { player: true, p }; }
     }
     // obstáculos
+    ballLo.copy(start).min(end).subScalar(0.05); ballHi.copy(start).max(end).addScalar(0.05);
     for (const o of obstacles) {
       if (o.soCorpo) continue; // cerca vazada e vão de janela: a bolinha passa
-      const p = ballRay.intersectBox(o.box, new THREE.Vector3());
-      if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { box: o.box, p }; } }
+      const B = o.box; if (B.max.x < ballLo.x || B.min.x > ballHi.x || B.max.z < ballLo.z || B.min.z > ballHi.z || B.max.y < ballLo.y || B.min.y > ballHi.y) continue;
+      const p = ballRay.intersectBox(B, ballHit);
+      if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { box: B, p: p.clone() }; } }
     }
     // chão
     if (!hitInfo && end.y <= 0.01) { hitInfo = { ground: true, p: new THREE.Vector3(end.x, 0.01, end.z) }; }
@@ -10180,7 +10228,7 @@ function frame() {
       camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
     }
     if (!meDead) { net.deadT = 0; net.specFp = null; if (frame.kc) { frame.kc = false; $('killcam').style.display = 'none'; } }
-    $('cross').style.visibility = meDead ? 'hidden' : '';
+    css($('cross'), 'visibility', meDead ? 'hidden' : '');
     updateRemotes(dt, t);
     if (net.isHost) { botTick(dt); ctfHostTick(dt); }
     updatePropsView();
@@ -10220,7 +10268,9 @@ function frame() {
   updateDoors(dt); updateClima(dt);
   if (mode === 'online' && state !== 'menu') { matchHud(dt); endTick(); }
   else if (document.body.classList.contains('raiz')) document.body.classList.remove('raiz');
-  renderer.render(scene, camera);
+  if (state === 'play') autoRes(clockDt);
+  // menu: metade dos quadros (o fundo não precisa de 60 fps)
+  if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 window.__jogo = { PROPS, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
