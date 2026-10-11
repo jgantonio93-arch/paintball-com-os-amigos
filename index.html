@@ -6426,12 +6426,102 @@ function zombieTex(a) {
 }
 // cada tipo de monstro ganha um visual próprio em cima do boneco do amigo
 // rostos que viram zumbi: as fotos da galeria, os amigos secretos (se tiver o código) e os bonecos
-const zRostos = () => [...GALERIA, ...SECRETOS, ...AMIGOS];
+// rostos dos zumbis: só FOTOS (galeria pública, amigos secretos liberados neste aparelho, os criados aqui e as
+// fotos de quem está na sala). Os bonecos desenhados (AMIGOS) ficam só para o treino Ondas de amigos.
+function zRostos() {
+  const l = [...GALERIA, ...SECRETOS, ...CUSTOM.map(c => ({ nome: c.nome, foto: c.foto }))];
+  try { for (const [id, img] of net.faces) l.push({ nome: net.players[id]?.name || '', foto: img }); } catch {}
+  return l.filter(a => typeof a.foto === 'string' && a.foto.startsWith('data:image/'));
+}
+// 👹 rosto desenhado de cada chefão (256×320, oval como as fotos)
+const rostoChefeCache = new Map();
+function rostoChefe(id) {
+  if (rostoChefeCache.has(id)) return rostoChefeCache.get(id);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 320;
+  const g = c.getContext('2d');
+  const el = (x, y, rx, ry, cor, rot = 0) => { g.fillStyle = cor; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); g.fill(); };
+  const linha = (pts, cor, w) => { g.strokeStyle = cor; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts.slice(1)) g.lineTo(...p); g.stroke(); };
+  const poli = (pts, cor) => { g.fillStyle = cor; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts.slice(1)) g.lineTo(...p); g.closePath(); g.fill(); };
+  const brilho = (x, y, r, cor) => { const gr = g.createRadialGradient(x, y, 1, x, y, r * 1.9); gr.addColorStop(0, '#fff'); gr.addColorStop(0.25, cor); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * 1.9, 0, Math.PI * 2); g.fill(); };
+  const bravo = (cor = '#1a0b0b', y = 118) => { linha([[58, y - 6], [112, y + 10]], cor, 12); linha([[198, y - 6], [144, y + 10]], cor, 12); };
+  const dentes = (x1, x2, y, h) => { for (let x = x1; x < x2; x += 18) poli([[x, y], [x + 18, y], [x + 9, y + h]], '#f4f0e0'); };
+  g.save(); g.beginPath(); g.ellipse(128, 160, 120, 152, 0, 0, Math.PI * 2); g.clip();
+  const pele = { gigante: '#7d9a5a', aranha: '#3f2450', palhaco: '#f3efe6', bombeiro: '#c8906a', espantalho: '#c9a46a', mascote: '#8a5a2a', doutor: '#d4d9c4', sorveteiro: '#bfe0f0', baterista: '#a8664a', lenhador: '#6a0f0f', robo: '#8a929c', noiva: '#dde4f4' }[id] || '#7d9a5a';
+  g.fillStyle = pele; g.fillRect(0, 0, 256, 320);
+  g.fillStyle = 'rgba(0,0,0,.12)'; g.beginPath(); g.ellipse(128, 310, 130, 60, 0, 0, Math.PI * 2); g.fill();
+  if (id === 'gigante') {
+    bravo(); brilho(90, 150, 15, '#ff2a2a'); brilho(166, 150, 15, '#ff2a2a');
+    el(128, 238, 62, 30, '#2a0a0a'); dentes(72, 182, 212, 22); dentes(80, 176, 262, -18);
+    linha([[160, 70], [205, 140]], '#8a1f1f', 6); for (let k = 0; k < 4; k++) linha([[164 + k * 11, 88 + k * 15], [178 + k * 11, 82 + k * 15]], '#5a1010', 3);
+  } else if (id === 'aranha') {
+    for (const [x, y, r] of [[92, 140, 20], [164, 140, 20], [60, 112, 10], [196, 112, 10], [108, 100, 9], [148, 100, 9], [70, 176, 8], [186, 176, 8]]) brilho(x, y, r, '#ff3030');
+    el(128, 236, 40, 22, '#1a0510'); poli([[100, 228], [114, 228], [106, 280]], '#f4f0e0'); poli([[142, 228], [156, 228], [150, 280]], '#f4f0e0');
+    g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 2; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(128, 20); g.lineTo(k * 52, 0); g.stroke(); }
+  } else if (id === 'palhaco') {
+    for (let k = 0; k < 9; k++) { el(8, 60 + k * 26, 30, 22, '#ff7a1a'); el(248, 60 + k * 26, 30, 22, '#ff7a1a'); }
+    for (const x of [90, 166]) { poli([[x, 104], [x + 30, 152], [x, 200], [x - 30, 152]], '#3d6bff'); el(x, 152, 15, 18, '#fff'); el(x + 3, 154, 7, 9, '#111'); }
+    g.strokeStyle = '#d61f2c'; g.lineWidth = 22; g.lineCap = 'round'; g.beginPath(); g.arc(128, 190, 78, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+    linha([[50, 205], [36, 186]], '#d61f2c', 16); linha([[206, 205], [220, 186]], '#d61f2c', 16);
+    el(128, 192, 24, 24, '#e01020'); el(120, 184, 7, 6, 'rgba(255,255,255,.7)');
+  } else if (id === 'bombeiro') {
+    g.fillStyle = '#c0261f'; g.fillRect(0, 0, 256, 76); el(128, 48, 26, 22, '#ffd23d'); el(128, 48, 13, 11, '#c0261f');
+    for (const [x, y, r] of [[64, 120, 24], [196, 230, 30], [90, 270, 22], [180, 100, 16]]) el(x, y, r, r * 0.7, 'rgba(30,20,20,.35)');
+    bravo('#2a1a10', 122); el(90, 154, 14, 16, '#fff'); el(166, 154, 14, 16, '#fff'); el(92, 156, 7, 8, '#111'); el(168, 156, 7, 8, '#111');
+    poli([[60, 222], [128, 200], [196, 222], [176, 236], [128, 222], [80, 236]], '#4a2a14'); linha([[96, 256], [160, 256]], '#3a0a0a', 8);
+  } else if (id === 'espantalho') {
+    g.strokeStyle = 'rgba(90,60,20,.25)'; g.lineWidth = 2; for (let k = 0; k < 26; k++) { g.beginPath(); g.moveTo(0, k * 13); g.lineTo(256, k * 13 + 6); g.stroke(); g.beginPath(); g.moveTo(k * 11, 0); g.lineTo(k * 11 - 6, 320); g.stroke(); }
+    g.fillStyle = 'rgba(60,40,10,.4)'; g.fillRect(0, 0, 256, 50);
+    poli([[66, 172], [114, 172], [90, 124]], '#111'); poli([[142, 172], [190, 172], [166, 124]], '#111'); brilho(90, 156, 7, '#ff8a1a'); brilho(166, 156, 7, '#ff8a1a');
+    linha([[62, 236], [84, 222], [106, 240], [128, 222], [150, 240], [172, 222], [194, 236]], '#2a1a0a', 7);
+    for (let x = 70; x <= 190; x += 20) linha([[x - 6, 220], [x + 6, 242]], '#2a1a0a', 3);
+  } else if (id === 'mascote') {
+    el(36, 30, 48, 44, '#6a4018'); el(220, 30, 48, 44, '#6a4018'); el(128, 222, 66, 50, '#d8b080');
+    el(128, 196, 22, 15, '#1a0b0b'); linha([[128, 210], [128, 236]], '#1a0b0b', 5); g.strokeStyle = '#1a0b0b'; g.lineWidth = 5; g.beginPath(); g.arc(128, 222, 34, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+    el(88, 146, 18, 18, '#111'); el(83, 140, 5, 5, '#fff'); for (const [a, b] of [[[150, 128], [182, 162]], [[182, 128], [150, 162]]]) linha([a, b], '#111', 8);
+  } else if (id === 'doutor') {
+    el(128, 66, 32, 30, '#b8c0c8'); el(128, 66, 22, 20, '#e8f0f8'); el(118, 58, 6, 5, '#fff');
+    bravo('#3a3a30', 112); g.strokeStyle = '#222'; g.lineWidth = 6; for (const x of [90, 166]) { g.beginPath(); g.arc(x, 150, 28, 0, Math.PI * 2); g.stroke(); } linha([[118, 150], [138, 150]], '#222', 6);
+    el(90, 152, 12, 13, '#fff'); el(166, 152, 12, 13, '#fff'); el(91, 154, 6, 7, '#c01010'); el(167, 154, 6, 7, '#c01010');
+    g.fillStyle = '#7ac8d8'; g.beginPath(); g.moveTo(20, 190); g.quadraticCurveTo(128, 175, 236, 190); g.lineTo(236, 320); g.lineTo(20, 320); g.fill();
+    for (let k = 0; k < 3; k++) linha([[50, 222 + k * 24], [206, 222 + k * 24]], 'rgba(40,90,110,.5)', 3);
+  } else if (id === 'sorveteiro') {
+    for (const [x, y, r] of [[60, 90, 22], [200, 250, 26], [70, 260, 16], [196, 80, 14]]) el(x, y, r, r, 'rgba(255,255,255,.55)');
+    for (let x = 30; x < 240; x += 22) poli([[x, 30], [x + 16, 30], [x + 8, 30 + 18 + (x % 3) * 10]], '#ffffff');
+    el(70, 205, 22, 13, 'rgba(255,120,170,.45)'); el(186, 205, 22, 13, 'rgba(255,120,170,.45)');
+    brilho(90, 150, 14, '#3db8ff'); brilho(166, 150, 14, '#3db8ff'); bravo('#5a8aa8');
+    g.strokeStyle = '#2a4a6a'; g.lineWidth = 8; g.beginPath(); g.moveTo(80, 240); for (let k = 0; k <= 6; k++) g.lineTo(80 + k * 16, k % 2 ? 230 : 246); g.stroke();
+  } else if (id === 'baterista') {
+    bravo('#1a0b0b', 112); el(90, 152, 20, 22, '#fff'); el(166, 152, 20, 22, '#fff'); el(94, 150, 6, 6, '#111'); el(160, 156, 6, 6, '#111');
+    g.fillStyle = '#1a0b0b'; g.beginPath(); g.moveTo(128, 206); g.bezierCurveTo(90, 196, 50, 236, 26, 200); g.bezierCurveTo(40, 250, 100, 240, 128, 222); g.bezierCurveTo(156, 240, 216, 250, 230, 200); g.bezierCurveTo(206, 236, 166, 196, 128, 206); g.fill();
+    linha([[96, 262], [160, 262]], '#3a0a0a', 8);
+    g.strokeStyle = '#ffd23d'; g.lineWidth = 8; g.beginPath(); g.arc(128, 170, 128, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke();
+  } else if (id === 'robo') {
+    const gr = g.createLinearGradient(0, 0, 256, 320); gr.addColorStop(0, '#b0b8c2'); gr.addColorStop(1, '#5a6068'); g.fillStyle = gr; g.fillRect(0, 0, 256, 320);
+    for (const [x, y] of [[40, 70], [216, 70], [30, 160], [226, 160], [44, 250], [212, 250], [128, 30]]) { el(x, y, 7, 7, '#4a5058'); el(x - 2, y - 2, 2, 2, '#ddd'); }
+    linha([[20, 110], [236, 110]], 'rgba(40,40,40,.4)', 3);
+    g.fillStyle = '#1a0606'; g.fillRect(58, 132, 60, 34); g.fillRect(138, 132, 60, 34); brilho(88, 149, 16, '#ff2020'); brilho(168, 149, 16, '#ff2020');
+    g.fillStyle = '#2a2e34'; g.fillRect(70, 214, 116, 46); for (let k = 0; k < 5; k++) linha([[74, 220 + k * 9], [182, 220 + k * 9]], '#8a929c', 3);
+  } else if (id === 'noiva') {
+    g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.moveTo(0, 0); g.lineTo(256, 0); g.lineTo(256, 90); g.quadraticCurveTo(128, 40, 0, 90); g.fill();
+    el(90, 152, 24, 30, '#0a0a14'); el(166, 152, 24, 30, '#0a0a14'); el(92, 156, 4, 4, '#cfe'); el(164, 156, 4, 4, '#cfe');
+    linha([[88, 182], [84, 236], [90, 280]], 'rgba(10,10,20,.6)', 6); linha([[168, 182], [172, 230], [166, 270]], 'rgba(10,10,20,.6)', 6);
+    el(128, 236, 22, 10, '#3a1030');
+  } else { el(90, 150, 14, 14, '#c00'); el(166, 150, 14, 14, '#c00'); }
+  g.restore();
+  g.lineWidth = 7; g.strokeStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(128, 160, 120, 152, 0, 0, Math.PI * 2); g.stroke();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  rostoChefeCache.set(id, tex);
+  return tex;
+}
+const CHEFE_FOTO = 0.4; // chance de um chefão aparecer com uma das fotos em vez do rosto dele
 function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const C = boss ? chefeDe(boss) : null; boss = boss % 10;
-  const rostos = zRostos(), a = rostos[kind % rostos.length], T = ZTYPES[type] || ZTYPES[0];
+  const fotos = zRostos(), T = ZTYPES[type] || ZTYPES[0];
+  // chefão: rosto próprio (ou, às vezes, uma das fotos); zumbi comum: uma foto (sem foto nenhuma: rosto de um chefão)
+  const usaFoto = fotos.length && (!C || (kind % 100) / 100 < CHEFE_FOTO);
+  const a = usaFoto ? fotos[kind % fotos.length] : { nome: '', tex: rostoChefe(C ? C.id : CHEFES[kind % CHEFES.length].id) };
   const camisa = C?.id === 'espantalho' ? 0x3a4a8a : C?.id === 'mascote' ? 0x7a4a22 : C?.id === 'doutor' ? 0xe8ecf0 : C?.id === 'sorveteiro' ? 0xf2f6ff : C?.id === 'baterista' ? 0xb81d2a : C?.id === 'lenhador' ? 0xa8322a : C?.id === 'robo' ? 0x6a7078 : C?.id === 'noiva' ? 0xf4f0f8 : boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
-  const parts = buildFriend({ ...a, tex: zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
+  const parts = buildFriend({ ...a, tex: a.tex || zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
   parts.gun.visible = false;
   parts.root.position.set(x, y, z);
   const L = (c, e = 0, extra) => new THREE.MeshLambertMaterial({ color: c, emissive: e, ...extra });
@@ -6440,7 +6530,7 @@ function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const extra = { glow: [] };
   let esc = T.esc;
   if (boss) {
-    esc = 2.1; olhos(0xff2020);
+    esc = 2.1; if (usaFoto) olhos(0xff2020); // o rosto desenhado já tem os olhos
     if (C?.id === 'espantalho') {
       // chapéu de palha, camisa xadrez e braços de pau
       add(new THREE.ConeGeometry(0.75, 0.6, 12), L(0x6b4a1f), 0, 0.72, 0, parts.head); add(new THREE.CylinderGeometry(0.95, 0.95, 0.06, 16), L(0x8a6a2f), 0, 0.45, 0, parts.head);
@@ -6662,7 +6752,7 @@ function zApply(m) {
 function updateZombiesView(dt, t) {
   let chefe = null; for (const o of zombies.values()) if (o.boss && !o.dead) chefe = o;
   css($('bossBar'), 'display', chefe ? 'block' : 'none');
-  if (chefe) { const C = chefe.chefe || CHEFES[0]; txt($('bossName'), `${C.ic} ${chefe.nome}, ${C.id === 'gigante' ? BOSS_TITULOS[chefe.boss] || 'Gigante' : C.nome}${chefe.flags & 2 ? ' 😡' : ''}`); css($('bossFill'), 'width', Math.max(0, Math.round(chefe.hpPct)) + '%'); }
+  if (chefe) { const C = chefe.chefe || CHEFES[0]; txt($('bossName'), `${C.ic} ${chefe.nome ? chefe.nome + ', ' : ''}${C.id === 'gigante' ? BOSS_TITULOS[chefe.boss] || 'Gigante' : C.nome}${chefe.flags & 2 ? ' 😡' : ''}`); css($('bossFill'), 'width', Math.max(0, Math.round(chefe.hpPct)) + '%'); }
   for (const [id, o] of zombies) {
     if (o.dead) {
       o.deadT += dt;
@@ -6771,7 +6861,7 @@ const nJog = () => Math.max(1, Object.keys(net.players).length);
 // então os zumbis são mais lentos, vêm em menor número e mais espaçados, nascem mais longe e o intervalo é maior
 const MISSAO_RITMO = { vel: 0.72, cap: 0.8, qtd: 0.62, ritmo: 1.9, vivos: n => Math.min(22, 9 + n * 3), intervalo: 40, desde: 2, dano: 0.8, longe: 14 };
 const zMis = () => (FAZ && isMissao() ? MISSAO_RITMO : null);
-const ZMAXV = () => zMis() ? zMis().vivos(nJog()) : Math.min(36, 24 + nJog() * 3);
+const ZMAXV = () => zMis() ? zMis().vivos(nJog()) : Math.round(Math.min(36, 24 + nJog() * 3) * (net.cfg.modo === 'defesa' ? 0.6 : 1));
 // Balanceamento pela quantidade de jogadores (soma com a dificuldade): mais zumbis (+50% por pessoa),
 // um pouco mais de vida (+15%), chefão bem mais forte (+75%, todo mundo mira nele), nascem mais rápido e
 // cada um ganha mais por abate para a arma de cada um evoluir no mesmo ritmo do jogo sozinho
@@ -6949,9 +7039,11 @@ function zSpot(minD = 16, maxD = 35) {
     const p = new THREE.Vector3(lado === 0 ? u : lado === 1 ? u : lado === 2 ? -b : b, 0, lado === 0 ? -b : lado === 1 ? b : u);
     if (collides(p, 0.6, 1.8)) continue;
     const d = alvos.length ? Math.min(...alvos.map(a => Math.hypot(a[0] - p.x, a[2] - p.z))) : 20;
-    const nota = d >= minD && d <= maxD ? 100 - Math.abs(d - (minD + maxD) / 2) : Math.min(d, 15);
+    let nota = d >= minD && d <= maxD ? 100 - Math.abs(d - (minD + maxD) / 2) : Math.min(d, 15);
+    // ⚡ Defesa: nunca nasce perto do gerador (quanto mais longe, melhor)
+    if (net.cfg.modo === 'defesa' && Z.obj?.k === 'gen') { const dg = Math.hypot(p.x - Z.obj.x, p.z - Z.obj.z); nota = dg < 25 ? dg - 200 : nota + Math.min(20, dg - 25); }
     if (nota > bestD) { bestD = nota; best = p; }
-    if (nota > 90) break;
+    if (nota > 90 && net.cfg.modo !== 'defesa') break;
   }
   return best;
 }
@@ -6999,7 +7091,8 @@ function zSpawn() {
     return;
   }
   const o = zAdd(zPickType(r), best.x, 0, best.z);
-  if (net.cfg.modo === 'defesa' && o && Math.random() < (Z.focoP || 0.3)) o.foco = true; // vai direto no gerador
+  // vai direto no gerador (andando devagar; os rápidos continuam atrás das pessoas)
+  if (net.cfg.modo === 'defesa' && o && !['corredor', 'saltador', 'cao'].includes(ZTYPES[o.type]?.id) && Math.random() < (Z.focoP || 0.3)) o.foco = true;
 }
 const zp = new THREE.Vector3(), zq = new THREE.Vector3(), zr = new THREE.Vector3();
 const zRaio = z => z.boss ? 0.9 : ZTYPES[z.type].id === 'tanque' || ZTYPES[z.type].id === 'mae' ? 0.65 : 0.45;
@@ -7074,7 +7167,7 @@ function zMove(z, alvos, dt) {
     const w = zRumo(z, alvo);
     if (w) { dx = w.x - z.x; dz = w.z - z.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; z.yaw = Math.atan2(dx, dz); best = Math.max(best, 9); if (z.cruza) return; }
   }
-  let spd = z.speed * (z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4) * (buffOn('zgelo') ? 0.15 : 1) * (z.lentoT > 0 ? 0.4 : 1);
+  let spd = z.speed * (z.foco ? 0.7 : z.raiva > 0 ? 1.45 : 1) * (alvo ? 1 : 0.4) * (buffOn('zgelo') ? 0.15 : 1) * (z.lentoT > 0 ? 0.4 : 1);
   let ir = 1; // 1 = vem, -1 = foge, 0 = fica rodeando
   if ((z.veT = (z.veT || 0) - dt) <= 0 || z.veA !== alvo?.id) { z.veT = 0.2; z.veA = alvo?.id; z.veV = !!alvo && best < 24 && hasLineOfSight(zq.set(z.x, z.y + 1.6, z.z), zVeAlvo.set(alvo.x, alvo.y + 1.4, alvo.z)); }
   const ve = z.veV && best < 24;
@@ -7505,7 +7598,7 @@ function zHostTick(dt) {
   else if (Z.toSpawn === 0 && Z.sim.size === 0 && net.cfg.modo === 'chefoes' && Z.chDerrot.size >= CHEFOES_META) zVitoria();
   else if (Z.toSpawn === 0 && Z.sim.size === 0) { zObjFim(); Z.breakT = zMis()?.intervalo ?? INTERVALO_S; broadcast({ t: 'zbreak', r: Z.round, s: Z.breakT }); zFimRodada(); }
   Z.spawnT -= dt;
-  if (Z.toSpawn > 0 && Z.spawnT <= 0 && Z.sim.size < ZMAXV()) { zSpawn(); Z.toSpawn--; Z.spawnT = Math.max(0.28, 1.25 - Z.round * 0.07) * (Z.evento === 'corredores' ? 0.6 : 1) / zj().qtd * (zMis()?.ritmo ?? 1); }
+  if (Z.toSpawn > 0 && Z.spawnT <= 0 && Z.sim.size < ZMAXV()) { zSpawn(); Z.toSpawn--; Z.spawnT = (net.cfg.modo === 'defesa' ? 1.7 : 1) * Math.max(0.28, 1.25 - Z.round * 0.07) * (Z.evento === 'corredores' ? 0.6 : 1) / zj().qtd * (zMis()?.ritmo ?? 1); }
   // movimento e ataque
   const alvos = [];
   for (const [id, p] of Object.entries(net.players)) {
@@ -10505,7 +10598,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { PROPS, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { PROPS, rostoChefe, zRostos, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
