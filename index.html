@@ -936,7 +936,7 @@
             <b>Mata-mata</b>: todos contra todos. <b>Times</b>: Vermelho × Azul. <b>Gun Game</b>: cada abate troca sua arma.
             <b>Roleta de Armas</b>: de tempos em tempos a arma de todo mundo muda sozinha.
             <b>Pique-bandeira</b>: leve a bandeira do outro time até a sua base. <b>Rei do morro</b>: fique sozinho na área marcada.
-            <b>Último de pé</b>: sem voltar, o último vivo ganha a rodada. <b>Esconde-esconde</b>: vire um objeto do cenário ou cace quem virou.
+            <b>Último de pé</b>: sem voltar, o último vivo ganha a rodada. <b>Esconde-esconde</b>: 3 de cada 4 viram objeto do cenário (cada mapa tem os seus) e o resto caça por 90 s; a cada 20 s os escondidos apitam 🎵.
             <b>Zumbis</b>: todos juntos contra hordas, com chefão gigante a cada 5 rodadas.</section>
           <section><h4>🧟 Hordas e lojinha</h4>
             Todo mundo começa com uma pistola fraca. Pintar monstros dá 💰 (mais em especiais, elites, headshots e chefões; levantar amigo e passar de rodada também).
@@ -4257,7 +4257,14 @@ const teamEmoji = t => net.cfg.modo === 'esconde' ? ['📦', '🔦'][t] : TEAMS[
 const usaPts = () => ['koth', 'ultimo'].includes(net.cfg.modo);
 const scoreOf = p => usaPts() ? Math.floor(p.pts || 0) : p.kills;
 // distribui os jogadores nos dois times de forma equilibrada (dono da sala)
-function balanceTeams() { Object.values(net.players).forEach((p, i) => { p.team = i % 2; }); }
+function balanceTeams() { if (net.cfg.modo === 'esconde') return hsTimes(false); Object.values(net.players).forEach((p, i) => { p.team = i % 2; }); }
+// esconde-esconde: 1 caçador a cada 4 jogadores (75% escondidos), revezando: caça quem caçou menos vezes
+function hsTimes(nova) {
+  const ps = Object.values(net.players), k = Math.max(1, Math.round(ps.length / 4));
+  ps.map(p => [p, (p.cacou | 0) + Math.random() * 0.5]).sort((a, b) => a[1] - b[1]).forEach(([p], i) => {
+    p.team = i < k ? 1 : 0; if (nova && i < k) p.cacou = (p.cacou | 0) + 1;
+  });
+}
 function cleanCfg(c) {
   c = c || {};
   const pick = k => OPT[k].includes(+c[k]) ? +c[k] : CFG_PADRAO[k];
@@ -4306,7 +4313,7 @@ function addPlayer(id, name, char, cor, lk) {
   const c = Number.isInteger(char) && char >= 0 && char < AMIGOS.length ? char : -1;
   // em modos sem renascer, quem chega no meio da rodada espera a próxima
   const espera = net.isHost && semVolta() && rodadaRolando();
-  net.players[id] = { name: n, char: c, cor: Number.isInteger(cor) ? cor & 0xffffff : 0x3db8ff, lk: cleanLook(lk), hp: hpMax(), kills: 0, deaths: 0, pts: 0, dead: espera, team: cnt[0] <= cnt[1] ? 0 : 1 };
+  net.players[id] = { name: n, char: c, cor: Number.isInteger(cor) ? cor & 0xffffff : 0x3db8ff, lk: cleanLook(lk), hp: hpMax(), kills: 0, deaths: 0, pts: 0, dead: espera, team: net.cfg.modo === 'esconde' ? 0 : cnt[0] <= cnt[1] ? 0 : 1 };
   if (ehZumbi(net.cfg.modo)) zEcoInit(net.players[id], true);
   if (net.cfg.modo === 'roleta') net.roll[id] = net.cfg.rIgual ? (net.roll[net.myId] || randomFrom(net.cfg.armas)) : randomFrom(net.cfg.armas);
 }
@@ -4512,6 +4519,7 @@ function hostHandle(from, m) {
         // vida por abate (vampiro)
         if (!amigo && net.cfg.vamp && !sh.dead && sh.hp < hpMax(from)) { sh.hp = Math.min(hpMax(from), sh.hp + net.cfg.vamp); broadcast({ t: 'hp', id: from, hp: sh.hp }); }
         msOf(m.target).st = 0;
+        if (net.cfg.modo === 'esconde' && !sh.dead) { sh.hp = Math.min(hpMax(from), sh.hp + 25); broadcast({ t: 'hp', id: from, hp: sh.hp }); } // achou: +25 de vida
         broadcast({ t: 'kill', killer: from, victim: m.target, w: wid, h: head ? 1 : 0, tk: amigo ? 1 : 0 });
         onKillMode(m.target);
         sendRoster();
@@ -4654,7 +4662,7 @@ function onNet(m) {
     case 'respawn':
       if (m.id === net.myId) {
         meDead = false; meDown = false; resetMoves(); player.hp = myMaxHp(); player.vy = 0; player.ammoBy = {}; player.reloading = 0; player.gren = Math.max(player.gren | 0, 2); updateWeaponBtns();
-        player.pk = Math.floor(Math.random() * PROPS.length);
+        player.pk = randomFrom(propsDoMapa());
         player.pos.copy(onlineSpawn()); updateHud();
         if (isZumbi()) { player.invT = INV_VOLTA_S; updateFx(); } // 7 s invencível ao voltar (quem decide é o dono: net.inv)
         else if (net.cfg.prot) { player.invT = net.cfg.prot; updateFx(); } // proteção ao voltar (o dono também ignora o dano)
@@ -5452,7 +5460,7 @@ function renderCfgForm() {
     : c.modo === 'ctf' ? 'Dois times. Encoste na bandeira do outro time e leve até a sua base (a sua bandeira precisa estar lá). Quem é pintado com a bandeira deixa ela cair; encoste na sua bandeira caída para devolver.'
     : c.modo === 'koth' ? 'Todos contra todos. Fique sozinho dentro da área marcada no mapa: cada segundo vale 1 ponto. Com mais gente dentro, ninguém pontua.'
     : c.modo === 'ultimo' ? 'Ninguém volta depois de pintado. O último de pé ganha a rodada; quem caiu assiste os outros. Precisa de 2 jogadores ou mais (bots contam).'
-    : es ? 'Um time vira objeto do cenário (caixa, barril, pneus…) e tem 20 s para se esconder enquanto os caçadores ficam de olhos fechados. Depois os caçadores têm 2min30 para pintar todos; tiro no vazio custa vida. Os times trocam a cada rodada.'
+    : es ? 'A maioria (3 de cada 4) vira objeto do cenário (cada mapa tem os seus) e tem 20 s para se esconder enquanto os caçadores ficam de olhos fechados. Depois os caçadores têm 90 s para pintar todos: tiro no vazio custa vida, achar alguém devolve 25, e a cada 20 s os escondidos dão um apito 🎵. Os caçadores revezam a cada rodada.'
     : (!c.tempo && !c.kills ? 'Sem tempo e sem meta: a partida só acaba quando o dono mudar as regras.' : '');
   // armas liberadas (pode escolher várias)
   const stat = (W) => [['dano', Math.min(1, W.dmg * (W.pellets || 1) / 110)], ['cadência', Math.min(1, 0.07 / W.cd * 1.1)], ['alcance', W.life ? 0.3 : Math.min(1, W.speed / 160 + (W.zoom ? 0.2 : 0))]];
@@ -6275,7 +6283,7 @@ const r2 = v => Math.round(v * 100) / 100;
 // hp/spd/dmg = multiplicadores sobre o zumbi comum da rodada · esc = tamanho · desde = primeira rodada · peso = chance
 const ZTYPES = [
   { id: 'comum', nome: 'Zumbi', ic: '🧟', desc: 'lento e teimoso, vem em bando', hp: 1, spd: 1, dmg: 1, esc: 1, desde: 1, peso: 10, cor: null },
-  { id: 'corredor', nome: 'Corredor', ic: '⚡', desc: 'corre muito e dá bote quando chega perto', hp: 0.55, spd: 1.75, dmg: 0.8, esc: 0.95, desde: 2, peso: 5, cor: 0x7a1f1f },
+  { id: 'corredor', nome: 'Corredor', ic: '⚡', desc: 'corre muito e dá bote quando chega perto', hp: 0.55, spd: 1.75, dmg: 0.45, esc: 0.95, desde: 2, peso: 5, cor: 0x7a1f1f },
   { id: 'cuspidor', nome: 'Cuspidor', ic: '🤢', desc: 'fica de longe cuspindo ácido que te deixa lento', hp: 0.85, spd: 0.8, dmg: 0.7, esc: 1.05, desde: 3, peso: 3, cor: 0x4f6b1a },
   { id: 'bomba', nome: 'Bomba de Tinta', ic: '💥', desc: 'corre até você e EXPLODE (pinte de longe!)', hp: 0.6, spd: 1.2, dmg: 0, esc: 1.1, desde: 3, peso: 3, cor: 0x8a4a12 },
   { id: 'tanque', nome: 'Brutamontes', ic: '🛡️', desc: 'blindado no corpo (mire na cabeça) e dá investida', hp: 3, spd: 0.62, dmg: 1.8, esc: 1.45, desde: 4, peso: 2, cor: 0x34383f },
@@ -6958,7 +6966,7 @@ function zMove(z, alvos, dt) {
   z.atkCd -= dt;
   const alcance = z.boss ? 2.6 : T.id === 'tanque' || T.id === 'mae' ? 1.9 : 1.35;
   if (z.dmg > 0 && alvo && best < alcance && !buffOn('zgelo') && Math.abs(alvo.y - z.y) < (z.boss ? 3 : 1.7) && z.atkCd <= 0) {
-    z.atkCd = (z.boss ? 1.5 : T.id === 'corredor' ? 0.7 : 0.9) * zd().atk; z.atkFlag = true;
+    z.atkCd = (z.boss ? 1.5 : 0.9) * zd().atk; z.atkFlag = true;
     zDamage(alvo.id, Math.round(z.dmg * (z.raiva > 0 ? 1.25 : 1)));
     if (T.id === 'tanque' || z.boss) zPush(alvo.id, dx, dz, 7);
   }
@@ -7870,8 +7878,8 @@ function modeStart() {
 function roundStart(r) {
   const m = net.cfg.modo, n = Object.keys(net.players).length;
   if (n < 2) { net.hs = { ph: 'espera', t: 0, r }; for (const [id, p] of Object.entries(net.players)) if (p.dead) { Object.assign(p, { dead: false, hp: hpMax(id) }); broadcast({ t: 'respawn', id }); } broadcast({ t: 'hs', hs: net.hs }); return; }
-  if (m === 'esconde' && r > 1) for (const p of Object.values(net.players)) p.team = 1 - (p.team ?? 0);
-  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, hp: hpMax(id), pk: Math.floor(Math.random() * PROPS.length) }); broadcast({ t: 'respawn', id }); }
+  if (m === 'esconde') { hsTimes(true); net.apitoT = 0; }
+  for (const [id, p] of Object.entries(net.players)) { Object.assign(p, { dead: false, hp: hpMax(id), pk: randomFrom(propsDoMapa()) }); broadcast({ t: 'respawn', id }); }
   net.hs = m === 'esconde' ? { ph: 'esconder', t: 20, r } : { ph: 'jogo', t: 0, r };
   broadcast({ t: 'hs', hs: net.hs });
   sendRoster();
@@ -7917,8 +7925,13 @@ function modeHostTick(dt) {
   if (net.hs) {
     if (net.hs.ph === 'espera' && Object.keys(net.players).length >= 2) return roundStart(net.hs.r || 1);
     if (net.hs.t > 0) net.hs.t = Math.max(0, net.hs.t - dt);
-    if (m === 'esconde' && net.hs.ph === 'esconder' && net.hs.t <= 0) { net.hs = { ph: 'caca', t: 150, r: net.hs.r }; broadcast({ t: 'hs', hs: net.hs }); }
+    if (m === 'esconde' && net.hs.ph === 'esconder' && net.hs.t <= 0) { net.hs = { ph: 'caca', t: HS_CACA_S, r: net.hs.r }; broadcast({ t: 'hs', hs: net.hs }); }
     else if (m === 'esconde' && net.hs.ph === 'caca' && net.hs.t <= 0) roundEnd({ team: 0, why: 'tempo' });
+    // 🎵 apito: de tempos em tempos todo escondido vivo faz barulho (ajuda os caçadores, que são poucos)
+    if (m === 'esconde' && net.hs?.ph === 'caca') {
+      net.apitoT = (net.apitoT || 0) + dt;
+      if (net.apitoT >= APITO_S) { net.apitoT = 0; const ids = Object.entries(net.players).filter(([, p]) => p.team === 0 && !p.dead).map(([id]) => id); if (ids.length) broadcast({ t: 'apito', ids }); }
+    }
     checkRoundEnd();
   }
   if (m === 'koth' && net.hill) {
@@ -7980,6 +7993,19 @@ function modeOnNet(m) {
       if (m.o === net.myId && antes !== net.myId) { feed('⛰️ O morro é seu! Fica aí!'); beep(990, 0.12, 'triangle', 0.06); }
       updateHud(); return true;
     }
+    case 'apito': {
+      const ids = Array.isArray(m.ids) ? m.ids.slice(0, 40) : [];
+      for (const id of ids) {
+        const pos = id === net.myId ? player.pos : remotes.get(id)?.pos; if (!pos) continue;
+        const v = Math.max(0.15, 1 - pos.distanceTo(player.pos) / 45);
+        tone(1568, 0.12, { type: 'sine', vol: 0.07 * v }); tone(2093, 0.18, { type: 'sine', vol: 0.07 * v, delay: 0.13 });
+        const sp = emojiSprite('🎵'); sp.scale.setScalar(1.1); sp.position.set(pos.x, pos.y + 2.6, pos.z); scene.add(sp);
+        setTimeout(() => { scene.remove(sp); sp.material.dispose(); }, 1800);
+      }
+      if (ids.includes(net.myId)) feed('🎵 Você apitou! Os caçadores ouviram de onde veio');
+      else if (teamOf(net.myId) === 1 && ids.length) feed('🎵 Apito! Escute de onde veio o som');
+      return true;
+    }
     case 'hs': {
       const antes = net.hs?.ph;
       net.hs = m.hs;
@@ -8027,15 +8053,42 @@ function updateObjectives(dt, t) {
 }
 
 // --- Esconde-esconde: virar objeto ---
+const HS_CACA_S = 90, APITO_S = 20;
+// objetos para virar: sem "m" valem em todo mapa; com "m" só nos mapas da lista (o índice vai pela rede no "pk")
 const PROPS = [
   { nome: 'Caixa', fazer: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), texMat('crate')); m.position.y = 0.7; return m; } },
   { nome: 'Barril', fazer: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.3, 14), mat('barrel' + 0xc0392b, () => lam(0xc0392b))); m.position.y = 0.65; return m; } },
   { nome: 'Pneus', fazer: () => { const g = new THREE.Group(); for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.32, 10, 20), mat('tire', () => lam(0x1d1d1d))); t.rotation.x = Math.PI / 2; t.position.y = 0.32 + i * 0.6; g.add(t); } return g; } },
   { nome: 'Lixeira', fazer: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.7), mat('lixo', () => lam(0x2f8a4a))); m.position.y = 0.55; return m; } },
-  { nome: 'Bunker', fazer: () => { const g = new THREE.Group(); const c = mat('bunk' + 0x3db8ff, () => lam(0x3db8ff)); const m = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 1.5, 14), c); m.position.y = 0.75; const cap = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), c); cap.position.y = 1.5; g.add(m, cap); return g; } },
-  { nome: 'Vaso de planta', fazer: () => { const g = new THREE.Group(); const v = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 1), mat('vaso', () => lam(0x6b4a2b))); v.position.y = 0.45; const f = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), mat('folhaS', () => lam(0x2f8a4a))); f.position.y = 1.6; g.add(v, f); return g; } },
+  { nome: 'Bunker', m: ['arena', 'campus'], fazer: () => { const g = new THREE.Group(); const c = mat('bunk' + 0x3db8ff, () => lam(0x3db8ff)); const m = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 1.5, 14), c); m.position.y = 0.75; const cap = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), c); cap.position.y = 1.5; g.add(m, cap); return g; } },
+  { nome: 'Vaso de planta', m: ['campus', 'shopping', 'escola'], fazer: () => { const g = new THREE.Group(); const v = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 1), mat('vaso', () => lam(0x6b4a2b))); v.position.y = 0.45; const f = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), mat('folhaS', () => lam(0x2f8a4a))); f.position.y = 1.6; g.add(v, f); return g; } },
   { nome: 'Cone', fazer: () => { const m = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.1, 12), mat('cone', () => lam(0xff7a1a))); m.position.y = 0.55; return m; } },
+  // por mapa
+  { nome: 'Fardo de feno', m: ['arena', 'floresta'], fazer: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.3, 16), mat('feno', () => lam(0xd9b44a))); m.rotation.z = Math.PI / 2; m.position.y = 0.7; return m; } },
+  { nome: 'Pallets', m: ['arena', 'armazem'], fazer: () => { const g = new THREE.Group(); for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.16, 1.1), mat('pallet', () => lam(0xa07a4a))); p.position.y = 0.1 + i * 0.2; p.rotation.y = (i % 2) * 0.08; g.add(p); } return g; } },
+  { nome: 'Banco', m: ['campus', 'shopping', 'escola'], fazer: () => { const g = new THREE.Group(), w = mat('bancoM', () => lam(0x8a5a2b)), fe = mat('bancoF', () => lam(0x333333)); const a = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.5), w); a.position.y = 0.45; const c = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.08), w); c.position.set(0, 0.75, -0.22); g.add(a, c); for (const x of [-0.7, 0.7]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.45), fe); p.position.set(x, 0.22, 0); g.add(p); } return g; } },
+  { nome: 'Hidrante', m: ['campus', 'escola'], fazer: () => { const g = new THREE.Group(), v = mat('hidr', () => lam(0xd42a2a)); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.8, 12), v); c.position.y = 0.4; const t = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8), v); t.position.y = 0.82; const b = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.7, 8), v); b.rotation.z = Math.PI / 2; b.position.y = 0.55; g.add(c, t, b); return g; } },
+  { nome: 'Mochila', m: ['campus', 'escola'], fazer: () => { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.4), mat('moch', () => lam(0x3d6bff))); b.position.y = 0.45; const k = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.12), mat('moch2', () => lam(0xffd23d))); k.position.set(0, 0.3, 0.24); g.add(b, k); return g; } },
+  { nome: 'Tambor azul', m: ['armazem', 'praia'], fazer: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.3, 14), mat('tamborA', () => lam(0x1f5fbf))); m.position.y = 0.65; return m; } },
+  { nome: 'Extintor', m: ['armazem', 'shopping', 'escola'], fazer: () => { const g = new THREE.Group(); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.8, 12), mat('ext', () => lam(0xe02020))); c.position.y = 0.4; const t = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.3), mat('bancoF', () => lam(0x333333))); t.position.set(0, 0.9, 0.08); g.add(c, t); return g; } },
+  { nome: 'Caixa de papelão', m: ['armazem', 'shopping'], fazer: () => { const g = new THREE.Group(), p = mat('papelao', () => lam(0xb08a5a)); const a = new THREE.Mesh(new THREE.BoxGeometry(1, 0.7, 0.8), p); a.position.y = 0.35; const b = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.6), p); b.position.set(0.1, 0.95, 0); b.rotation.y = 0.3; g.add(a, b); return g; } },
+  { nome: 'Boia', m: ['praia'], fazer: () => { const m = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.25, 10, 20), mat('boia', () => lam(0xff4d2e))); m.rotation.x = Math.PI / 2; m.position.y = 0.25; return m; } },
+  { nome: 'Cooler', m: ['praia'], fazer: () => { const g = new THREE.Group(); const c = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.55), mat('cooler', () => lam(0x2a9df4))); c.position.y = 0.28; const t = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.6), mat('branco', () => lam(0xf2f2f2))); t.position.y = 0.6; g.add(c, t); return g; } },
+  { nome: 'Castelo de areia', m: ['praia'], fazer: () => { const g = new THREE.Group(), a = mat('areiaC', () => lam(0xe0c48a)); const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.2), a); b.position.y = 0.25; g.add(b); for (const [x, z] of [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]]) { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.6, 10), a); t.position.set(x, 0.75, z); g.add(t); } const c = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 10), a); c.position.y = 0.75; g.add(c); return g; } },
+  { nome: 'Prancha', m: ['praia'], fazer: () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.55, 2, 0.1), mat('prancha', () => lam(0x3dd2ff))); m.position.y = 1; m.rotation.x = -0.15; return m; } },
+  { nome: 'Carteira', m: ['escola'], fazer: () => { const g = new THREE.Group(), w = mat('bancoM', () => lam(0x8a5a2b)), fe = mat('bancoF', () => lam(0x333333)); const t = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.6), w); t.position.y = 0.75; g.add(t); for (const [x, z] of [[-0.4, -0.25], [0.4, -0.25], [-0.4, 0.25], [0.4, 0.25]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.75, 0.05), fe); p.position.set(x, 0.37, z); g.add(p); } const c = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.45), w); c.position.set(0, 0.45, 0.55); g.add(c); return g; } },
+  { nome: 'Globo', m: ['escola'], fazer: () => { const g = new THREE.Group(); const s = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 10), mat('globo', () => lam(0x2f7fd8))); s.position.y = 1.05; const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.55, 10), mat('bancoM', () => lam(0x8a5a2b))); p.position.y = 0.28; g.add(s, p); return g; } },
+  { nome: 'Bola gigante', m: ['escola', 'arena'], fazer: () => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), mat('bolaG', () => lam(0xff8a1a))); m.position.y = 0.75; return m; } },
+  { nome: 'Carrinho de compras', m: ['shopping'], fazer: () => { const g = new THREE.Group(), fe = mat('carr', () => lam(0xb8bcc4)); const c = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.6), fe); c.position.y = 0.75; const a = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.66), fe); a.position.set(-0.55, 1.1, 0); g.add(c, a); for (const [x, z] of [[-0.35, -0.25], [0.35, -0.25], [-0.35, 0.25], [0.35, 0.25]]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 8), mat('bancoF', () => lam(0x333333))); r.rotation.x = Math.PI / 2; r.position.set(x, 0.1, z); g.add(r); } return g; } },
+  { nome: 'Máquina de chiclete', m: ['shopping'], fazer: () => { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.32, 0.8, 12), mat('hidr', () => lam(0xd42a2a))); b.position.y = 0.4; const s = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 10), mat('vidroC', () => lam(0xbfe8ff, { transparent: true, opacity: 0.55 }))); s.position.y = 1.15; const d = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), mat('chicl', () => lam(0xff3dd2))); d.position.y = 1.08; g.add(b, d, s); return g; } },
+  { nome: 'Tronco', m: ['floresta'], fazer: () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 1.9, 12), mat('tronco', () => lam(0x6b4a2b))); m.rotation.z = Math.PI / 2; m.position.y = 0.4; return m; } },
+  { nome: 'Pedra', m: ['floresta', 'praia'], fazer: () => { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.75), mat('pedraP', () => lam(0x8a8a86))); m.scale.set(1.1, 0.8, 1); m.position.y = 0.55; return m; } },
+  { nome: 'Toco', m: ['floresta'], fazer: () => { const g = new THREE.Group(); const c = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.58, 0.7, 12), mat('tronco', () => lam(0x6b4a2b))); c.position.y = 0.35; const t = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.04, 12), mat('tocoT', () => lam(0xd8b07a))); t.position.y = 0.72; g.add(c, t); return g; } },
+  { nome: 'Cogumelo', m: ['floresta'], fazer: () => { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.8, 10), mat('branco', () => lam(0xf2f2f2))); p.position.y = 0.4; const c = new THREE.Mesh(new THREE.SphereGeometry(0.7, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat('cogu', () => lam(0xd42a2a))); c.position.y = 0.75; g.add(p, c); for (let k = 0; k < 5; k++) { const a = k * 1.3; const d = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), mat('branco', () => lam(0xf2f2f2))); d.position.set(Math.cos(a) * 0.4, 1.15 + (k % 2) * 0.08, Math.sin(a) * 0.4); g.add(d); } return g; } },
+  { nome: 'Arbusto', m: ['floresta', 'campus', 'arena'], fazer: () => { const g = new THREE.Group(), v = mat('folhaS', () => lam(0x2f8a4a)); for (const [x, y, z, r] of [[0, 0.6, 0, 0.7], [0.45, 0.45, 0.2, 0.5], [-0.4, 0.45, -0.15, 0.5]]) { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), v); b.position.set(x, y, z); g.add(b); } return g; } },
 ];
+const propsDoMapa = () => { const l = PROPS.map((P, i) => !P.m || P.m.includes(net.cfg.mapa) ? i : -1).filter(i => i >= 0); return l.length ? l : [0]; };
+const propDe = k => PROPS[k] || PROPS[0];
 const esconde = () => mode === 'online' && net.cfg.modo === 'esconde';
 // sou um objeto agora? (time dos escondidos, rodada valendo, vivo)
 const amProp = () => esconde() && teamOf(net.myId) === 0 && !!net.hs && ['esconder', 'caca'].includes(net.hs.ph) && !meDead;
@@ -8045,18 +8098,18 @@ const amBlind = () => esconde() && teamOf(net.myId) === 1 && net.hs?.ph === 'esc
 let myPropG = null, myPropK = -1;
 function cycleProp() {
   if (!amProp()) { if (state === 'play' && cycleWeapon) cycleWeapon(1); return; }
-  player.pk = ((player.pk ?? 0) + 1) % PROPS.length;
-  feed(`📦 Agora você é: ${PROPS[player.pk].nome}`); sfx.click();
+  const l = propsDoMapa(); player.pk = l[(l.indexOf(player.pk) + 1) % l.length];
+  feed(`📦 Agora você é: ${propDe(player.pk).nome}`); sfx.click();
 }
 function updatePropsView() {
   // o meu objeto (eu me vejo de fora)
   const souProp = amProp();
-  if (souProp && (myPropK !== player.pk || !myPropG)) { if (myPropG) scene.remove(myPropG); myPropG = new THREE.Group(); myPropG.add(PROPS[player.pk ?? 0].fazer()); scene.add(myPropG); myPropK = player.pk; }
+  if (souProp && (myPropK !== player.pk || !myPropG)) { if (myPropG) scene.remove(myPropG); myPropG = new THREE.Group(); myPropG.add(propDe(player.pk ?? 0).fazer()); scene.add(myPropG); myPropK = player.pk; }
   if (myPropG) { myPropG.visible = souProp; if (souProp) { myPropG.position.copy(player.pos); myPropG.rotation.y = player.yaw; } }
   // os outros
   for (const r of remotes.values()) {
     const prop = remoteIsProp(r) && !r.dead;
-    if (prop && (r.propK !== r.pk || !r.propG)) { if (r.propG) r.root.remove(r.propG); r.propG = new THREE.Group(); r.propG.add(PROPS[r.pk ?? 0].fazer()); r.root.add(r.propG); r.propK = r.pk; }
+    if (prop && (r.propK !== r.pk || !r.propG)) { if (r.propG) r.root.remove(r.propG); r.propG = new THREE.Group(); r.propG.add(propDe(r.pk ?? 0).fazer()); r.root.add(r.propG); r.propK = r.pk; }
     if (r.propG) r.propG.visible = prop;
     r.body.visible = !prop;
     if (r.tag) r.tag.visible = !prop || teamOf(r.id) === teamOf(net.myId);
@@ -10146,7 +10199,7 @@ function frame() {
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { PROPS, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
