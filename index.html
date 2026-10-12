@@ -565,6 +565,8 @@
   .stats span { font-size:12px; color:var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:1px; }
   #pauseScreen, #overScreen { align-items:center; }
   #pauseScreen { background:rgba(8,10,20,.72); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:12; }
+  /* desfoque atrás dos botões e janelas custa caro no celular (refeito a cada quadro): só na qualidade alta */
+  body:not(.qalta) .tbtn, body:not(.qalta) #shopBox, body:not(.qalta) #pauseScreen, body.leve .panel { backdrop-filter:none; -webkit-backdrop-filter:none; }
   #controlsScreen, #roomScreen.over { z-index:13; }
   #charScreen { z-index:14; }
   #rotate { display:none; text-align:center; font-size:13px; font-weight:900; color:var(--yel); }
@@ -1314,12 +1316,13 @@ function foraDoMuro(a, d, margem = 4) {
   const k = m < ARENA + margem ? (ARENA + margem) / m : 1;
   return [x * k, z * k];
 }
+// árvore de fora do muro (não sólida) não projeta sombra: era metade das sombras do mapa e ninguém vê
 function tree(x, z, s = 1, solid = true) {
-  const trunk = deco(meshAt(new THREE.CylinderGeometry(0.35 * s, 0.55 * s, 4 * s, 8), mat('trunk', () => lam(0x6b4a2b)), x, 2 * s, z));
+  const trunk = deco(meshAt(new THREE.CylinderGeometry(0.35 * s, 0.55 * s, 4 * s, 8), mat('trunk', () => lam(0x6b4a2b)), x, 2 * s, z), solid);
   const leaf = mat('leaf', () => lam(0x2f7a35)), leaf2 = mat('leaf2', () => lam(0x3c8f3f));
-  deco(meshAt(new THREE.SphereGeometry(2.6 * s, 10, 8), leaf, x, 5 * s, z));
-  deco(meshAt(new THREE.SphereGeometry(1.9 * s, 10, 8), leaf2, x + 1.4 * s, 4.4 * s, z + 0.6 * s));
-  deco(meshAt(new THREE.SphereGeometry(1.8 * s, 10, 8), leaf2, x - 1.2 * s, 4.6 * s, z - 0.8 * s));
+  deco(meshAt(new THREE.SphereGeometry(2.6 * s, 10, 8), leaf, x, 5 * s, z), solid);
+  deco(meshAt(new THREE.SphereGeometry(1.9 * s, 10, 8), leaf2, x + 1.4 * s, 4.4 * s, z + 0.6 * s), solid);
+  deco(meshAt(new THREE.SphereGeometry(1.8 * s, 10, 8), leaf2, x - 1.2 * s, 4.6 * s, z - 0.8 * s), solid);
   if (solid) collider(x, z, 1.1 * s, 1.1 * s, 0, 4 * s, trunk);
 }
 function car(x, z, color, ry = 0) {
@@ -1393,9 +1396,13 @@ function skyline(color, count, rmin, seed) {
   }
 }
 function setLook(L) { baseLook = { ...L }; setLookRaw(L); }
+// não desenha o que a neblina já esconde (o padrão era 300 m; na floresta a neblina acaba em 46 m);
+// mapa com lua (fog:false, longe) mantém o alcance longo
+function ajustaFar() { camera.far = mapGroup?.userData.lua ? 300 : Math.min(300, scene.fog.far + 5); }
 function setLookRaw({ sky, fogNear, fogFar, hemiSky, hemiGround, hemiI, sunColor, sunI }) {
   scene.background = new THREE.Color(sky);
   scene.fog.color.setHex(sky); scene.fog.near = fogNear; scene.fog.far = fogFar; // ajusta a neblina existente (trocar o objeto confunde o cache do three.js)
+  ajustaFar();
   hemi.color.setHex(hemiSky); hemi.groundColor.setHex(hemiGround); hemi.intensity = hemiI;
   sun.color.setHex(sunColor); sun.intensity = sunI;
 }
@@ -2085,7 +2092,7 @@ function buildFazenda() {
   walls(mat('palicada', () => lam(0x2e2216)), 4);
   for (let i = 0; i < 70; i++) { const a = r() * Math.PI * 2, d = ARENA + 6 + r() * 26; pine(...foraDoMuro(a, d), 1.1 + r() * 0.8, false); }
   // lua
-  const lua = deco(meshAt(new THREE.SphereGeometry(6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false }), -120, 95, -160), false);
+  const lua = deco(meshAt(new THREE.SphereGeometry(6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false }), -120, 95, -160), false); mapGroup.userData.lua = true;
   lua.castShadow = false;
   const terraClara = mat('terraQ', () => lam(0x5a4630)), grama = mat('gramaN', () => lam(0x24401f));
   const madeira = texMat('madeira', 2, 1), madeiraEsc = mat('madEsc', () => lam(0x3d2a18));
@@ -2336,7 +2343,7 @@ function buildParque() {
   const r = seeded(777);
   walls(mat('muroParque', () => lam(0x3a2a4a)), 4.5);
   for (let i = 0; i < 60; i++) { const a = r() * Math.PI * 2, d = ARENA + 6 + r() * 24; tree(...foraDoMuro(a, d), 1.1 + r() * 0.6, false); }
-  deco(meshAt(new THREE.SphereGeometry(7, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffe9c8, fog: false }), 140, 100, -170), false).castShadow = false;
+  deco(meshAt(new THREE.SphereGeometry(7, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffe9c8, fog: false }), 140, 100, -170), false).castShadow = false; mapGroup.userData.lua = true;
   const grama = mat('gramaP', () => lam(0x22381f)), caminho = texMat('paver', 30, 30), madeira = texMat('madeira', 2, 1);
   const neon = (c, i = 1) => new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: i });
   const listrado = (c1, c2) => new THREE.MeshLambertMaterial({ map: canvasTex(64, 64, g => { for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? c1 : c2; g.fillRect(k * 8, 0, 8, 64); } }) });
@@ -2597,7 +2604,7 @@ function buildHospital() {
   const r = seeded(9191);
   walls(mat('muroHosp', () => lam(0x4a5254)), 4.5);
   for (let i = 0; i < 60; i++) { const a = r() * Math.PI * 2, d = ARENA + 6 + r() * 24; pine(...foraDoMuro(a, d), 1.1 + r() * 0.7, false); }
-  deco(meshAt(new THREE.SphereGeometry(6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false }), -140, 90, -160), false).castShadow = false;
+  deco(meshAt(new THREE.SphereGeometry(6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe8ecff, fog: false }), -140, 90, -160), false).castShadow = false; mapGroup.userData.lua = true;
   const asfalto = mat('asfalto', () => lam(0x2a2c30)), branco = mat('paredeHosp', () => lam(0xb8c4c8)), verdeH = mat('paredeVerde', () => lam(0x6a8a7a)), piso = mat('pisoHosp', () => lam(0x8a9a9a));
   const neon = (c, i = 1) => new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: i });
   const metal = mat('metal', () => lam(0x55595f));
@@ -2803,9 +2810,9 @@ function buildHospital() {
 }
 // pinheiro (floresta)
 function pine(x, z, s = 1, solid = true) {
-  const tr = deco(meshAt(new THREE.CylinderGeometry(0.25 * s, 0.35 * s, 2.4 * s, 7), mat('trunk', () => lam(0x6b4a2b)), x, 1.2 * s, z));
+  const tr = deco(meshAt(new THREE.CylinderGeometry(0.25 * s, 0.35 * s, 2.4 * s, 7), mat('trunk', () => lam(0x6b4a2b)), x, 1.2 * s, z), solid);
   const f = mat('pinho', () => lam(0x1f4d2b));
-  for (let k = 0; k < 3; k++) deco(meshAt(new THREE.ConeGeometry((2.1 - k * 0.55) * s, 2.4 * s, 8), f, x, (2.6 + k * 1.3) * s, z));
+  for (let k = 0; k < 3; k++) deco(meshAt(new THREE.ConeGeometry((2.1 - k * 0.55) * s, 2.4 * s, 8), f, x, (2.6 + k * 1.3) * s, z), solid);
   if (solid) collider(x, z, 0.8 * s, 0.8 * s, 0, 5 * s, tr);
 }
 
@@ -2912,6 +2919,7 @@ function loadMap(id) {
   mapGroup = new THREE.Group(); scene.add(mapGroup);
   obstacles.length = 0; mapTick = null; doors.length = 0; FAZ = null;
   MAPS[id].build();
+  ajustaFar();
   limitaLuzes();
   applyClima(); try { placeObjectives(); } catch {} // na 1ª carga os objetivos ainda não existem
   if (!first) onMapChanged();
@@ -3471,6 +3479,8 @@ function fireBall(origin, dir, speed, owner, color, wid) {
   return b;
 }
 
+// sons repetidos no mesmo instante (escopeta: 9 acertos) tocam uma vez só
+const somT = { hit: 0, splat: 0, cash: 0 };
 // ===== Áudio (sintetizado) =====
 let actx = null, master = null;
 function beep(freq, dur, type = 'square', vol = 0.08, slide = 0) {
@@ -3501,8 +3511,8 @@ const sfx = {
     else beep(320, 0.08, 'square', 0.05, -200);
   },
   boom: () => { beep(70, 0.45, 'sawtooth', 0.12, -40); beep(160, 0.3, 'triangle', 0.08, -100); },
-  hit: () => { beep(880, 0.06, 'triangle', 0.08); beep(1320, 0.08, 'triangle', 0.05); },
-  splat: () => beep(140, 0.12, 'sawtooth', 0.04, -80),
+  hit: () => { const n = performance.now(); if (n - somT.hit < 60) return; somT.hit = n; beep(880, 0.06, 'triangle', 0.08); beep(1320, 0.08, 'triangle', 0.05); }, // escopeta = 9 acertos no mesmo quadro: 1 som só
+  splat: () => { const n = performance.now(); if (n - somT.splat < 60) return; somT.splat = n; beep(140, 0.12, 'sawtooth', 0.04, -80); },
   ko: () => { beep(660, 0.12, 'square', 0.06); setTimeout(() => beep(880, 0.12, 'square', 0.06), 110); setTimeout(() => beep(1175, 0.2, 'square', 0.06), 220); },
   hurt: () => beep(180, 0.2, 'sawtooth', 0.08, -100),
   slide: () => beep(220, 0.35, 'sawtooth', 0.04, -150),
@@ -3631,7 +3641,7 @@ function updateHud() {
     const metaTxt = meta ? ` · até ${meta}` : '';
     if (isZumbi()) {
       const tipos = [...new Set([...zombies.values()].filter(o => !o.dead && o.T && o.T.id !== 'comum').map(o => o.T.ic))].slice(0, 6).join('');
-      $('score').textContent = !Z.roundView ? '🧟 Prepare-se…' : net.cfg.modo === 'sobrev' ? `⏳ Minuto ${Z.roundView} · ${Z.left} zumbis${tipos ? ' · ' + tipos : ''}` : `${net.cfg.modo === 'chefoes' ? '👹' : '🧟'} Rodada ${Z.roundView}${net.cfg.modo === 'chefoes' && net.cfg.esc ? '/' + CHEFOES_META : ''} · restam ${Z.left}${net.cfg.modo === 'chefoes' && !net.cfg.esc && Z.chView != null ? ` · 🏆 ${Z.chView}/${CHEFOES_META}` : ''}${tipos ? ' · ' + tipos : ''}`;
+      txt($('score'), String(!Z.roundView ? '🧟 Prepare-se…' : net.cfg.modo === 'sobrev' ? `⏳ Minuto ${Z.roundView} · ${Z.left} zumbis${tipos ? ' · ' + tipos : ''}` : `${net.cfg.modo === 'chefoes' ? '👹' : '🧟'} Rodada ${Z.roundView}${net.cfg.modo === 'chefoes' && net.cfg.esc ? '/' + CHEFOES_META : ''} · restam ${Z.left}${net.cfg.modo === 'chefoes' && !net.cfg.esc && Z.chView != null ? ` · 🏆 ${Z.chView}/${CHEFOES_META}` : ''}${tipos ? ' · ' + tipos : ''}`));
       const O = Z.objView, D = Z.dzView, linhas = [];
       if (O?.k === 'tempo') { const resta = Math.max(0, Math.ceil(O.meta - O.t)); linhas.push(`⏳ Resgate em ${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, '0')}`); }
       else if (O?.k === 'gen' && net.cfg.modo === 'defesa' && !O.f && zIntervaloAte > performance.now()) linhas.push(`🔧 Gerador ${O.max ? Math.round(O.hp / O.max * 100) : 0}%: fique perto para consertar`);
@@ -3643,16 +3653,16 @@ function updateHud() {
       if (D) linhas.push(D.ok ? '🏅 Desafio cumprido!' : `${DESAFIOS[D.k].ic} ${DESAFIOS[D.k].txt(D.n)} (${Math.min(D.p, D.n)}/${D.n})`);
       obj = linhas.join(' · ');
     } else if (isTdm()) {
-      $('score').textContent = `${teamEmoji(0)} ${teamScore(0)} × ${teamScore(1)} ${teamEmoji(1)}` + metaTxt;
+      txt($('score'), String(`${teamEmoji(0)} ${teamScore(0)} × ${teamScore(1)} ${teamEmoji(1)}` + metaTxt));
     } else if (modo === 'gg') {
       const lv = Math.min(me?.kills ?? 0, ggOrder().length - 1);
-      $('score').textContent = `🔫 Gun Game · arma ${lv + 1}/${ggOrder().length}`;
+      txt($('score'), String(`🔫 Gun Game · arma ${lv + 1}/${ggOrder().length}`));
     } else {
       const lider = Object.entries(net.players).sort((a, b) => scoreOf(b[1]) - scoreOf(a[1]))[0];
       const ic = MODOS[modo]?.icone || '', un = modo === 'koth' ? 'pts' : modo === 'ultimo' ? 'rodadas' : 'abates', meu = me ? scoreOf(me) : 0;
-      $('score').textContent = lider && lider[0] !== net.myId && scoreOf(lider[1]) > meu
+      txt($('score'), lider && lider[0] !== net.myId && scoreOf(lider[1]) > meu
         ? `${ic} Você ${meu} · ${lider[1].name} ${scoreOf(lider[1])}${meta ? ' / ' + meta : ''}`
-        : `${ic} ${un[0].toUpperCase() + un.slice(1)}: ${meu}${meta ? ' / ' + meta : ''}${lider && meu > 0 ? ' · 👑 líder' : ''}`;
+        : `${ic} ${un[0].toUpperCase() + un.slice(1)}: ${meu}${meta ? ' / ' + meta : ''}${lider && meu > 0 ? ' · 👑 líder' : ''}`);
     }
     // linha do objetivo
     if (modo === 'ctf' && net.flags) {
@@ -3669,32 +3679,32 @@ function updateHud() {
       obj = net.hs.ph === 'espera' ? 'Esperando mais um jogador…' : `💀 Rodada ${net.hs.r} · ${vivos} de pé`;
     }
     const mm = MODOS[net.cfg.modo];
-    $('wave').textContent = ondeMis ? ondeMis : net.local ? `🧟 ${me?.kills ?? 0} zumbis pintados` : isTdm() ? `${teamEmoji(teamOf(net.myId))} ${teamName(teamOf(net.myId))} · sala ${net.code}` : `${mm?.icone || ''} ${mm?.nome || ''} · sala ${net.code}`;
+    txt($('wave'), String(ondeMis ? ondeMis : net.local ? `🧟 ${me?.kills ?? 0} zumbis pintados` : isTdm() ? `${teamEmoji(teamOf(net.myId))} ${teamName(teamOf(net.myId))} · sala ${net.code}` : `${mm?.icone || ''} ${mm?.nome || ''} · sala ${net.code}`));
   } else {
-    $('score').textContent = `🎨 Pontos: ${player.score}`;
-    $('wave').textContent = `Onda ${wave}`;
+    txt($('score'), String(`🎨 Pontos: ${player.score}`));
+    txt($('wave'), String(`Onda ${wave}`));
   }
   if (obj !== $('objLine').textContent) $('objLine').textContent = obj;
-  $('objLine').style.display = obj ? 'block' : 'none';
+  css($('objLine'), 'display', obj ? 'block' : 'none');
   const max = myMaxHp(), hp = meDown ? 0 : Math.max(0, Math.min(max, player.hp));
-  $('hpfill').style.width = `${hp / max * 100}%`;
-  $('hpNum').textContent = Math.ceil(hp);
+  css($('hpfill'), 'width', `${hp / max * 100}%`);
+  txt($('hpNum'), String(Math.ceil(hp)));
   $('hpwrap').classList.toggle('low', hp / max < 0.3);
   // mostra "recuperando" enquanto a vida está subindo sozinha
   if (player.hp > (updateHud.lastHp ?? player.hp) && player.hp < max) { $('hpwrap').classList.add('regen'); clearTimeout(updateHud.rt); updateHud.rt = setTimeout(() => $('hpwrap').classList.remove('regen'), 900); }
   if (player.hp >= max || player.hp < (updateHud.lastHp ?? 0)) $('hpwrap').classList.remove('regen');
   updateHud.lastHp = player.hp;
   const W = curW();
-  $('ammoName').textContent = `${W.ic} ${W.nome}${isZumbi() ? ' ' + estrelas(W.lvl || 1).replace(/^nv \d+ /, '') : ''}`;
+  txt($('ammoName'), String(`${W.ic} ${W.nome}${isZumbi() ? ' ' + estrelas(W.lvl || 1).replace(/^nv \d+ /, '') : ''}`));
   const a = ammoOf(player.weapon);
-  $('ammoNum').textContent = player.reloading > 0 ? 'recarregando…' : W.semMuni ? '∞' : `${a} / ${W.mag}`;
+  txt($('ammoNum'), String(player.reloading > 0 ? 'recarregando…' : W.semMuni ? '∞' : `${a} / ${W.mag}`));
   $('ammoNum').classList.toggle('low', player.reloading <= 0 && !W.semMuni && a <= Math.ceil(W.mag / 4));
   const itens = itensOn() && !amProp();
   txt($('cashLine'), isZumbi() ? `💰 ${net.players[net.myId]?.cash | 0}` : '');
   const grana = isZumbi() ? (net.players[net.myId]?.vant || []).map(k => VANTAGENS[k]?.ic || '').join('') : '';
   const gren = itens && granadaOn();
-  $('itemLine').textContent = [grana, itens ? `${gren ? `💣 ${player.gren | 0}  ·  ` : ''}🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ');
-  $('shieldBtn').style.display = itens ? 'flex' : 'none'; $('grenBtn').style.display = gren ? 'flex' : 'none';
+  txt($('itemLine'), String([grana, itens ? `${gren ? `💣 ${player.gren | 0}  ·  ` : ''}🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ')));
+  css($('shieldBtn'), 'display', itens ? 'flex' : 'none'); css($('grenBtn'), 'display', gren ? 'flex' : 'none');
 }
 function feed(text) {
   const d = document.createElement('div'); d.className = 'msg'; d.textContent = text;
@@ -3754,9 +3764,9 @@ function updateFloats(dt) {
   for (let i = floats.length - 1; i >= 0; i--) {
     const f = floats[i]; f.t += dt;
     const p = project(f.x, f.y + f.t * 1.4, f.z);
-    if (f.t > 1 || !p) { if (f.t > 1) { f.el.remove(); floats.splice(i, 1); } else f.el.style.opacity = 0; continue; }
+    if (f.t > 1 || !p) { if (f.t > 1) { f.el.remove(); floats.splice(i, 1); } else css(f.el, 'opacity', '0'); continue; }
     const s = f.t < 0.12 ? 0.6 + f.t / 0.12 * 0.7 : 1.3 - Math.min(0.3, (f.t - 0.12) * 1.5);
-    f.el.style.opacity = f.t > 0.65 ? 1 - (f.t - 0.65) / 0.35 : 1;
+    css(f.el, 'opacity', f.t > 0.65 ? (1 - (f.t - 0.65) / 0.35).toFixed(2) : '1');
     f.el.style.transform = `translate(${p[0] + f.vx * f.t}px,${p[1]}px) translate(-50%,-50%) scale(${s})`;
   }
   for (const [o, b] of bars) {
@@ -3765,11 +3775,12 @@ function updateFloats(dt) {
     if (gone && b.t < -0.4) { b.el.remove(); bars.delete(o); continue; }
     const pct = o.dead ? 0 : hpPctOf(o);
     const p = project(o.pos.x, o.pos.y + (o.prop ? 2 : o.crouch ? 2.2 : 3.02) * (o.scale || 1), o.pos.z);
-    if (!p) { b.el.style.opacity = 0; continue; }
-    b.el.style.opacity = gone ? 0 : 1;
+    if (!p) { css(b.el, 'opacity', '0'); continue; }
+    css(b.el, 'opacity', gone ? '0' : '1');
     b.el.style.transform = `translate(${p[0] - 33}px,${p[1]}px)`;
-    b.el.firstChild.style.width = Math.max(0, Math.min(1, pct)) * 100 + '%';
-    b.el.className = 'hpb' + (pct < 0.3 ? ' low' : pct < 0.6 ? ' mid' : '');
+    css(b.el.firstChild, 'width', Math.round(Math.max(0, Math.min(1, pct)) * 100) + '%');
+    const cls = 'hpb' + (pct < 0.3 ? ' low' : pct < 0.6 ? ' mid' : '');
+    if (b.el.className !== cls) b.el.className = cls;
   }
 }
 function clearFloats() { for (const f of floats) f.el.remove(); floats.length = 0; for (const b of bars.values()) b.el.remove(); bars.clear(); }
@@ -4096,6 +4107,7 @@ function readSettings() {
 }
 const baseRatio = () => Math.min(devicePixelRatio, { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5);
 function applyQuality() {
+  document.body.classList.toggle('qalta', settings.qual === 'alta');
   autoRes.k = 1;
   renderer.setPixelRatio(baseRatio());
   renderer.setSize(innerWidth, innerHeight);
@@ -4309,13 +4321,20 @@ const buffOn = k => (zBuff[k] || 0) > performance.now();
 const pickups = new Map(); // id -> { id, k, mesh, x, z }
 let puTimer = 4, puSeq = 0;
 
+// a textura do ícone é desenhada uma vez por emoji+cor e reaproveitada (cada zumbi especial criava uma
+// textura nova de 128×128 e mandava para a placa de vídeo); o material continua sendo de cada um
+const iconTex = new Map();
 function iconSprite(txt, cor) {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#' + cor.toString(16).padStart(6, '0'); g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#1a0b2e'; g.font = 'bold 76px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(txt, 64, 70);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.userData.solta = true; // única: pode liberar junto
+  const chave = txt + '|' + cor;
+  let t = iconTex.get(chave);
+  if (!t) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = '#' + cor.toString(16).padStart(6, '0'); g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1a0b2e'; g.font = 'bold 76px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(txt, 64, 70);
+    t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; iconTex.set(chave, t); // compartilhada: o liberaMalha não joga fora
+  }
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t }));
   sp.scale.set(0.8, 0.8, 1);
   return sp;
@@ -4339,9 +4358,9 @@ function addPickup(id, k, x, z) {
 function removePickup(id) {
   const pu = pickups.get(id); if (!pu) return;
   burst(new THREE.Vector3(pu.x, 1.1, pu.z), POWERS[pu.k].cor, 18, 4);
-  scene.remove(pu.mesh); pickups.delete(id);
+  scene.remove(pu.mesh); liberaMalha(pu.mesh); pickups.delete(id);
 }
-function clearPickups() { for (const id of [...pickups.keys()]) { scene.remove(pickups.get(id).mesh); pickups.delete(id); } puTimer = 4; }
+function clearPickups() { for (const id of [...pickups.keys()]) { const m = pickups.get(id).mesh; scene.remove(m); liberaMalha(m); pickups.delete(id); } puTimer = 4; }
 function pickupSpot() {
   for (let i = 0; i < 40; i++) {
     const p = FAZ ? lugarFaz(2, 1.2) : new THREE.Vector3((Math.random() * 2 - 1) * (ARENA - 4), 0, (Math.random() * 2 - 1) * (ARENA - 4));
@@ -4541,6 +4560,7 @@ const validFace = img => typeof img === 'string' && img.length < 60000 && /^data
 function netStatus(t) { $('netStatus').textContent = t; $('roomStatus').textContent = t; }
 
 function addPlayer(id, name, char, cor, lk) {
+  net.cfgAte = performance.now() + 15000; // quem chegou precisa receber as regras nos próximos rosters
   net.lastSeen.set(id, performance.now());
   const n = String(name || 'Jogador').slice(0, 14);
   const cnt = [0, 0]; for (const q of Object.values(net.players)) if (!q.bot) cnt[q.team ?? 0]++; // só gente: os bots se ajeitam depois (equilibraBots)
@@ -4568,8 +4588,19 @@ const randomFrom = list => list[Math.floor(Math.random() * list.length)];
 // manda pelos servidores conectados (todos ao mesmo tempo; quem recebe descarta as cópias)
 function publish(k, m) {
   if (net.local) return;
-  const txt = JSON.stringify({ ...m, q: `${net.myId}.${++net.seq}` });
+  // o "q" vai sempre no fim do texto: o filtro de cópias lê o fim antes de abrir a mensagem
+  // (no repasse do dono o q velho ficava no meio e cada celular abria as 3 cópias de cada posição e tiro)
+  const { q: _q, ...r } = m, q = `${net.myId}.${++net.seq}`;
+  r.q = q; net.seen.add(q); // o eco do que eu mandei (o dono escuta o próprio /a) nem é aberto
+  const txt = JSON.stringify(r);
   for (const c of net.clients) if (c.connected) c.publish(topic(k), txt);
+}
+// estado (posição, zumbis) mais velho que o último recebido chegou atrasado por outro servidor: ignora
+function seqNovo(alvo, m) {
+  if (typeof m.q !== 'string') return true;
+  const i = m.q.lastIndexOf('.'), quem = m.q.slice(0, i), n = +m.q.slice(i + 1);
+  if (alvo.qQuem === quem && n <= alvo.qN) return false;
+  alvo.qQuem = quem; alvo.qN = n; return true;
 }
 function sendNet(m) {
   if (net.isHost) hostHandle(net.myId, m);
@@ -4582,7 +4613,12 @@ function broadcast(m, exceptId) {
 }
 const timeLeft = () => net.endAt ? Math.max(0, Math.round((net.endAt - performance.now()) / 1000)) : -1;
 const rollLeft = () => net.cfg.modo === 'roleta' && net.cfg.rInt && net.rollAt ? Math.max(0, Math.round((net.rollAt - performance.now()) / 1000)) : -1;
-const sendRoster = () => { broadcast({ t: 'roster', rv: 1, h: net.myId, players: net.players, cfg: net.cfg, roll: net.roll, tl: timeLeft(), rn: rollLeft(), tp: net.tpts, fl: net.flags, hs: net.hs, dr: doors.map((d, i) => d.open ? i : -1).filter(i => i >= 0) }); };
+// as regras (cfg) só vão quando mudam, a cada 5 rosters ou nos 15 s depois de alguém entrar (roster mais leve)
+const sendRoster = () => {
+  const ck = JSON.stringify(net.cfg), comCfg = ck !== sendRoster.ck || performance.now() < (net.cfgAte || 0) || (sendRoster.n = (sendRoster.n | 0) + 1) % 5 === 0;
+  sendRoster.ck = ck;
+  broadcast({ t: 'roster', rv: 1, h: net.myId, players: net.players, cfg: comCfg ? net.cfg : undefined, roll: net.roll, tl: timeLeft(), rn: rollLeft(), tp: net.tpts, fl: net.flags, hs: net.hs, dr: doors.map((d, i) => d.open ? i : -1).filter(i => i >= 0) });
+};
 
 // --- partida: começo, fim por tempo/abates, roleta (só o dono da sala) ---
 function startMatch() {
@@ -4873,7 +4909,7 @@ function onNet(m) {
     case 'pux': removePickup(m.id); break;
     case 'joined': if (m.id !== net.myId) feed(`${nameOf(m.id)} entrou na sala`); break;
     case 's': {
-      const r = remotes.get(m.id); if (!r) break;
+      const r = remotes.get(m.id); if (!r || !seqNovo(r, m)) break;
       r.target.fromArray(m.p); r.yaw = m.y; r.pitch = m.pi; r.crouch = !!m.c; r.fx = m.e | 0; r.w = WEAPONS[m.w] ? m.w : 'marcador';
       r.pk = Number.isInteger(m.pk) && PROPS[m.pk] ? m.pk : 0; r.tr = typeof m.tr === 'number' ? m.tr : undefined;
       if (!r.seen) { r.seen = true; r.pos.copy(r.target); }
@@ -5022,7 +5058,7 @@ function updateRemotes(dt, t) {
     if (!r.seen) continue;
     r.head.scale.setScalar(regra('cabecao') ? 1.6 : 1);
     // de noite cada jogador aparece com o facho da lanterna
-    if (lanternaLigada() && !r.facho) { r.facho = new THREE.Mesh(fachoGeo, fachoMat); r.facho.position.set(0.2, 0.05, 0.35); r.head.add(r.facho); }
+    if (lanternaLigada() && !r.facho) { r.facho = new THREE.Mesh(fachoGeo, fachoMat); r.facho.userData.fixa = true; r.facho.position.set(0.2, 0.05, 0.35); r.head.add(r.facho); }
     if (r.facho) r.facho.visible = lanternaLigada() && !r.dead && !r.prop;
     // caçada ao líder: coroa que aparece através das paredes
     const lider = r.id === net.leader && !r.dead;
@@ -5325,6 +5361,11 @@ function dropPlayer(id) {
 setInterval(() => {
   if (!net.isHost || !net.code) return;
   const now = performance.now();
+  // o dono saiu do app (aba escondida: o jogo para de rodar e os zumbis congelam para todo mundo): passa a sala
+  if (document.hidden && !net.local && now - (net.ultQuadro || now) > 3000) {
+    const prox = Object.entries(net.players).filter(([id, p]) => !p.bot && id !== net.myId).map(([id]) => id)[0];
+    if (prox) { publish('a', { t: 'migra', id: prox }); deixarDeSerDono(prox); return; }
+  }
   if (!net.winning && regenOn()) {
     for (const [id, p] of Object.entries(net.players)) {
       const max = hpMax(id);
@@ -5629,12 +5670,20 @@ function renderLobby() {
 let pid = load('pb-pid', null);
 if (typeof pid !== 'string' || !/^[a-z0-9]{6,12}$/.test(pid)) { pid = newId(); save('pb-pid', pid); }
 const stats = { kills: 0, deaths: 0, wins: 0, partidas: 0, hs: 0, ...(load('pb-stats', {}) || {}) };
+// números sobem na hora na memória; gravar no aparelho e conferir conquistas fica para no máximo 1×/s
+// (a bomba do time matava 36 zumbis no mesmo quadro = 36 gravações + 36 conferências: o jogo travava)
+let statsSujo = false;
+function gravaStats() { if (!statsSujo) return; statsSujo = false; save('pb-stats', stats); checkUnlocks(); }
 function bumpStat(k, n = 1, local = false) {
   if (net.local && !local) return; // treino conta só para conquistas de zumbi
-  stats[k] = (stats[k] | 0) + n; save('pb-stats', stats);
-  bumpWeek(k, n); checkUnlocks();
+  stats[k] = (stats[k] | 0) + n;
+  if (WK[k]) { weekStats(); stats[WK[k]] = (stats[WK[k]] | 0) + n; }
+  statsSujo = true;
+  if (!bumpStat.g) bumpStat.g = setTimeout(() => { bumpStat.g = 0; gravaStats(); }, 1000);
   clearTimeout(bumpStat.t); bumpStat.t = setTimeout(() => publishRank(), 1500);
 }
+addEventListener('pagehide', () => gravaStats());
+document.addEventListener('visibilitychange', () => { if (document.hidden) gravaStats(); });
 // avisa quando uma conquista destrava um chapéu ou acessório
 function checkUnlocks() {
   const antes = new Set(String(load('pb-unl', '') || '').split(','));
@@ -5657,7 +5706,6 @@ function weekStats() {
   if (stats.wk !== weekKey()) { stats.wk = weekKey(); for (const f of Object.values(WK)) stats[f] = 0; save('pb-stats', stats, true); }
   return stats;
 }
-function bumpWeek(k, n) { if (!WK[k]) return; weekStats(); stats[WK[k]] = (stats[WK[k]] | 0) + n; save('pb-stats', stats); }
 function publishRank(only) {
   if (!stats.partidas || adm.ban.rank.includes(pid)) return;
   weekStats();
@@ -5880,6 +5928,7 @@ function setTab(t) {
 }
 function openHome() {
   closeChat();
+  if (conta.pendente && conta.key) { conta.pendente = false; clearTimeout(conta.timer); conta.timer = setTimeout(salvarNuvem, 4000); }
   $('controlsSlot').appendChild($('controlsPanel'));
   lk.open = false;
   showScreen('startScreen'); setTab(tab); renderChars(); openLobby(); setBusy(false); renderWeekStar(); checkUnlocks(); mostraConvite();
@@ -6119,6 +6168,8 @@ function mesclarSave(r) {
 // manda o save para a nuvem (alguns segundos depois da última mudança)
 function agendarNuvem() {
   if (!conta.key) return;
+  // no meio da partida online salvar abre mais 3 conexões e manda até 230 KB: espera voltar para o menu
+  if (mode === 'online' && !net.local && state !== 'menu') { conta.pendente = true; return; }
   clearTimeout(conta.timer); conta.timer = setTimeout(salvarNuvem, 4000);
 }
 async function salvarNuvem() {
@@ -7011,7 +7062,9 @@ function zApply(m) {
     if (atk) { o.atkT = 0.45; zsom('patada', o.pos); }
   }
   for (const [id, o] of zombies) if (!o.dead && !seen.has(id) && now - o.last > 1500) removeZombie(id);
-  updateHud();
+  // o HUD só muda com rodada/restam/quantidade (antes era redesenhado 10×/s)
+  const k = Z.roundView * 1e6 + Z.left * 1e3 + zombies.size;
+  if (k !== zApply.k) { zApply.k = k; updateHud(); }
 }
 function updateZombiesView(dt, t) {
   let chefe = null; for (const o of zombies.values()) if (o.boss && !o.dead) chefe = o;
@@ -7081,7 +7134,22 @@ function hitZombie(o, point, color, dir, wid, head) {
 // acertos em zumbis do mesmo quadro vão juntos (confete/escopeta: até 14 bolinhas por tiro)
 const zhitQ = new Map();
 function zhitJunta(w, e) { let l = zhitQ.get(w); if (!l) zhitQ.set(w, l = []); l.push(e); }
-function zhitEnvia() { if (!zhitQ.size) return; for (const [w, l] of zhitQ) sendNet({ t: 'zhitl', w, l }); zhitQ.clear(); }
+// no máximo 15 lotes por segundo (antes saía um a cada quadro com acerto, ×3 servidores)
+function zhitEnvia(forca) {
+  if (!zhitQ.size) return;
+  const now = performance.now(); if (!forca && now - (zhitEnvia.t || 0) < 66) return; zhitEnvia.t = now;
+  for (const [w, l] of zhitQ) sendNet({ t: 'zhitl', w, l }); zhitQ.clear();
+}
+// nas hordas o tiro dos outros é só visual: junta os tiros e manda no máximo 8 por segundo
+let shotQ = null;
+function shotJunta(m) {
+  if (shotQ && shotQ.w === m.w && shotQ.ds.length + m.ds.length <= 12) { shotQ.ds.push(...m.ds); return; }
+  shotEnvia(true); shotQ = m; shotJunta.t = performance.now();
+}
+function shotEnvia(forca) {
+  if (!shotQ || (!forca && performance.now() - shotJunta.t < 125)) return;
+  const m = shotQ; shotQ = null; sendNet(m);
+}
 
 // ----- cuspe ácido: o dono calcula, todo mundo desenha -----
 const zSpitView = [];
@@ -7147,7 +7215,7 @@ function zPronto(from) {
 function zStartRound(r) {
   Z.prontos = new Set();
   if (net.cfg.ckpt && r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', r }); } // 💾 checkpoint na 5ª, 10ª… rodada
-  Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now();
+  Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now(); Z.sendT = 0;
   for (const p of Object.values(net.players)) p.pregou = 0;
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
   Z.desafio = r >= 2 ? { k: randomFrom(ks), n: 0 } : null; if (Z.desafio) Z.desafio.n = DESAFIOS[Z.desafio.k].n;
@@ -7439,7 +7507,7 @@ function zMove(z, alvos, dt) {
     z.atkCd -= dt;
     if (z.dmg > 0 && best < 1.9 && z.atkCd <= 0 && !buffOn('zgelo')) { z.atkCd = 1.1 * zd().atk; z.atkFlag = true; zDamage(alvo.id, Math.round(z.dmg * 0.8), z); }
     q.t -= dt * (buffOn('zgelo') ? 0.2 : 1);
-    if (q.t <= 0) { q.t = zTempoTabua(z); FAZ.tab[j]--; z.atkFlag = true; broadcast({ t: 'tabua', j, n: FAZ.tab[j], q: 1 }); }
+    if (q.t <= 0) { q.t = zTempoTabua(z); FAZ.tab[j]--; z.atkFlag = true; broadcast({ t: 'tabua', j, n: FAZ.tab[j], qb: 1 }); }
     return;
   }
   // Missão: alvo em outra zona → vai até a passagem certa
@@ -7860,6 +7928,25 @@ function zRestart() {
   sendRoster();
   fazSortearPecas();
 }
+const Z_PASSO = 0.05;
+function zPassoFixo(dt, alvos) {
+  for (const z of [...Z.sim.values()]) if (Z.sim.has(z.id)) zMove(z, alvos, dt);
+  zSpitTick(dt, alvos);
+  zQueima(dt);
+  zCaesTick(dt);
+  if (FAZ) { zExtrTick(dt); zArmTick(dt); zCorvosTick(dt); zNpcTick(dt); zTratorTick(dt); }
+  // um não entra no outro (fantasma passa por todos)
+  const vivos = [...Z.sim.values()];
+  for (let i = 0; i < vivos.length; i++) for (let j = i + 1; j < vivos.length; j++) {
+    const a = vivos[i], b = vivos[j];
+    if (a.air || b.air || a.type === ZT.fantasma || b.type === ZT.fantasma) continue;
+    const ra = a.boss ? 1.6 : ZTYPES[a.type].esc * 0.42, rb = b.boss ? 1.6 : ZTYPES[b.type].esc * 0.42, min = ra + rb;
+    const dx = b.x - a.x, dz = b.z - a.z;
+    if (Math.abs(dx) >= min || Math.abs(dz) >= min) continue;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.001 && d < min) { const push = (min - d) / 2 / d; a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push; }
+  }
+}
 function zHostTick(dt) {
   if (!net.isHost || !isZumbi() || !Z.started) return;
   const now = performance.now();
@@ -7893,30 +7980,21 @@ function zHostTick(dt) {
     if (p.dead || p.down || !p.dz) continue;
     zDesafioProg(id, Math.floor((now - Math.max(Z.roundAt || 0, net.lastDmg.get(id) || 0)) / 1000));
   }
-  const list = [...Z.sim.values()];
-  for (const z of list) if (Z.sim.has(z.id)) zMove(z, alvos, dt);
-  zSpitTick(dt, alvos);
-  zQueima(dt);
-  zCaesTick(dt);
-  if (FAZ) { zExtrTick(dt); zArmTick(dt); zCorvosTick(dt); zNpcTick(dt); zTratorTick(dt); }
-  // um não entra no outro (fantasma passa por todos)
+  // a simulação dos zumbis roda em passo fixo de 20 por segundo (antes: a cada quadro, 60×/s num celular bom);
+  // quem desenha (inclusive o dono) interpola as posições do 'zs'
+  Z.passo = Math.min(0.15, (Z.passo || 0) + dt);
+  for (let k = 0; k < 3 && Z.passo >= Z_PASSO; k++) { Z.passo -= Z_PASSO; zPassoFixo(Z_PASSO, alvos); }
   const vivos = [...Z.sim.values()];
-  for (let i = 0; i < vivos.length; i++) for (let j = i + 1; j < vivos.length; j++) {
-    const a = vivos[i], b = vivos[j];
-    if (a.air || b.air || a.type === ZT.fantasma || b.type === ZT.fantasma) continue;
-    const ra = a.boss ? 1.6 : ZTYPES[a.type].esc * 0.42, rb = b.boss ? 1.6 : ZTYPES[b.type].esc * 0.42, min = ra + rb;
-    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
-    if (d > 0.001 && d < min) { const push = (min - d) / 2 / d; a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push; }
-  }
   Z.sendT -= dt;
   if (Z.sendT <= 0) {
-    Z.sendT = 0.1;
+    // sem zumbi (intervalo) basta 1×/s; com muitos zumbis um pouco menos vezes por segundo (a tela interpola)
+    Z.sendT = !vivos.length && !Z.caes.size ? 1 : vivos.length > 30 ? 0.14 : vivos.length > 15 ? 0.12 : 0.1;
     broadcast({ t: 'zs', r: Z.round, l: Z.toSpawn + Z.sim.size, z: vivos.map(z => [z.id, r2(z.x), r2(z.y), r2(z.z), r2(z.yaw), Math.round(z.hp / z.max * 100), z.atkFlag ? 1 : 0, z.kind, z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, z.type,
       (z.elite ? 1 : 0) | (z.raiva > 0 ? 2 : 0) | (z.fuse >= 0 ? 4 : 0) | (z.charge > 0 ? 8 : 0) | (z.air ? 16 : 0) | (z.grito > 0 ? 32 : 0) | (z.fogoT > 0 ? 64 : 0) | (z.lentoT > 0 ? 128 : 0) | (z.ladrao ? 256 : 0) | (z.roubou ? 512 : 0)]), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]), np: FAZ ? npcMsg() : undefined });
     for (const z of vivos) z.atkFlag = false;
   }
   Z.rosterT -= dt;
-  if (Z.rosterDirty && Z.rosterT <= 0) { Z.rosterDirty = false; Z.rosterT = 1; sendRoster(); }
+  if (Z.rosterDirty && Z.rosterT <= 0) { Z.rosterDirty = false; Z.rosterT = 2; sendRoster(); } // abates no placar: no máximo a cada 2 s
 }
 // dono: dano num zumbi (tiro, fogo, choque em cadeia, cachorro…) e o que acontece se ele cair
 function zFerir(z, from, dmg, o = {}) {
@@ -8095,7 +8173,7 @@ function zEventoLook(ev) {
 let acidT = 0;
 function zOnNet(m) {
   switch (m.t) {
-    case 'zs': zApply(m); return true;
+    case 'zs': if (seqNovo(Z, m)) zApply(m); return true;
     case 'zdl':
       for (const e of Array.isArray(m.l) ? m.l.slice(0, 200) : []) if (Array.isArray(e)) zdView({ id: e[0], by: e[1], d: e[2], p: e[3], h: e[4] & 1, a: e[4] & 2, c: e[5] ?? undefined });
       return true;
@@ -8259,7 +8337,7 @@ function zOnNet(m) {
       const j = m.j | 0, n = Math.max(0, Math.min(TABUAS, m.n | 0)); if (!FAZ?.tabMesh[j]) return true;
       FAZ.tab[j] = n; fazTabuasView(j);
       const P = FAZ.janelas[j], pos = new THREE.Vector3((P.pa[0] + P.pb[0]) / 2, 1.5, (P.pa[1] + P.pb[1]) / 2), v = longe(pos);
-      if (m.q) { noise(0.25, { type: 'bandpass', f: 900, q: 1.2, vol: 0.12 * v }); tone(140, 0.12, { type: 'square', vol: 0.05 * v, slide: -60, lp: 900 }); burst(pos, 0x8a6236, 8, 3); if (n === 0 && v > 0.4) feed('🪵 Arrebentaram uma janela!'); }
+      if (m.qb) { noise(0.25, { type: 'bandpass', f: 900, q: 1.2, vol: 0.12 * v }); tone(140, 0.12, { type: 'square', vol: 0.05 * v, slide: -60, lp: 900 }); burst(pos, 0x8a6236, 8, 3); if (n === 0 && v > 0.4) feed('🪵 Arrebentaram uma janela!'); }
       else { tone(880, 0.05, { type: 'square', vol: 0.05 * v, lp: 3000 }); tone(660, 0.06, { type: 'square', vol: 0.04 * v, lp: 2500, delay: 0.09 }); }
       if (m.by === net.myId && typeof m.c === 'number') { const me = net.players[net.myId]; if (me) me.cash = m.c; setCash(m.c); }
       return true;
@@ -8403,17 +8481,17 @@ function zClientTick(dt) {
   // minha tela de derrubado / morto
   const caido = meDown || (meDead && isZumbi());
   $('downOverlay').classList.toggle('on', meDown);
-  $('downBox').style.display = caido && !assistindo() ? 'block' : 'none';
+  css($('downBox'), 'display', String(caido && !assistindo() ? 'block' : 'none'));
   if (meDown) {
     const rest = Math.max(0, (downEnd - performance.now()) / 1000);
     const vivos = Object.entries(net.players).filter(([id, p]) => id !== net.myId && !p.dead && !p.down).length;
-    $('downTitle').textContent = 'VOCÊ CAIU!';
-    $('downText').textContent = vivos ? `Aguente firme: um amigo pode te levantar · ${Math.ceil(rest)}s` : `Ninguém de pé para te levantar… ${Math.ceil(rest)}s`;
-    $('downFill').style.width = (rest / BLEED_S * 100) + '%';
+    txt($('downTitle'), String('VOCÊ CAIU!'));
+    txt($('downText'), String(vivos ? `Aguente firme: um amigo pode te levantar · ${Math.ceil(rest)}s` : `Ninguém de pé para te levantar… ${Math.ceil(rest)}s`));
+    css($('downFill'), 'width', String((rest / BLEED_S * 100) + '%'));
   } else if (caido) {
-    $('downTitle').textContent = 'VOCÊ MORREU';
-    $('downText').textContent = 'Você volta no começo da próxima rodada.';
-    $('downFill').style.width = '0%';
+    txt($('downTitle'), String('VOCÊ MORREU'));
+    txt($('downText'), String('Você volta no começo da próxima rodada.'));
+    css($('downFill'), 'width', String('0%'));
   }
   // marcador de "caído" em cima dos amigos
   for (const r of remotes.values()) { if (r.down) reviveSprite(r); else if (r.revSp) r.revSp.visible = false; }
@@ -8428,16 +8506,16 @@ function zClientTick(dt) {
     }
   }
   if (!alvo || alvo.id !== reviveId) { reviveT = 0; reviveId = alvo?.id ?? null; }
-  $('revivePrompt').style.display = alvo ? 'block' : 'none';
-  $('reviveBtn').style.display = alvo && isTouch ? 'flex' : 'none';
+  css($('revivePrompt'), 'display', String(alvo ? 'block' : 'none'));
+  css($('reviveBtn'), 'display', String(alvo && isTouch ? 'flex' : 'none'));
   if (alvo) {
     const segurando = keys.KeyE || touchRevive;
-    $('reviveText').textContent = segurando ? `Levantando ${alvo.name}…` : (isTouch ? `Segure LEVANTAR para levantar ${alvo.name}` : `Segure E para levantar ${alvo.name}`);
+    txt($('reviveText'), String(segurando ? `Levantando ${alvo.name}…` : (isTouch ? `Segure LEVANTAR para levantar ${alvo.name}` : `Segure E para levantar ${alvo.name}`)));
     if (segurando && reviveT >= 0) {
       reviveT += dt;
       if (reviveT >= REVIVE_S * (temVant(net.myId, 'ajuda') ? 0.5 : 1)) { sendNet({ t: 'revive', target: alvo.id }); reviveT = -1; setTimeout(() => { if (reviveT < 0) reviveT = 0; }, 1500); }
     } else if (!segurando) reviveT = 0;
-    $('reviveFill').style.width = Math.max(0, Math.min(1, reviveT / (REVIVE_S * (temVant(net.myId, 'ajuda') ? 0.5 : 1)))) * 100 + '%';
+    css($('reviveFill'), 'width', String(Math.max(0, Math.min(1, reviveT / (REVIVE_S * (temVant(net.myId, 'ajuda') ? 0.5 : 1)))) * 100 + '%'));
   }
   // gemidos e berros dos monstros por perto
   if (Math.random() < dt * 1.1) {
@@ -8806,9 +8884,9 @@ function updatePropsView() {
     if (r.tag) r.tag.visible = !prop || teamOf(r.id) === teamOf(net.myId);
     r.prop = prop;
   }
-  $('propBtn').style.display = isTouch && souProp ? 'flex' : 'none';
+  css($('propBtn'), 'display', isTouch && souProp ? 'flex' : 'none');
   $('blind').classList.toggle('on', amBlind());
-  if (amBlind()) $('blind').lastElementChild.textContent = `${Math.max(0, Math.ceil((net.endLocal - performance.now()) / 1000))} s`;
+  if (amBlind()) txt($('blind').lastElementChild, `${Math.max(0, Math.ceil((net.endLocal - performance.now()) / 1000))} s`);
 }
 // caçador que errou o tiro (acertou parede/chão) perde vida
 function huntMiss() {
@@ -9511,16 +9589,16 @@ function fazAlvo() {
 }
 function fazSeta(dt) {
   const el = $('setaObj');
-  if (!FAZ || !isMissao() || state !== 'play' || meDead) { el.style.display = 'none'; return; }
+  if (!FAZ || !isMissao() || state !== 'play' || meDead) { css(el, 'display', 'none'); return; }
   fazSeta.t = (fazSeta.t || 0) - dt;
   if (fazSeta.t <= 0) { fazSeta.t = 0.5; fazSeta.alvo = fazAlvo(); }
-  const A = fazSeta.alvo; if (!A) { el.style.display = 'none'; return; }
+  const A = fazSeta.alvo; if (!A) { css(el, 'display', 'none'); return; }
   const dx = A.x - player.pos.x, dz = A.z - player.pos.z, dist = Math.hypot(dx, dz);
-  if (dist < 3) { el.style.display = 'none'; return; }
+  if (dist < 3) { css(el, 'display', 'none'); return; }
   const rel = Math.atan2(-dx, -dz) - player.yaw;
-  el.style.display = 'flex';
-  el.firstElementChild.style.transform = `rotate(${-rel}rad)`;
-  el.lastElementChild.textContent = `${A.ic} ${A.txt} · ${Math.round(dist)} m`;
+  css(el, 'display', 'flex');
+  css(el.firstElementChild, 'transform', `rotate(${(-rel).toFixed(2)}rad)`);
+  txt(el.lastElementChild, `${A.ic} ${A.txt} · ${Math.round(dist)} m`);
 }
 function animHeli(dt, t) {
   if (!FAZ?.heli) return;
@@ -9678,14 +9756,18 @@ function effW(id) {
   return effCache.get(k);
 }
 const estrelas = l => `nv ${l} ${'★'.repeat(Math.min(5, l))}${l > 5 ? '+' + (l - 5) : ''}`;
+// sem forçar o navegador a recalcular a tela (antes: offsetWidth a cada acerto) e com som/loja no máximo algumas vezes por segundo
+const cashAnim = [{ opacity: 0, transform: 'translateY(10px) scale(.8)' }, { opacity: 1, transform: 'translateY(0) scale(1.15)', offset: 0.15 }, { opacity: 0, transform: 'translateY(-30px) scale(1)' }];
 function setCash(v) {
   if (typeof v !== 'number') return;
+  const now = performance.now();
   if (cashShown !== null && v > cashShown) {
-    const el = $('cashPop'); el.textContent = `+${v - cashShown} 💰`; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
-    tone(1568, 0.06, { type: 'square', vol: 0.025, lp: 5000 }); tone(2093, 0.09, { type: 'triangle', vol: 0.03, delay: 0.05 });
+    setCash.soma = (now - (setCash.t || 0) < 600 ? setCash.soma || 0 : 0) + (v - cashShown); setCash.t = now;
+    const el = $('cashPop'); el.textContent = `+${setCash.soma} 💰`; el.animate?.(cashAnim, { duration: 1100, easing: 'ease-out' });
+    if (now - somT.cash > 120) { somT.cash = now; tone(1568, 0.06, { type: 'square', vol: 0.025, lp: 5000 }); tone(2093, 0.09, { type: 'triangle', vol: 0.03, delay: 0.05 }); }
   }
-  cashShown = v; updateHud();
-  if (shopOpen) renderShop();
+  cashShown = v; txt($('cashLine'), isZumbi() ? `💰 ${v | 0}` : '');
+  if (shopOpen && !setCash.loja) setCash.loja = setTimeout(() => { setCash.loja = 0; if (shopOpen) renderShop(); }, 250);
 }
 const noIntervalo = () => zIntervaloAte > performance.now();
 let prontoMeu = false;
@@ -10257,9 +10339,15 @@ function playerShoot() {
     const b = fireBall(origin, d, W.speed, 'player', color, id);
     if (!player.zoom) b.orig = camera.position.clone();
   }
-  if (mode === 'online') sendNet({ t: 'shot', o: origin.toArray().map(r3), ds: dirs.map(d => d.toArray().map(r3)), c: color, w: id });
+  if (mode === 'online') { const m = { t: 'shot', o: origin.toArray().map(r3), ds: dirs.map(d => d.toArray().map(r3)), c: color, w: id }; if (isZumbi()) shotJunta(m); else sendNet(m); }
   if (ammoOf(id) === 0) reload();
-  updateHud();
+  hudMuni();
+}
+// só o contador de munição (o HUD inteiro a cada tiro pesava no celular)
+function hudMuni() {
+  const W = curW(), a = ammoOf(player.weapon);
+  txt($('ammoNum'), player.reloading > 0 ? 'recarregando…' : W.semMuni ? '∞' : `${a} / ${W.mag}`);
+  $('ammoNum').classList.toggle('low', player.reloading <= 0 && !W.semMuni && a <= Math.ceil(W.mag / 4));
 }
 
 // quem pode ser atingido pelos tiros do jogador
@@ -10282,12 +10370,27 @@ function meshesObstaculos() {
   if (obsMeshesN !== obsVer) { obsMeshes = obstacles.filter(o => o.mesh).map(o => o.mesh); obsMeshesN = obsVer; obsMeshesT = now; }
   return obsMeshes;
 }
+// linha de visão pelas caixas da grade de colisão, em trechos de 4 m (antes: raio contra TODOS os objetos do mapa,
+// 180×/s só na visão dos zumbis); usa as mesmas caixas que param as bolinhas, só as que têm desenho (mesh)
+const _losRay = new THREE.Ray(), _losDir = new THREE.Vector3(), _losP = new THREE.Vector3();
+let _losLivre = true, _losDist = 0;
+function _losTesta(o) {
+  if (!_losLivre || !o.mesh || o.box.containsPoint(_losRay.origin)) return; // de dentro da caixa (como o raio antigo) não bloqueia
+  const p = _losRay.intersectBox(o.box, _losP);
+  if (p && p.distanceTo(_losRay.origin) < _losDist) _losLivre = false;
+}
 function hasLineOfSight(from, to) {
-  const dir = tmpV2.copy(to).sub(from); const dist = dir.length(); dir.normalize();
-  raycaster.set(from, dir); raycaster.far = dist;
-  const hit = raycaster.intersectObjects(meshesObstaculos(), false);
-  raycaster.far = Infinity;
-  return hit.length === 0;
+  const dir = _losDir.copy(to).sub(from), dist = dir.length();
+  if (dist < 1e-6) return true;
+  dir.multiplyScalar(1 / dist); _losRay.origin.copy(from); _losRay.direction.copy(dir);
+  _losLivre = true; _losDist = dist;
+  const n = Math.max(1, Math.ceil(dist / 4));
+  for (let k = 0; k < n && _losLivre; k++) {
+    const t0 = dist * k / n, t1 = dist * (k + 1) / n;
+    const x0 = from.x + dir.x * t0, z0 = from.z + dir.z * t0, x1 = from.x + dir.x * t1, z1 = from.z + dir.z * t1;
+    pertoDe(Math.min(x0, x1) - 0.05, Math.min(z0, z1) - 0.05, Math.max(x0, x1) + 0.05, Math.max(z0, z1) + 0.05, _losTesta);
+  }
+  return _losLivre;
 }
 
 // ===== Granada de tinta, escudo de madeira e frases rápidas =====
@@ -10528,9 +10631,9 @@ function updatePlayerFim(dt, sliding) {
   }
   player.trigPrev = trig;
   if (player.zoom && (!curW().zoom || player.reloading > 0)) player.zoom = false;
-  $('scope').style.opacity = player.zoom ? 1 : 0;
+  css($('scope'), 'opacity', player.zoom ? '1' : '0');
   gunGroup.visible = !player.zoom && !meDown && !amProp();
-  $('cross').style.display = amProp() ? 'none' : '';
+  css($('cross'), 'display', amProp() ? 'none' : '');
 
   recoil = Math.max(0, recoil - dt * 8);
   // arma na mão: balanço ao andar, atraso ao mirar (sway), troca (desce e sobe) e recarga (gira e abaixa)
@@ -10613,7 +10716,7 @@ function updateEnemies(dt, t) {
   }
   // remove os que já caíram
   for (let i = enemies.length - 1; i >= 0; i--) {
-    if (enemies[i].dead && enemies[i].deadT > 2.4) { scene.remove(enemies[i].root); enemies.splice(i, 1); }
+    if (enemies[i].dead && enemies[i].deadT > 2.4) { scene.remove(enemies[i].root); liberaMalha(enemies[i].root); enemies.splice(i, 1); }
   }
 }
 
@@ -10662,20 +10765,25 @@ function explode(p, b) {
 const ballRay = new THREE.Ray();
 const ballLo = new THREE.Vector3(), ballHi = new THREE.Vector3(), ballHit = new THREE.Vector3();
 const tmpBola = new THREE.Vector3();
+// sem criar objetos a cada bolinha/quadro (com 36 zumbis e tiro automático eram milhares por quadro e o lixo travava o jogo)
+const _bStart = new THREE.Vector3(), _bEnd = new THREE.Vector3(), _bDir = new THREE.Vector3(), _bC = new THREE.Vector3(), _bP = new THREE.Vector3(), _bSph = new THREE.Sphere();
+// [altura, raio, à frente] das esferas de acerto: o rastejante deitado tem tronco, cabeça (à frente) e pernas (atrás)
+const PARTES_OBJ = [[0.7, 0.85]], PARTES_RASTEJA = [[0.5, 0.65, 0.1], [0.75, 0.45, 0.9], [0.3, 0.45, -0.75]], PARTES_AGACHADO = [[0.6, 0.6], [1.6, 0.6]], PARTES_PE = [[1.35, 0.6], [2.4, 0.6], [0.6, 0.45]];
 function updateBalls(dt) {
   let meusAlvos = null; const alvosDe = new Map();
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
     // tiro do jogador: o 1º trecho começa no olho (b.orig) e não no cano; com cano comprido o cano já passava
     // do zumbi colado em você e a bolinha acertava o de trás
-    const start = b.orig || b.mesh.position.clone(); b.orig = null;
+    const start = _bStart.copy(b.orig || b.mesh.position); b.orig = null;
     b.vel.y -= b.grav * dt;
-    const step = b.vel.clone().multiplyScalar(dt);
-    const end = b.mesh.position.clone().add(step);
-    const seg = end.clone().sub(start);
-    const stepLen = seg.length();
-    const dir = seg.normalize();
+    const end = _bEnd.copy(b.mesh.position).addScaledVector(b.vel, dt);
+    const dir = _bDir.copy(end).sub(start);
+    const stepLen = dir.length();
+    if (stepLen > 1e-9) dir.multiplyScalar(1 / stepLen);
     b.life -= dt;
+    // caixa do trecho (para descartar rápido quem está longe)
+    const sx0 = Math.min(start.x, end.x), sx1 = Math.max(start.x, end.x), sz0 = Math.min(start.z, end.z), sz1 = Math.max(start.z, end.z);
     let done = b.life <= 0;
 
     ballRay.set(start, dir);
@@ -10686,26 +10794,28 @@ function updateBalls(dt) {
       const alvos = b.owner === 'remote' ? (alvosDe.get(b.shooter) || alvosDe.set(b.shooter, remoteTargetsFor(b.shooter)).get(b.shooter)) : (meusAlvos ||= shootTargets());
       for (const e of alvos) {
         if (e.dead || (b.shooter && e.id === b.shooter)) continue;
-        const sc = e.scale || 1;
-        // [altura, raio, à frente]: o rastejante deitado tem tronco, cabeça (à frente) e pernas (atrás)
-        const partes = e.prop ? [[0.7, 0.85]] : e.animalHit ? e.animalHit : e.crawl ? [[0.5, 0.65, 0.1], [0.75, 0.45, 0.9], [0.3, 0.45, -0.75]] : e.crouch ? [[0.6, 0.6], [1.6, 0.6]] : [[1.35, 0.6], [2.4, 0.6], [0.6, 0.45]];
+        const sc = e.scale || 1, m = 2.6 * sc;
+        if (e.pos.x < sx0 - m || e.pos.x > sx1 + m || e.pos.z < sz0 - m || e.pos.z > sz1 + m) continue; // longe do trecho
+        const partes = e.prop ? PARTES_OBJ : e.animalHit ? e.animalHit : e.crawl ? PARTES_RASTEJA : e.crouch ? PARTES_AGACHADO : PARTES_PE;
         const cab = regra('cabecao') && !e.prop && !e.crawl && !e.animalHit ? 1.6 : 1; // regra cabeção: cabeça maior, mais fácil de acertar
-        partes.forEach(([y, r0, fwd], k) => {
+        for (let k = 0; k < partes.length; k++) {
+          const y = partes[k][0], r0 = partes[k][1], fwd = partes[k][2];
           const r = r0 * sc * (k === 1 ? cab : 1);
-          const c = new THREE.Vector3(e.pos.x, e.pos.y + y * sc, e.pos.z);
+          const c = _bC.set(e.pos.x, e.pos.y + y * sc, e.pos.z);
           if (fwd) { const ry = e.root.rotation.y; c.x += Math.sin(ry) * fwd * sc; c.z += Math.cos(ry) * fwd * sc; }
-          const p = ballRay.intersectSphere(new THREE.Sphere(c, r), new THREE.Vector3());
+          _bSph.center.copy(c); _bSph.radius = r;
+          const p = ballRay.intersectSphere(_bSph, _bP);
           // a cabeça é a 2ª esfera; acerto na parte de cima dela conta como headshot
-          if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { e, p, head: !e.prop && k === 1 && p.y > c.y - r * 0.55 }; } }
-        });
+          if (p) { const d = p.distanceTo(start); if (d < best) { best = d; hitInfo = { e, p: p.clone(), head: !e.prop && k === 1 && p.y > c.y - r * 0.55 }; } }
+        }
       }
     }
     if (b.owner !== 'player' && !meDead && !(b.owner === 'remote' && isTdm() && teamOf(b.shooter) === teamOf(net.myId) && !net.cfg.ff)) {
       // jogador (cápsula aproximada; objeto no esconde-esconde)
       const low = player.crouch || player.slideT > 0 || amProp();
-      const c = new THREE.Vector3(player.pos.x, player.pos.y + (low ? 0.65 : 1.1), player.pos.z);
-      const p = ballRay.intersectSphere(new THREE.Sphere(c, low ? 0.55 : 0.75), new THREE.Vector3());
-      if (p && p.distanceTo(start) < best) { best = p.distanceTo(start); hitInfo = { player: true, p }; }
+      _bSph.center.set(player.pos.x, player.pos.y + (low ? 0.65 : 1.1), player.pos.z); _bSph.radius = low ? 0.55 : 0.75;
+      const p = ballRay.intersectSphere(_bSph, _bP);
+      if (p && p.distanceTo(start) < best) { best = p.distanceTo(start); hitInfo = { player: true, p: p.clone() }; }
     }
     // obstáculos
     ballLo.copy(start).min(end).subScalar(0.05); ballHi.copy(start).max(end).addScalar(0.05);
@@ -10818,7 +10928,7 @@ function matchHud(dt) {
     }
   }
   if (txt !== el.textContent) el.textContent = txt;
-  el.style.display = txt ? 'block' : 'none';
+  css(el, 'display', txt ? 'block' : 'none');
   if (net.showBoardT > 0) { net.showBoardT -= dt; if (net.showBoardT <= 0) renderBoard(); }
   matchHud.bt = (matchHud.bt || 0) + dt;
   if (matchHud.bt > 0.5) { matchHud.bt = 0; if ($('scoreboard').classList.contains('on')) renderBoard(); }
@@ -10843,12 +10953,12 @@ function deadCam(dt) {
     camera.quaternion.slerp(camQ, Math.min(1, dt * 5));
     if (!frame.kc || frame.kcId !== alvo.id) {
       frame.kc = true; frame.kcId = alvo.id;
-      $('killcam').style.display = 'block';
-      $('killcam').firstElementChild.textContent = alvo.id === net.killer ? '🎥 Quem te pintou' : '👀 Assistindo';
-      $('kcName').textContent = alvo.name;
-      $('kcInfo').textContent = alvo.id === net.killer && WEAPONS[net.killerW] ? `com ${WEAPONS[net.killerW].ic} ${WEAPONS[net.killerW].nome}` : 'esperando a próxima rodada';
+      css($('killcam'), 'display', 'block');
+      txt($('killcam').firstElementChild, alvo.id === net.killer ? '🎥 Quem te pintou' : '👀 Assistindo');
+      txt($('kcName'), alvo.name);
+      txt($('kcInfo'), alvo.id === net.killer && WEAPONS[net.killerW] ? `com ${WEAPONS[net.killerW].ic} ${WEAPONS[net.killerW].nome}` : 'esperando a próxima rodada');
     }
-    $('kcFill').style.width = Math.max(0, Math.min(1, alvo.hpPct ?? 1)) * 100 + '%';
+    css($('kcFill'), 'width', Math.round(Math.max(0, Math.min(1, alvo.hpPct ?? 1)) * 100) + '%');
     return;
   }
   camera.position.set(player.pos.x, player.pos.y + EYE - k * 1.3, player.pos.z);
@@ -10897,6 +11007,7 @@ function spectateTarget() {
 
 const clock = new THREE.Clock();
 function frame() {
+  net.ultQuadro = performance.now();
   const clockDt = clock.getDelta(), dt = Math.min(clockDt, 0.05), t = clock.elapsedTime;
   const noMenu = state === 'menu' || state === 'over';
   if (noMenu !== frame.menu) { frame.menu = noMenu; document.body.classList.toggle('inmenu', noMenu); if (noMenu) startMusic(); else stopMusic(); }
@@ -10916,7 +11027,7 @@ function frame() {
     if (net.isHost) { botTick(dt); ctfHostTick(dt); }
     updatePropsView();
     updateObjectives(dt, t);
-    updateBalls(dt); zhitEnvia();
+    updateBalls(dt); zhitEnvia(); shotEnvia();
     if (isZumbi()) { zHostTick(dt); updateZombiesView(dt, t); zClientTick(dt); shopTick(); animLoja(t); animCaes(dt, t); missaoTick(dt); animHeli(dt, t); fazArmView(dt); corvosView(dt, t); npcAnim(dt); tratorView(); if (FAZ && isMissao()) fazAmbiente(dt); fazSeta(dt); for (const m of pecaMeshes.values()) { m.g.rotation.y += dt; m.ic.position.y = 2.2 + Math.sin(t * 3) * 0.12; } }
     else if (caoMeshes.size) caesView([]);
     else if (shopOpen) toggleShop(false);
@@ -10927,12 +11038,14 @@ function frame() {
     net.sendT -= dt;
     if (net.sendT <= 0) {
       net.sendT = 1 / 10;
-      sendNet({ t: 's', w: player.weapon, p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch), c: (player.crouch || player.slideT > 0) ? 1 : 0, e: (player.speedT > 0 ? 1 : 0) | (player.invT > 0 ? 2 : 0), pk: player.pk | 0, tr: player.trator && FAZ?.trator ? r3(FAZ.trator.yaw) : undefined });
+      // parado não manda de novo (só 1×/s para dizer que está vivo): menos mensagens nos 3 servidores
+      const ms = { t: 's', w: player.weapon, p: player.pos.toArray().map(r3), y: r3(player.yaw), pi: r3(player.pitch), c: (player.crouch || player.slideT > 0) ? 1 : 0, e: (player.speedT > 0 ? 1 : 0) | (player.invT > 0 ? 2 : 0), pk: player.pk | 0, tr: player.trator && FAZ?.trator ? r3(FAZ.trator.yaw) : undefined }, ks = JSON.stringify(ms), agora = performance.now();
+      if (ks !== net.sUlt || agora - (net.sUltT || 0) > 1000) { net.sUlt = ks; net.sUltT = agora; sendNet(ms); }
     }
   } else if (state === 'play') {
     updatePlayer(dt);
     updateEnemies(dt, t);
-    updateBalls(dt); zhitEnvia();
+    updateBalls(dt); zhitEnvia(); shotEnvia();
     spawnPowerTick(dt); animPickups(t); checkPickupTouch();
     if (enemies.length === 0) {
       if (waveDelay <= 0) { waveDelay = 2.5; banner('Onda limpa! 🎨'); player.hp = Math.min(myMaxHp(), player.hp + 25); updateHud(); }
@@ -10960,6 +11073,7 @@ function frame() {
 }
 window.__jogo = { onlineSpawn, hasLineOfSight, explode, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
+document.body.classList.toggle('qalta', settings.qual === 'alta');
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
 frame();
