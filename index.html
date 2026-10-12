@@ -48,6 +48,10 @@
   #hitmark.kill { width:44px; height:44px; }
   #hitmark.kill::before, #hitmark.kill::after { background:#ff3b3b; }
   #hitmark.kill::before { left:20px; height:44px; } #hitmark.kill::after { top:20px; width:44px; }
+  #dmgDir { position:absolute; left:50%; top:50%; width:0; height:0; pointer-events:none; }
+  .dmgSeta { position:absolute; left:0; top:0; width:0; height:0; transition:opacity .2s; }
+  .dmgSeta::before { content:''; position:absolute; left:-30px; top:calc(-1 * min(36vh, 36vw) - 22px); width:60px; height:22px; background:rgba(255,40,70,.9); clip-path:polygon(50% 0, 100% 100%, 50% 62%, 0 100%); filter:drop-shadow(0 0 5px rgba(255,0,0,.8)); }
+  body.assistindo #dmgDir { display:none; }
   #dmg { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 45%, rgba(255,40,80,.5)); opacity:0; transition:opacity .25s; }
   #floats { position:absolute; inset:0; overflow:hidden; }
   .dnum { position:absolute; left:0; top:0; font-family:var(--disp); font-size:22px; color:#fff; text-shadow:0 2px 0 #000, 0 0 8px rgba(0,0,0,.7); white-space:nowrap; will-change:transform,opacity; }
@@ -71,7 +75,9 @@
   #ammo b { font-family:var(--disp); font-size:26px; font-weight:400; }
   #ammo b.low { color:#ff5a4a; }
   #wave { left:calc(16px + var(--sl)); top:calc(16px + var(--st)); font-size:14px; }
-  #topC { position:absolute; left:50%; top:calc(12px + var(--st)); transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #topC { position:absolute; left:0; right:0; margin:0 auto; width:fit-content; max-width:min(94vw,640px); top:calc(12px + var(--st)); display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #topC > #bossBar, #topC > #setaObj, #topC > #feed { position:static; transform:none; }
+  #topC #feed .msg { white-space:normal; text-align:center; max-width:100%; }
   #topC .stat { position:static; }
   #timer { font-family:var(--disp); font-weight:400; font-size:22px; padding:3px 16px; display:none; }
   #timer.low { color:#ff5a4a; animation:pulse 1s ease-in-out infinite alternate; }
@@ -86,7 +92,7 @@
   .msg { background:var(--hud); padding:6px 14px; border-radius:999px; font-weight:800; font-size:15px; animation:pop .25s ease-out, fade 2.4s forwards; white-space:nowrap; }
   @keyframes pop { from { transform:scale(.6); } to { transform:scale(1); } }
   @keyframes fade { 0%,75% { opacity:1; } 100% { opacity:0; } }
-  #banner { position:absolute; left:50%; top:32%; transform:translate(-50%,-50%); font-family:var(--disp); font-size:clamp(28px,6vw,58px); text-shadow:0 4px 0 #000a; opacity:0; transition:opacity .3s; text-align:center; width:max-content; max-width:92vw; }
+  #banner { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); font-family:var(--disp); font-size:clamp(28px,6vw,58px); text-shadow:0 4px 0 #000a; opacity:0; transition:opacity .3s; text-align:center; width:max-content; max-width:92vw; }
   #chatLog { position:absolute; left:calc(16px + var(--sl)); bottom:calc(112px + var(--sb)); width:min(380px,60vw); display:flex; flex-direction:column; gap:4px; }
   .cl { background:rgba(10,12,28,.62); padding:4px 10px; border-radius:8px; font-size:14px; animation:fade 10s forwards; word-break:break-word; }
   .cl b { margin-right:6px; }
@@ -166,7 +172,9 @@
   #doorBtn, #propBtn { left:50%; transform:translateX(-50%); bottom:calc(80px + var(--sb)); width:130px; height:48px; border-radius:14px; font-size:14px; background:rgba(176,122,62,.55); display:none; }
   #propBtn { bottom:calc(16px + var(--sb)); background:rgba(61,184,255,.45); }
   #itemLine { margin-top:3px; font-size:12px; color:var(--yel); text-transform:none; letter-spacing:0; }
-  #itemLine:empty { display:none; }
+  #itemLine:empty, #cashLine:empty { display:none; }
+  .shopCard .preco .falta { display:block; font-style:normal; font-size:11px; color:#ff8a7a; margin-top:1px; }
+  #ammo #cashLine { font-size:21px; color:var(--yel); margin-left:12px; text-shadow:0 2px 0 #0008; white-space:nowrap; }
   #quick { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.9); z-index:7; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; width:min(560px,92vw); opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
   #quick.on { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
   #quick button { font:inherit; font-weight:900; font-size:15px; color:#fff; background:rgba(10,12,30,.88); border:2px solid var(--line); border-radius:14px; padding:12px 8px; cursor:pointer; }
@@ -190,7 +198,7 @@
   #killcam span { font-size:13px; color:var(--muted); }
   #killcam .bar { width:200px; height:7px; margin-top:6px; }
   #kcFill { height:100%; background:linear-gradient(90deg,#3dff8b,#2bd1ff); }
-  #objLine { font-size:13px; display:none; }
+  #objLine { font-size:13px; display:none; text-align:center; line-height:1.3; }
   #blind { position:fixed; inset:0; z-index:6; background:#05060d; display:none; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; }
   #blind.on { display:flex; }
   #blind b { font-family:var(--disp); font-weight:400; font-size:clamp(26px,5vw,44px); }
@@ -270,7 +278,7 @@
   #shopPrompt { position:absolute; left:50%; top:66%; transform:translateX(-50%); background:var(--hud); border:1px solid var(--yel); border-radius:12px; padding:9px 16px; font-weight:900; display:none; }
   #shopBtn { right:calc(210px + var(--sr)); width:50px; font-size:9px; background:rgba(255,210,61,.5); border-color:var(--yel); display:none; } /* loja longe do botão de interagir (PORTA/PREGAR) */
   #shopBtn i { font-size:17px; }
-  body.touch #portaPrompt { top:auto; bottom:calc(130px + var(--sb)); max-width:min(420px,60vw); font-size:13px; padding:7px 12px; }
+  body.touch #portaPrompt { top:auto; bottom:calc(64px + var(--sb)); max-width:min(400px,52vw); font-size:13px; padding:7px 12px; }
   @media (max-width:720px) { #shopBtn { right:calc(10px + var(--sr)); top:calc(60px + var(--st)); } } /* tela estreita: embaixo do ❚❚ para não cobrir o relógio */
   #cashPop { position:absolute; right:calc(24px + var(--sr)); bottom:calc(104px + var(--sb)); font-family:var(--disp); font-size:22px; color:var(--yel); text-shadow:0 2px 0 #000; opacity:0; }
   #cashPop.on { animation:cashUp 1.1s ease-out; }
@@ -318,6 +326,7 @@
   body.touch #hpbar { height:9px; margin-top:3px; }
   body.touch #ammo { right:auto; left:calc(10px + var(--sl)); bottom:auto; top:calc(60px + var(--st)); padding:4px 10px; text-align:left; }
   body.touch #ammo b { font-size:15px; } body.touch #ammo small { font-size:10px; }
+  body.touch #ammo #cashLine { font-size:15px; margin-left:8px; }
   body.touch #wave { top:calc(122px + var(--st)); left:calc(10px + var(--sl)); font-size:11px; padding:3px 8px; }
   body.touch #fx { bottom:auto; top:calc(152px + var(--st)); left:calc(10px + var(--sl)); }
   body.touch #fx .stat { font-size:12px; padding:4px 8px; }
@@ -326,9 +335,18 @@
   body.touch #score { font-size:12px; padding:4px 10px; }
   body.touch #killfeed { top:calc(60px + var(--st)); }
   body.touch .kf { font-size:12px; padding:3px 8px; }
-  body.touch #feed { top:calc(76px + var(--st)); }
+  body.touch #topC { max-width:max(46vw, calc(100vw - 440px - var(--sl) - var(--sr))); gap:4px; }
+  body.touch #objLine { font-size:12px; padding:4px 10px; }
+  body.touch #bossBar { width:min(320px,42vw); }
+  body.touch #bossBar b { font-size:13px; }
+  body.touch #bossBar .bar { height:9px; margin-top:2px; }
+  body.touch #setaObj { font-size:12px; padding:2px 10px 2px 4px; }
+  body.touch #setaObj b { width:22px; height:22px; font-size:13px; }
+  body.touch #feed .msg { font-size:12px; padding:4px 10px; }
+  body.touch #feed .msg:nth-child(n+3) { display:none; }
   body.touch .msg { font-size:13px; }
-  body.touch #banner { font-size:min(7vw,8vh); top:38%; }
+  body.touch #banner { font-size:clamp(20px,min(6vw,7vh),40px); top:62%; max-width:max(46vw, calc(100vw - 420px)); width:auto; }
+  body.touch #banner.alto { top:36%; }
   body.touch #chatLog { bottom:auto; top:40%; width:min(300px,40vw); }
   body.touch .cl { font-size:12px; }
   body.touch #chatInput { top:calc(60px + var(--st)); bottom:auto; left:50%; transform:translateX(-50%); }
@@ -633,14 +651,13 @@
 <body>
 <div id="hud">
   <div id="cross"></div><div id="hitmark"></div>
-  <div id="dmg"></div>
+  <div id="dmg"></div><div id="dmgDir"></div>
   <div id="floats"></div>
   <div class="stat" id="hpwrap"><div class="hpTop"><span>Vida</span><b id="hpNum">100</b></div><div id="hpbar"><div id="hpfill"></div></div></div>
-  <div class="stat" id="ammo"><small id="ammoName">Marcador</small><b id="ammoNum">20 / 20</b><small id="itemLine"></small></div>
+  <div class="stat" id="ammo"><small id="ammoName">Marcador</small><b id="ammoNum">20 / 20</b><b id="cashLine"></b><small id="itemLine"></small></div>
   <div id="killcam"><small>🎥 Quem te pintou</small><b id="kcName"></b><span id="kcInfo"></span><div class="bar"><div id="kcFill"></div></div></div>
   <div class="stat" id="wave">Onda 1</div>
-  <div id="topC"><div class="stat" id="timer"></div><div class="stat" id="score">Pontos: 0</div><div class="stat" id="objLine"></div></div>
-  <div id="bossBar"><b id="bossName"></b><div class="bar"><div id="bossFill"></div></div></div>
+  <div id="topC"><div class="stat" id="timer"></div><div class="stat" id="score">Pontos: 0</div><div class="stat" id="objLine"></div><div id="bossBar"><b id="bossName"></b><div class="bar"><div id="bossFill"></div></div></div><div id="setaObj"><b>⬆</b><span></span></div><div id="feed"></div></div>
   <div id="killfeed"></div>
   <div id="scope"></div>
   <div id="downOverlay"></div>
@@ -648,7 +665,6 @@
   <div id="scream"></div>
   <div id="downBox"><b id="downTitle">VOCÊ CAIU!</b><span id="downText"></span><div class="bar"><div id="downFill"></div></div></div>
   <div id="portaPrompt"></div>
-  <div id="setaObj"><b>⬆</b><span></span></div>
   <div id="shopPrompt">🛒 Aperte <kbd>B</kbd> para abrir a lojinha</div>
   <div id="cashPop"></div>
   <div id="revivePrompt"><span id="reviveText"></span><div class="bar"><div id="reviveFill"></div></div></div>
@@ -656,7 +672,6 @@
   <div id="invGlow"></div>
   <div id="fx"></div>
   <div id="chatLog"></div>
-  <div id="feed"></div>
   <div id="banner"></div>
   <div id="scoreboard"></div>
 </div>
@@ -3594,7 +3609,7 @@ function musicSchedule() {
 // ===== HUD =====
 const $ = id => document.getElementById(id);
 function updateHud() {
-  let obj = '';
+  let obj = '', ondeMis = '';
   if (mode === 'online') {
     const me = net.players[net.myId], modo = net.cfg.modo, meta = goalOf();
     const metaTxt = meta ? ` · até ${meta}` : '';
@@ -3607,7 +3622,8 @@ function updateHud() {
       else if (O) linhas.push(O.k === 'gen' ? (O.f ? '💥 Gerador quebrado' : `⚡ Proteja o gerador: ${O.max ? Math.round(O.hp / O.max * 100) : 0}%`) : O.ok ? '📍 Área segura!' : `📍 Segure a área: ${Math.floor(O.t)}/${O.meta} s`);
       if (FAZ && isMissao()) { const zn = zonaInfo(fazZonaVista), ng = FAZ.gens.filter(G => G.ok).length; const E = FAZ.extr, resta = E ? Math.max(0, Math.ceil((E.ate - performance.now()) / 1000)) : 0, mmss = `${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, '0')}`, faltam = fazPecasFaltam();
         const nf = fusLivresView(), pecasRadio = pecasDoTipo('radio');
-        linhas.unshift(`${fazHora()} · ${zn ? zn.nome : FAZ.txt.local} · ${E?.f === 'procurando' ? `🔥 Acendam a fogueira de sinal ao lado do H${temPecaView('gasolina') ? '' : ' (achem o ⛽ galão)'}!` : E?.f === 'vindo' ? `🚁 Helicóptero chega em ${mmss}${FAZ.fogoOk ? '' : ' · 🔥 fogueira apagada!'}` : E?.f === 'pousado' ? `🚁 EMBARQUE NO 🅷 ${FAZ.txt.heli.toUpperCase()}! Decola em ${mmss}` : !FAZ.portas[0].aberta ? `🎯 Abra ${FAZ.txt.porta0} (💰 ${FAZ.portas[0].preco})` : !FAZ.energia ? `🎯 Liguem os geradores ⚡ ${ng}/3 · 🔌 ${nf > 0 ? nf + ' na mão' : 'achem fusíveis'}` : faltam.length ? `🎯 Achem as peças do rádio: ${pecasRadio.map(k => (faltam.includes(k) ? '⬜' : '✅') + PECAS[k].ic).join(' ')}` : `🎯 Chamem o socorro no 📻 rádio ${FAZ.txt.radio}`}`); }
+        ondeMis = `${fazHora()} · ${zn ? zn.nome : FAZ.txt.local}`;
+        linhas.unshift(`${E?.f === 'procurando' ? `🔥 Acendam a fogueira de sinal ao lado do H${temPecaView('gasolina') ? '' : ' (achem o ⛽ galão)'}!` : E?.f === 'vindo' ? `🚁 Helicóptero chega em ${mmss}${FAZ.fogoOk ? '' : ' · 🔥 fogueira apagada!'}` : E?.f === 'pousado' ? `🚁 EMBARQUE NO 🅷 ${FAZ.txt.heli.toUpperCase()}! Decola em ${mmss}` : !FAZ.portas[0].aberta ? `🎯 Abra ${FAZ.txt.porta0} (💰 ${FAZ.portas[0].preco})` : !FAZ.energia ? `🎯 Liguem os geradores ⚡ ${ng}/3 · 🔌 ${nf > 0 ? nf + ' na mão' : 'achem fusíveis'}` : faltam.length ? `🎯 Achem as peças do rádio: ${pecasRadio.map(k => (faltam.includes(k) ? '⬜' : '✅') + PECAS[k].ic).join(' ')}` : `🎯 Chamem o socorro no 📻 rádio ${FAZ.txt.radio}`}`); }
       if (D) linhas.push(D.ok ? '🏅 Desafio cumprido!' : `${DESAFIOS[D.k].ic} ${DESAFIOS[D.k].txt(D.n)} (${Math.min(D.p, D.n)}/${D.n})`);
       obj = linhas.join(' · ');
     } else if (isTdm()) {
@@ -3637,7 +3653,7 @@ function updateHud() {
       obj = net.hs.ph === 'espera' ? 'Esperando mais um jogador…' : `💀 Rodada ${net.hs.r} · ${vivos} de pé`;
     }
     const mm = MODOS[net.cfg.modo];
-    $('wave').textContent = net.local ? `🧟 ${me?.kills ?? 0} zumbis pintados` : isTdm() ? `${teamEmoji(teamOf(net.myId))} ${teamName(teamOf(net.myId))} · sala ${net.code}` : `${mm?.icone || ''} ${mm?.nome || ''} · sala ${net.code}`;
+    $('wave').textContent = ondeMis ? ondeMis : net.local ? `🧟 ${me?.kills ?? 0} zumbis pintados` : isTdm() ? `${teamEmoji(teamOf(net.myId))} ${teamName(teamOf(net.myId))} · sala ${net.code}` : `${mm?.icone || ''} ${mm?.nome || ''} · sala ${net.code}`;
   } else {
     $('score').textContent = `🎨 Pontos: ${player.score}`;
     $('wave').textContent = `Onda ${wave}`;
@@ -3658,7 +3674,8 @@ function updateHud() {
   $('ammoNum').textContent = player.reloading > 0 ? 'recarregando…' : W.semMuni ? '∞' : `${a} / ${W.mag}`;
   $('ammoNum').classList.toggle('low', player.reloading <= 0 && !W.semMuni && a <= Math.ceil(W.mag / 4));
   const itens = itensOn() && !amProp();
-  const grana = isZumbi() ? `💰 ${net.players[net.myId]?.cash | 0}${(net.players[net.myId]?.vant || []).map(k => VANTAGENS[k]?.ic || '').join('')}` : '';
+  txt($('cashLine'), isZumbi() ? `💰 ${net.players[net.myId]?.cash | 0}` : '');
+  const grana = isZumbi() ? (net.players[net.myId]?.vant || []).map(k => VANTAGENS[k]?.ic || '').join('') : '';
   const gren = itens && granadaOn();
   $('itemLine').textContent = [grana, itens ? `${gren ? `💣 ${player.gren | 0}  ·  ` : ''}🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ');
   $('shieldBtn').style.display = itens ? 'flex' : 'none'; $('grenBtn').style.display = gren ? 'flex' : 'none';
@@ -3680,7 +3697,7 @@ function killFeed(killer, victim, wid, head, mine, meVictim) {
   while ($('killfeed').children.length > 5) $('killfeed').lastChild.remove();
 }
 let bannerT = 0;
-function banner(text, t = 1.8) { $('banner').textContent = text; $('banner').style.opacity = 1; bannerT = t; }
+function banner(text, t = 1.8) { $('banner').textContent = text; $('banner').style.opacity = 1; $('banner').classList.toggle('alto', $('downBox').style.display === 'block' || $('revivePrompt').style.display === 'block'); bannerT = t; }
 let hitT = 0;
 // marcador de acerto: branco normal, amarelo na cabeça, vermelho maior no abate
 function hitMarker(kind) {
@@ -4795,7 +4812,10 @@ function onNet(m) {
       break;
     }
     case 'hp':
-      if (m.id === net.myId) { if (m.hp < player.hp) { hurtFx(); player.dmgT = 0; } player.hp = m.hp; updateHud(); }
+      if (m.id === net.myId) {
+        if (m.hp < player.hp) { const src = m.by && m.by !== net.myId ? remotes.get(m.by)?.root.position : null; hurtFx(src ? src.x : m.fx, src ? src.z : m.fz); player.dmgT = 0; }
+        player.hp = m.hp; updateHud();
+      }
       else {
         const r = remotes.get(m.id);
         if (r) { if (m.d) r.flash = 0.15; r.hpPct = Math.min(1, m.hp / hpMax(m.id)); }
@@ -4910,6 +4930,9 @@ function syncRemotes() {
       scene.add(parts.root); remotes.set(id, r);
     }
     setRemoteDead(r, p.dead);
+    // nome através das paredes só de quem é do seu lado (cooperativo ou mesmo time); inimigo no PvP fica escondido atrás de parede
+    const atravessa = mode !== 'online' || ehZumbi(net.cfg.modo) || (isTdm() && teamOf(id) === teamOf(net.myId));
+    if (r.tag && r.tag.material.depthTest === atravessa) { r.tag.material.depthTest = !atravessa; r.tag.material.needsUpdate = true; }
     if (p.down && !r.down) { r.down = true; r.downEnd = performance.now() + BLEED_S * 1000; } else if (!p.down) r.down = false;
   }
   for (const [id, r] of remotes) if (!net.players[id]) { scene.remove(r.root); remotes.delete(id); }
@@ -5023,10 +5046,35 @@ function renderBoard() {
   b.replaceChildren(...parts);
 }
 
-function hurtFx() {
-  sfx.hurt(); navigator.vibrate?.(60);
+function hurtFx(fx, fz) {
+  sfx.hurt(); navigator.vibrate?.(60); setaDano(fx, fz);
   $('dmg').style.opacity = 1; setTimeout(() => $('dmg').style.opacity = 0, 180);
   shake = Math.max(shake, 0.12);
+}
+
+// Seta na borda da tela apontando de onde veio o dano (gira junto com a câmera por 1,3 s)
+const dmgSetas = [], _setaV = new THREE.Vector3();
+function setaDano(x, z) {
+  if (typeof x !== 'number' || typeof z !== 'number' || !isFinite(x + z)) return;
+  if (Math.hypot(x - player.pos.x, z - player.pos.z) < 0.4) return;
+  let s = dmgSetas.find(o => Math.hypot(o.x - x, o.z - z) < 2.5);
+  if (!s) {
+    if (dmgSetas.length >= 4) dmgSetas.shift().el.remove();
+    const el = document.createElement('div'); el.className = 'dmgSeta'; $('dmgDir').appendChild(el);
+    s = { el }; dmgSetas.push(s);
+  }
+  s.x = x; s.z = z; s.ate = performance.now() + 1300;
+}
+function updateSetas() {
+  if (!dmgSetas.length) return;
+  const now = performance.now();
+  for (let i = dmgSetas.length - 1; i >= 0; i--) {
+    const s = dmgSetas[i], t = (s.ate - now) / 1000;
+    if (t <= 0 || state === 'menu') { s.el.remove(); dmgSetas.splice(i, 1); continue; }
+    _setaV.set(s.x, camera.position.y, s.z).applyMatrix4(camera.matrixWorldInverse);
+    s.el.style.transform = `rotate(${Math.atan2(_setaV.x, -_setaV.z).toFixed(3)}rad)`;
+    s.el.style.opacity = Math.min(1, t / 0.5).toFixed(2);
+  }
 }
 
 function hitRemote(r, point, color, dir, wid, head) {
@@ -7247,7 +7295,7 @@ function zMove(z, alvos, dt) {
     if (z.y <= gh && z.vy < 0) {
       z.y = gh; z.air = false;
       const R = z.boss ? 5 : 2.4;
-      for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < R && Math.abs(a.y - z.y) < 2) { zDamage(a.id, Math.round(z.dmg * (z.boss ? 0.9 * (1 - d / (R * 1.6)) : 1.2))); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), z.boss ? 14 : 9); } }
+      for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < R && Math.abs(a.y - z.y) < 2) { zDamage(a.id, Math.round(z.dmg * (z.boss ? 0.9 * (1 - d / (R * 1.6)) : 1.2)), z); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), z.boss ? 14 : 9); } }
       broadcast({ t: 'zslam', x: r2(z.x), z: r2(z.z), s: z.boss ? 1.4 : 0.5 });
     }
     return;
@@ -7274,7 +7322,7 @@ function zMove(z, alvos, dt) {
     z.yaw = Math.atan2(q.outro[0] - z.x, q.outro[1] - z.z);
     if (FAZ.tab[j] <= 0) { z.quebra = null; z.cruza = { x0: z.x, z0: z.z, x1: q.outro[0], z1: q.outro[1], t: 0, tipo: 'janela' }; return; }
     z.atkCd -= dt;
-    if (z.dmg > 0 && best < 1.9 && z.atkCd <= 0 && !buffOn('zgelo')) { z.atkCd = 1.1 * zd().atk; z.atkFlag = true; zDamage(alvo.id, Math.round(z.dmg * 0.8)); }
+    if (z.dmg > 0 && best < 1.9 && z.atkCd <= 0 && !buffOn('zgelo')) { z.atkCd = 1.1 * zd().atk; z.atkFlag = true; zDamage(alvo.id, Math.round(z.dmg * 0.8), z); }
     q.t -= dt * (buffOn('zgelo') ? 0.2 : 1);
     if (q.t <= 0) { q.t = zTempoTabua(z); FAZ.tab[j]--; z.atkFlag = true; broadcast({ t: 'tabua', j, n: FAZ.tab[j], q: 1 }); }
     return;
@@ -7318,7 +7366,7 @@ function zMove(z, alvos, dt) {
     z.abil3 = (z.abil3 ?? 4) - dt;
     if (z.abil3 <= 0 && alvo && best < 5.5) {
       z.abil3 = 6;
-      for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < 6) { zDamage(a.id, Math.round(26 * zd().dano * (1 - d / 9))); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), 12); } }
+      for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < 6) { zDamage(a.id, Math.round(26 * zd().dano * (1 - d / 9)), z); zPush(a.id, (a.x - z.x) / (d || 1), (a.z - z.z) / (d || 1), 12); } }
       broadcast({ t: 'zslam', x: r2(z.x), z: r2(z.z), s: 1 });
     }
   }
@@ -7330,7 +7378,7 @@ function zMove(z, alvos, dt) {
     if (Math.hypot(zp.x - z.x, zp.z - z.z) < st * 0.3) z.charge = 0; // bateu na parede
     z.x = THREE.MathUtils.clamp(zp.x, -ARENA + 0.8, ARENA - 0.8); z.z = THREE.MathUtils.clamp(zp.z, -ARENA + 0.8, ARENA - 0.8);
     z.yaw = Math.atan2(z.cx, z.cz);
-    for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < (z.boss ? 2.4 : 1.7) && !z.atingiu?.has(a.id)) { (z.atingiu ??= new Set()).add(a.id); zDamage(a.id, Math.round(z.dmg * 1.3)); zPush(a.id, z.cx, z.cz, 14); } }
+    for (const a of alvos) { const d = Math.hypot(a.x - z.x, a.z - z.z); if (d < (z.boss ? 2.4 : 1.7) && !z.atingiu?.has(a.id)) { (z.atingiu ??= new Set()).add(a.id); zDamage(a.id, Math.round(z.dmg * 1.3), z); zPush(a.id, z.cx, z.cz, 14); } }
     if (z.charge <= 0) z.atingiu = null;
     return;
   }
@@ -7380,7 +7428,7 @@ function zMove(z, alvos, dt) {
   const alcance = z.boss ? 2.6 : T.id === 'tanque' || T.id === 'mae' ? 1.9 : 1.35;
   if (z.dmg > 0 && alvo && best < alcance && !buffOn('zgelo') && Math.abs(alvo.y - z.y) < (z.boss ? 3 : 1.7) && z.atkCd <= 0) {
     z.atkCd = (z.boss ? 1.5 : 0.9) * zd().atk; z.atkFlag = true;
-    zDamage(alvo.id, Math.round(z.dmg * (z.raiva > 0 ? 1.25 : 1)));
+    zDamage(alvo.id, Math.round(z.dmg * (z.raiva > 0 ? 1.25 : 1)), z);
     if (T.id === 'tanque' || z.boss) zPush(alvo.id, dx, dz, 7);
   }
 }
@@ -7515,7 +7563,7 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
   // 🤖 depois de puxar com o ímã, o Robô esmaga quem ficou perto
   if (z.esmaga > 0 && (z.esmaga -= dt) <= 0) {
     broadcast({ t: 'zslam', x: r2(z.x), z: r2(z.z), s: 1.3 });
-    for (const a of Object.keys(net.players)) { const q = zPlayerPos(a); if (q && Math.hypot(q[0] - z.x, q[2] - z.z) < 4.5) zDamage(a, Math.round(22 * zd().dano)); }
+    for (const a of Object.keys(net.players)) { const q = zPlayerPos(a); if (q && Math.hypot(q[0] - z.x, q[2] - z.z) < 4.5) zDamage(a, Math.round(22 * zd().dano), z); }
   }
   z.hab = (z.hab ?? 3) - dt;
   if (z.hab > 0 || !alvo) return;
@@ -7525,12 +7573,12 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
   const perto = (R, fn) => { for (const a of Object.keys(net.players)) { const q = zPlayerPos(a); if (!q) continue; const vx = q[0] - z.x, vz = q[2] - z.z, d = Math.hypot(vx, vz); if (d < R) fn(a, vx / (d || 1), vz / (d || 1), d); } };
   if (z.chefe === 'sorveteiro') {
     if (ve && best < 24) zSpit(z, alvo, z.fase2 ? 4 : 2, { gelo: 1, c: 0xbfe8ff });
-    if (z.fase2) { broadcast({ t: 'zonda', k: 'gelo', x: r2(z.x), z: r2(z.z), s: 1.4, r: 7, l: 2 }); perto(7, a => zDamage(a, Math.round(6 * zd().dano))); }
+    if (z.fase2) { broadcast({ t: 'zonda', k: 'gelo', x: r2(z.x), z: r2(z.z), s: 1.4, r: 7, l: 2 }); perto(7, a => zDamage(a, Math.round(6 * zd().dano), z)); }
     z.hab = 4.5 * f2; return;
   }
   if (z.chefe === 'baterista') {
     broadcast({ t: 'zonda', k: 'bumbo', x: r2(z.x), z: r2(z.z), s: 1.6, r: 9 });
-    perto(9, (a, ux, uz) => { zPush(a, ux, uz, 10); zDamage(a, Math.round(10 * zd().dano)); });
+    perto(9, (a, ux, uz) => { zPush(a, ux, uz, 10); zDamage(a, Math.round(10 * zd().dano), z); });
     for (const o of Z.sim.values()) if (o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 18) o.raiva = Math.max(o.raiva || 0, 4);
     z.hab = 5 * f2; return;
   }
@@ -7548,7 +7596,7 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
   }
   if (z.chefe === 'noiva') {
     broadcast({ t: 'zonda', k: 'grito', x: r2(z.x), z: r2(z.z), s: 1.2, r: 14, l: 2.5 });
-    perto(14, a => zDamage(a, Math.round(5 * zd().dano)));
+    perto(14, a => zDamage(a, Math.round(5 * zd().dano), z));
     if (z.fase2 && filhosDe() < 4) capangas(ZT.fantasma, 2, 0.35);
     z.hab = 6 * f2; return;
   }
@@ -7575,7 +7623,7 @@ function zChefeTick(z, alvo, best, dx, dz, dt, ve) {
     for (const a of Object.keys(net.players)) {
       const q = zPlayerPos(a); if (!q) continue;
       const vx = q[0] - z.x, vz = q[2] - z.z, d = Math.hypot(vx, vz);
-      if (d < 10 && (vx * dx + vz * dz) / (d || 1) > 0.75) { zPush(a, vx / (d || 1), vz / (d || 1), 12); zDamage(a, Math.round(8 * zd().dano)); }
+      if (d < 10 && (vx * dx + vz * dz) / (d || 1) > 0.75) { zPush(a, vx / (d || 1), vz / (d || 1), 12); zDamage(a, Math.round(8 * zd().dano), z); }
     }
     z.hp = Math.min(z.max, z.hp + z.max * (z.fase2 ? 0.08 : 0.05));
     broadcast({ t: 'zjato', x: r2(z.x), z: r2(z.z), dx: r2(dx), dz: r2(dz) });
@@ -7622,7 +7670,7 @@ function zSpitTick(dt, alvos) {
     for (const a of alvos) if (Math.hypot(a.x - s.x, a.z - s.z) < 0.8 && s.y > a.y && s.y < a.y + 2) bateu = true;
     if (!bateu) continue;
     Z.spits.splice(i, 1);
-    for (const a of alvos) { const d = Math.hypot(a.x - s.x, a.y + 1 - s.y, a.z - s.z); if (d < 2) { zDamage(a.id, Math.round(s.dmg * (d < 1 ? 1 : 0.6))); if (!s.c || s.gelo) broadcast({ t: 'zacid', id: a.id, g: s.gelo ? 1 : undefined }); } }
+    for (const a of alvos) { const d = Math.hypot(a.x - s.x, a.y + 1 - s.y, a.z - s.z); if (d < 2) { zDamage(a.id, Math.round(s.dmg * (d < 1 ? 1 : 0.6)), s); if (!s.c || s.gelo) broadcast({ t: 'zacid', id: a.id, g: s.gelo ? 1 : undefined }); } }
     broadcast({ t: 'zsplash', x: r2(s.x), y: r2(Math.max(0.05, s.y)), z: r2(s.z), c: s.c });
   }
 }
@@ -7638,7 +7686,7 @@ function zExplode(z, por) {
     if (p.dead || p.down) continue;
     const q = zPlayerPos(id); if (!q) continue;
     const d = Math.hypot(q[0] - z.x, q[1] + 1 - z.y, q[2] - z.z);
-    if (d < R) { zDamage(id, Math.round(42 * dif * (1 - d / R * 0.6))); zPush(id, (q[0] - z.x) / (d || 1), (q[2] - z.z) / (d || 1), 13); }
+    if (d < R) { zDamage(id, Math.round(42 * dif * (1 - d / R * 0.6)), z); zPush(id, (q[0] - z.x) / (d || 1), (q[2] - z.z) / (d || 1), 13); }
   }
   for (const o of [...Z.sim.values()]) {
     const d = Math.hypot(o.x - z.x, o.z - z.z); if (d > 3.8) continue;
@@ -7657,13 +7705,13 @@ function zScream(z) {
   for (const o of Z.sim.values()) if (o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 16) o.raiva = Math.max(o.raiva, 6);
 }
 function zPush(id, dx, dz, f) { if (id === 'gen' || id === 'npc') return; broadcast({ t: 'zpush', id, x: r2(dx * f), z: r2(dz * f) }); }
-function zDamage(id, dmg) {
+function zDamage(id, dmg, de) {
   if (id === 'gen') return zDanoGerador(dmg);
   if (id === 'npc') return zDanoNpc(dmg);
   const p = net.players[id], now = performance.now();
   if (!p || p.dead || p.down || (net.inv.get(id) || 0) > now) return;
   p.hp -= dmg; net.lastDmg.set(id, now);
-  broadcast({ t: 'hp', id, hp: Math.max(0, p.hp) });
+  broadcast(de ? { t: 'hp', id, hp: Math.max(0, p.hp), fx: r2(de.x), fz: r2(de.z) } : { t: 'hp', id, hp: Math.max(0, p.hp) });
   if (p.hp <= 0) {
     p.hp = 0; p.down = true; p.downUntil = now + BLEED_S * 1000;
     if (temVant(id, 'volta') && p.voltaR !== Z.round) { p.voltaR = Z.round; p.autoUp = now + 5000; } // 🩹 Segunda Chance
@@ -9557,6 +9605,8 @@ function renderShop() {
     const t = document.createElement('b'); t.textContent = titulo;
     const l = document.createElement('small'); l.textContent = linhas;
     const p = document.createElement('span'); p.className = 'preco'; p.textContent = rotulo;
+    const falta = !ok && /^💰 (\d+)$/.exec(rotulo);
+    if (falta && +falta[1] > cash) { const f = document.createElement('em'); f.className = 'falta'; f.textContent = `faltam ${+falta[1] - cash}`; p.append(f); }
     b.append(kb, i, t, l, p);
     b.onclick = fn;
     b.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
@@ -10535,7 +10585,7 @@ function updateBalls(dt) {
       else if (hitInfo.e) hitEnemy(hitInfo.e, hitInfo.p, b.color, dir, WEAPONS[b.w]?.dmg ?? 25, hitInfo.head);
       else if (hitInfo.player && b.owner === 'remote') { burst(hitInfo.p, b.color, 8, 3); botBallHit(b, hitInfo); }
       else if (hitInfo.player) {
-        if (player.invT <= 0) { player.hp -= Math.round(8 * soloDif); player.dmgT = 0; hurtFx(); }
+        if (player.invT <= 0) { const v = b.vel.clone().normalize(); player.hp -= Math.round(8 * soloDif); player.dmgT = 0; hurtFx(b.mesh.position.x - v.x * 12, b.mesh.position.z - v.z * 12); }
         updateHud();
         if (player.hp <= 0) gameOver();
       } else {
@@ -10745,6 +10795,7 @@ function frame() {
   if (hitT > 0) { hitT -= dt; if (hitT <= 0) $('hitmark').style.opacity = 0; }
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').style.opacity = 0; }
   if (state !== 'menu') updateFloats(dt);
+  updateSetas();
   updateFxParts(dt);
   renderLockerFrame(dt);
   if (state !== 'menu') updateWalls(dt);
@@ -10756,7 +10807,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
