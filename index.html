@@ -1030,6 +1030,7 @@
     <div class="stats" id="overStats"></div>
     <div class="menu">
       <button class="btn big" id="againBtn">JOGAR DE NOVO</button>
+      <button class="btn" id="overShareBtn">📤 Mandar no grupo</button>
       <button class="btn ghost" id="overMenuBtn">Menu principal</button>
     </div>
   </div>
@@ -4204,26 +4205,72 @@ function start() {
 }
 function startSolo() { readSetup(); if (ehZumbi(soloCfg.modo)) startLocalZombie(); else start(); }
 
+let ultimoRes = null;
 function showResults(title, text, stats) {
   pausaDesde = 0;
   state = 'over';
+  const md = mode === 'online' ? MODOS[net.cfg.modo] : null;
+  ultimoRes = { title, text, stats, onde: `${md ? md.icone + ' ' + md.nome : '🎯 Ondas de amigos'} · ${MAPS[curMap]?.nome || ''}` };
   document.exitPointerLock?.();
   $('overTitle').textContent = title;
   $('overText').textContent = text;
   $('overStats').replaceChildren(...stats.map(([v, k]) => { const d = document.createElement('div'); const b = document.createElement('b'); b.textContent = v; const sp = document.createElement('span'); sp.textContent = k; d.append(b, sp); return d; }));
   showScreen('overScreen');
 }
+// recorde(chave, valor): true quando bateu; recorde.antigo = o recorde de antes (0 = primeira vez)
 function recorde(chave, valor) {
-  let antigo = 0;
-  antigo = +load(chave, 0) || 0;
+  const antigo = +load(chave, 0) || 0;
+  recorde.antigo = antigo;
   if (valor > antigo) save(chave, valor);
   return valor > antigo;
 }
+// frase do fim: só é "novo recorde" quando já existia um; senão diz quanto faltou
+const fraseRecorde = (novo, antigo, val, oque, un) => novo && antigo > 0 ? `🏆 Novo recorde: ${oque}! (antes: ${antigo})` : novo ? `Primeira marca: ${oque}. Agora é bater!` : val < antigo ? `${oque} · faltou ${antigo - val} ${un} para o seu recorde (${antigo})` : `${oque} · igualou o seu recorde!`;
+// cartão do resultado para mandar no grupo (imagem; sem foto dos amigos secretos)
+async function cartaoResultado() {
+  const R = ultimoRes; if (!R) return null;
+  const c = document.createElement('canvas'); c.width = 720; c.height = 400; const g = c.getContext('2d');
+  const fundo = g.createLinearGradient(0, 0, 720, 400); fundo.addColorStop(0, '#1a0b2e'); fundo.addColorStop(1, '#0d3b66'); g.fillStyle = fundo; g.fillRect(0, 0, 720, 400);
+  const cores = ['#ff3d7f', '#ffd23d', '#3db8ff', '#3dff8b'], rnd = seeded(7);
+  for (let i = 0; i < 12; i++) { g.fillStyle = cores[i % 4] + '2a'; g.beginPath(); g.arc(rnd() * 720, rnd() * 400, 8 + rnd() * 42, 0, 7); g.fill(); }
+  const ch = escolhido();
+  if (ch?.foto && !ch.secreto) {
+    const img = new Image(); img.src = ch.foto;
+    try { await img.decode(); g.save(); g.beginPath(); g.arc(110, 118, 72, 0, 7); g.clip(); g.drawImage(img, 38, 46, 144, 180); g.restore(); } catch {}
+    g.strokeStyle = '#ffd23d'; g.lineWidth = 5; g.beginPath(); g.arc(110, 118, 72, 0, 7); g.stroke();
+  } else { g.font = '96px system-ui'; g.textAlign = 'center'; g.fillText('🎨', 110, 150); }
+  const cabe = (t, x, y, max, peso, px, min) => { let f = px; do { g.font = `${peso} ${f}px system-ui, sans-serif`; } while (g.measureText(String(t)).width > max && --f > min); linha(t, x, y, max); };
+  const linha = (t, x, y, max) => { let s = String(t); while (s.length > 3 && g.measureText(s).width > max) s = s.slice(0, -2); if (s !== String(t)) s = s.slice(0, -1) + '…'; g.fillText(s, x, y); };
+  g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = '900 40px system-ui, sans-serif'; linha(R.title, 210, 92, 490);
+  g.fillStyle = '#ffd23d'; g.font = '800 24px system-ui, sans-serif'; linha($('nick').value.trim() || myName || '', 210, 132, 490);
+  g.fillStyle = '#cfd6ff'; g.font = '600 19px system-ui, sans-serif'; linha(R.onde, 210, 164, 490); linha(R.text, 210, 194, 490);
+  const n = R.stats.length, w = (660 - (n - 1) * 14) / n;
+  R.stats.forEach(([v, k], i) => {
+    const x = 30 + i * (w + 14);
+    g.fillStyle = 'rgba(255,255,255,.1)'; g.beginPath(); g.roundRect?.(x, 226, w, 112, 16); g.fill();
+    g.textAlign = 'center'; g.fillStyle = '#fff'; cabe(v, x + w / 2, 288, w - 14, 900, 44, 22);
+    g.fillStyle = '#cfd6ff'; cabe(k, x + w / 2, 320, w - 14, 700, 18, 12);
+  });
+  g.textAlign = 'center'; g.fillStyle = '#ffffffb0'; g.font = '700 18px system-ui, sans-serif'; g.fillText('🎨 Paintball com os Amigos', 360, 380);
+  return c;
+}
+async function mandarResultado() {
+  const R = ultimoRes; if (!R) return;
+  const link = /^https?:/.test(location.protocol) ? `${location.origin}${location.pathname}` : 'https://jgantonio93-arch.github.io/paintball-com-os-amigos/';
+  const texto = `🎨 Paintball com os Amigos · ${R.onde}\n${R.title} ${R.text}\n${R.stats.map(([v, k]) => `${v} ${k}`).join(' · ')}\nBora jogar: ${link}`;
+  try {
+    const c = await cartaoResultado(), blob = c && await new Promise(r => c.toBlob(r, 'image/png'));
+    const file = blob && new File([blob], 'resultado-paintball.png', { type: 'image/png' });
+    if (file && navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], text: texto });
+    if (navigator.share) return await navigator.share({ text: texto });
+    await navigator.clipboard.writeText(texto); $('overText').textContent = '📋 Resultado copiado! Cole no grupo.';
+  } catch {}
+}
 function gameOver() {
   const acc = player.shots ? Math.round(player.hits / player.shots * 100) : 0;
-  const novo = recorde('pb-recorde-ondas', player.score);
+  const novo = recorde('pb-recorde-ondas', player.score), antigo = recorde.antigo;
   recorde('pb-recorde-onda', wave); checkUnlocks();
-  showResults('Pintado!', novo ? '🏆 Novo recorde!' : `Você chegou na onda ${wave}.`,
+  showResults('Pintado!', fraseRecorde(novo, antigo, player.score, `${player.score} pontos (onda ${wave})`, 'pontos'),
     [[wave, 'onda'], [player.kills, 'abates'], [player.score, 'pontos'], [acc + '%', 'precisão']]);
 }
 
@@ -6493,6 +6540,7 @@ function showSolo() {
 }
 $('soloBackBtn').onclick = openHome;
 $('playBtn').onclick = startSolo;
+$('overShareBtn').onclick = mandarResultado;
 $('againBtn').onclick = () => { readSetup(); ehZumbi(lastSolo) ? startLocalZombie() : start(); };
 $('overMenuBtn').onclick = backToMenu;
 $('crBackBtn').onclick = openHome;
@@ -8280,10 +8328,10 @@ function zOnNet(m) {
       if (net.local) {
         const acc = player.shots ? Math.round(player.hits / player.shots * 100) : 0;
         const md = net.cfg.modo, val = md === 'chefoes' ? m.ch | 0 : md === 'sobrev' ? m.mn | 0 : m.r;
-        const novo = recorde(recKey(), val); checkUnlocks();
+        const novo = recorde(recKey(), val), antigo = recorde.antigo; checkUnlocks();
         const oque = md === 'chefoes' ? `${val} chefões derrotados` : md === 'sobrev' ? `${val} minuto${val === 1 ? '' : 's'} de horda` : `rodada ${val}`;
-        showResults(md === 'defesa' && m.gen ? 'O gerador caiu!' : 'Os zumbis venceram!', novo ? `🏆 Novo recorde: ${oque}!` : `Vocês chegaram a: ${oque}.`,
-          [md === 'chefoes' ? [val, 'chefões'] : md === 'sobrev' ? [val, 'minutos'] : [m.r, 'rodada'], [meus, 'monstros pintados'], [acc + '%', 'precisão']]);
+        showResults(md === 'defesa' && m.gen ? 'O gerador caiu!' : 'Os zumbis venceram!', fraseRecorde(novo, antigo, val, oque, md === 'chefoes' ? 'chefões' : md === 'sobrev' ? 'minutos' : 'rodadas'),
+          [md === 'chefoes' ? [val, 'chefões'] : md === 'sobrev' ? [val, 'minutos'] : [m.r, 'rodada'], [meus, 'monstros pintados'], [acc + '%', 'precisão'], [`💰 ${net.players[net.myId]?.cash | 0}`, 'dinheiro']]);
       } else {
         const md = net.cfg.modo; if (podeRecorde()) { recorde(recKey(), md === 'chefoes' ? +m.ch || 0 : md === 'sobrev' ? +m.mn || 0 : +m.r || 0); checkUnlocks?.(); }
         zEntrouR = 1; // a partida recomeça da rodada 1 com todo mundo
@@ -10886,7 +10934,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
