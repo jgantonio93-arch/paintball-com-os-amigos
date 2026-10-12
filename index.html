@@ -4883,6 +4883,7 @@ function publish(k, m) {
   // (no repasse do dono o q velho ficava no meio e cada celular abria as 3 cópias de cada posição e tiro)
   const { q: _q, ...r } = m, q = `${net.myId}.${++net.seq}`;
   r.q = q; net.seen.add(q); // o eco do que eu mandei (o dono escuta o próprio /a) nem é aberto
+  if (net.seen.size > 3000) net.seen = new Set([...net.seen].slice(-1500));
   const txt = JSON.stringify(r);
   for (const c of net.clients) if (c.connected) c.publish(topic(k), txt);
 }
@@ -5141,7 +5142,7 @@ function onNet(m) {
       if ($('admVida').classList.contains('on')) renderAdmVida();
       return;
     case 'migra': // o dono saiu e passou a sala
-      if (m.id === net.myId) virarDono();
+      if (m.id === net.myId) virarDono(!!m.fica);
       else { net.hostId = m.id; net.lastHostMsg = performance.now(); }
       return;
     case 'dono':
@@ -5653,9 +5654,9 @@ setInterval(() => {
   if (!net.isHost || !net.code) return;
   const now = performance.now();
   // o dono saiu do app (aba escondida: o jogo para de rodar e os zumbis congelam para todo mundo): passa a sala
-  if (document.hidden && !net.local && now - (net.ultQuadro || now) > 3000) {
+  if (document.hidden && !net.local && now - (net.ultQuadro || now) > 6000) {
     const prox = Object.entries(net.players).filter(([id, p]) => !p.bot && id !== net.myId).map(([id]) => id)[0];
-    if (prox) { publish('a', { t: 'migra', id: prox }); deixarDeSerDono(prox); return; }
+    if (prox) { publish('a', { t: 'migra', id: prox, fica: 1 }); deixarDeSerDono(prox); return; }
   }
   if (!net.winning && regenOn()) {
     for (const [id, p] of Object.entries(net.players)) {
@@ -5765,12 +5766,13 @@ $('avFechar').onclick = () => $('admVida').classList.remove('on');
 // Quem assume: o primeiro jogador de verdade (sem bots) na ordem de entrada. Se ele também sumiu, o seguinte.
 const sucessores = () => Object.entries(net.players).filter(([id, p]) => !p.bot && id !== net.hostId).map(([id]) => id);
 const humanosNaSala = () => Object.values(net.players).filter(p => !p.bot).length;
-function virarDono() {
+// fica = o antigo dono só saiu do app e continua na sala (não perde dinheiro, armas, abates nem a foto)
+function virarDono(fica) {
   if (net.isHost || !net.joined || net.local) return;
   const velho = net.hostId, now = performance.now();
   net.isHost = true; net.hostId = net.myId; net.avisoQueda = false;
   if (!net.subs.includes('h')) { net.subs.push('h'); for (const c of net.clients) if (c.connected) c.subscribe(topic('h')); }
-  if (velho && velho !== net.myId) { delete net.players[velho]; net.faces.delete(velho); delete net.roll[velho]; net.flags?.forEach(f => { if (f.by === velho) Object.assign(f, { s: 'base', by: null }); }); }
+  if (velho && velho !== net.myId && !fica) { delete net.players[velho]; net.faces.delete(velho); delete net.roll[velho]; net.flags?.forEach(f => { if (f.by === velho) Object.assign(f, { s: 'base', by: null }); }); }
   // bots são simulados pelo dono: os do antigo somem e eu crio os meus
   for (const [id, p] of Object.entries(net.players)) if (p.bot) { delete net.players[id]; delete net.roll[id]; }
   net.bots.clear();
@@ -8144,9 +8146,14 @@ function zSpit(z, alvo, volley = 1, op = {}) {
 function zSpitTick(dt, alvos) {
   for (let i = Z.spits.length - 1; i >= 0; i--) {
     const s = Z.spits[i];
-    s.vy -= ZG * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt; s.t -= dt;
-    let bateu = s.t <= 0 || s.y <= 0.05 || !!collides(zq.set(s.x, s.y, s.z), 0.1, 0.1);
-    for (const a of alvos) if (Math.hypot(a.x - s.x, a.z - s.z) < 0.8 && s.y > a.y && s.y < a.y + 2) bateu = true;
+    // anda em pedaços de até 0,2 m: no passo fixo de 0,05 s o cuspe (~15 m/s) pulava porta, escudo e parede fina
+    const n = Math.min(8, Math.max(1, Math.ceil(Math.hypot(s.vx, s.vy, s.vz) * dt / 0.2))), h = dt / n;
+    let bateu = false;
+    for (let k = 0; k < n && !bateu; k++) {
+      s.vy -= ZG * h; s.x += s.vx * h; s.y += s.vy * h; s.z += s.vz * h; s.t -= h;
+      bateu = s.t <= 0 || s.y <= 0.05 || !!collides(zq.set(s.x, s.y, s.z), 0.1, 0.1);
+      if (!bateu) for (const a of alvos) if (Math.hypot(a.x - s.x, a.z - s.z) < 0.8 && s.y > a.y && s.y < a.y + 2) { bateu = true; break; }
+    }
     if (!bateu) continue;
     Z.spits.splice(i, 1);
     for (const a of alvos) { const d = Math.hypot(a.x - s.x, a.y + 1 - s.y, a.z - s.z); if (d < 2) { zDamage(a.id, Math.round(s.dmg * (d < 1 ? 1 : 0.6)), s); if (!s.c || s.gelo) broadcast({ t: 'zacid', id: a.id, g: s.gelo ? 1 : undefined }); } }
@@ -8280,11 +8287,12 @@ function zHostTick(dt) {
   // quem desenha (inclusive o dono) interpola as posições do 'zs'
   Z.passo = Math.min(0.15, (Z.passo || 0) + dt);
   for (let k = 0; k < 3 && Z.passo >= Z_PASSO; k++) { Z.passo -= Z_PASSO; zPassoFixo(Z_PASSO, alvos); }
-  const vivos = [...Z.sim.values()];
+  const vivos = [...Z.sim.values()], quieto = !vivos.length && !Z.caes.size && !Z.npc;
   Z.sendT -= dt;
+  if (!quieto && Z.sendT > 0.15) Z.sendT = 0; // apareceu zumbi (ou cachorro) depois de um tempo sem nenhum: manda já
   if (Z.sendT <= 0) {
-    // sem zumbi (intervalo) basta 1×/s; com muitos zumbis um pouco menos vezes por segundo (a tela interpola)
-    Z.sendT = !vivos.length && !Z.caes.size ? 1 : vivos.length > 30 ? 0.14 : vivos.length > 15 ? 0.12 : 0.1;
+    // nada se mexendo (intervalo) basta 1×/s; com muitos zumbis um pouco menos vezes por segundo (a tela interpola)
+    Z.sendT = quieto && !net.local ? 1 : vivos.length > 30 ? 0.14 : vivos.length > 15 ? 0.12 : 0.1;
     broadcast({ t: 'zs', r: Z.round, l: Z.toSpawn + Z.sim.size, z: vivos.map(z => [z.id, r2(z.x), r2(z.y), r2(z.z), r2(z.yaw), Math.round(z.hp / z.max * 100), z.atkFlag ? 1 : 0, z.kind, z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, z.type,
       (z.elite ? 1 : 0) | (z.raiva > 0 ? 2 : 0) | (z.fuse >= 0 ? 4 : 0) | (z.charge > 0 ? 8 : 0) | (z.air ? 16 : 0) | (z.grito > 0 ? 32 : 0) | (z.fogoT > 0 ? 64 : 0) | (z.lentoT > 0 ? 128 : 0) | (z.ladrao ? 256 : 0) | (z.roubou ? 512 : 0)]), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]), np: FAZ ? npcMsg() : undefined });
     for (const z of vivos) z.atkFlag = false;
