@@ -3516,7 +3516,7 @@ const DECAL_CAP = 160, splatGeo = new THREE.PlaneGeometry(1, 1);
 const decalIM = splatTexs.map(t => {
   const m = new THREE.InstancedMesh(splatGeo, new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), DECAL_CAP);
   m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(DECAL_CAP * 3), 3);
-  m.count = 0; m.frustumCulled = false; scene.add(m); return m;
+  m.count = 0; m.frustumCulled = false; m.renderOrder = -1; scene.add(m); return m; // instanciada fica "na origem" na ordem dos transparentes
 });
 const _decO = new THREE.Object3D(), _decC = new THREE.Color();
 function redesenhaDecals() {
@@ -3967,13 +3967,14 @@ let semTrava = !canvas.requestPointerLock;
 const mouseLivre = () => settings.ctrl === 'misto' || (semTrava && !isTouch);
 const mouseNaTela = () => document.pointerLockElement === canvas || mouseLivre();
 function ativaSemTrava() {
-  if (semTrava) return;
+  if (semTrava || pad.ativo) return; // pedido sem clique (controle) sempre falha: não conta
+  if ((ativaSemTrava.falhas = (ativaSemTrava.falhas | 0) + 1) < 2) return; // notebook com tela de toque: uma falha só não basta
   semTrava = true; document.body.classList.add('semtrava');
   feed('🖱️ Mouse sem trava: mova para mirar, encoste na borda da tela para girar, clique para atirar');
 }
 document.addEventListener('pointerlockerror', () => { if (podeSemTrava) ativaSemTrava(); });
 function lockPointer() {
-  if (isTouch || semTrava) return;
+  if (isTouch) return; // mesmo sem trava tenta de novo: se travar, volta ao normal (pointerlockchange)
   try { const r = canvas.requestPointerLock?.(); r?.catch?.(() => { if (podeSemTrava) ativaSemTrava(); }); } catch { if (podeSemTrava) ativaSemTrava(); }
   if (podeSemTrava) { clearTimeout(lockPointer.t); lockPointer.t = setTimeout(() => { if (!isTouch && document.pointerLockElement !== canvas) ativaSemTrava(); }, 500); }
 }
@@ -4005,10 +4006,11 @@ addEventListener('pointermove', e => { if (settings.ctrl === 'auto' && isTouch &
 addEventListener('pointerdown', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse') setInputMode(false, true); }, { capture: true, passive: true });
 addEventListener('touchstart', () => { if (settings.ctrl === 'auto' && !isTouch) setInputMode(true, true); }, { capture: true, passive: true });
 document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === canvas && semTrava) { semTrava = false; ativaSemTrava.falhas = 0; document.body.classList.remove('semtrava'); }
   if (!isTouch && !semTrava && state === 'play' && document.pointerLockElement !== canvas && !chatOpen && !shopOpen) pauseGame();
 });
-addEventListener('pointerdown', e => {
-  if (e.pointerType !== 'mouse') return;
+addEventListener('mousedown', e => {
+  if (e.sourceCapabilities?.firesTouchEvents) return; // clique de mentira gerado por toque
   // na tela do jogo (no misto, também por cima da camada de toque, fora dos botões)
   if (!(e.target === canvas || (settings.ctrl === 'misto' && e.target.closest?.('#touch') && !e.target.closest('.tbtn')))) return;
   if (state === 'play' && !isTouch && !mouseNaTela() && !chatOpen && !shopOpen) { lockPointer(); return; } // clique trava o mouse
@@ -4020,10 +4022,11 @@ addEventListener('pointerdown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 2) player.zoom = false; else mouseDown = false; });
 addEventListener('contextmenu', e => { if (state === 'play') e.preventDefault(); });
-addEventListener('wheel', e => { if (state === 'play' && mouseNaTela()) { if (armaOpen) moverArmaHl(e.deltaY > 0 ? 1 : -1); else cycleWeapon(e.deltaY > 0 ? 1 : -1); } }, { passive: true });
+addEventListener('wheel', e => { if (state === 'play' && mouseNaTela() && (document.pointerLockElement === canvas || !(shopOpen || quickOpen || endOpen))) { if (armaOpen) moverArmaHl(e.deltaY > 0 ? 1 : -1); else cycleWeapon(e.deltaY > 0 ? 1 : -1); } }, { passive: true });
 addEventListener('mousemove', e => {
   mouseXY.x = e.clientX; mouseXY.y = e.clientY;
-  if (!mouseNaTela() || chatOpen || (shopOpen && document.pointerLockElement !== canvas)) return;
+  if (!mouseNaTela() || chatOpen) return;
+  if (document.pointerLockElement !== canvas && (state !== 'play' || shopOpen || armaOpen || endOpen || quickOpen)) return; // mouse livre em cima de uma janela
   const k = (player.zoom ? 0.0008 : 0.0022) * settings.sens;
   player.yaw -= e.movementX * k;
   player.pitch = THREE.MathUtils.clamp(player.pitch - e.movementY * k * (settings.inv ? -1 : 1), -1.45, 1.45);
@@ -4219,6 +4222,7 @@ function lerControle(dt) {
   if (raiz || state !== 'play' || chatOpen) {
     // menus e janelas: solta o que estava apertado no jogo e anda entre os botões (segurando, repete)
     if (Object.keys(pad.seg).length || pad.fogo || pad.mx || pad.my || pad.zoom) padSolta();
+    pad.bloq = agora.slice(); // o que estiver apertado agora só vale no jogo depois de soltar
     if (!chatOpen) {
       const dx = agora[15] || lx > 0.5 ? 1 : agora[14] || lx < -0.5 ? -1 : 0;
       const dy = dx ? 0 : agora[13] || ly > 0.5 ? 1 : agora[12] || ly < -0.5 ? -1 : 0;
@@ -4242,6 +4246,7 @@ function lerControle(dt) {
     player.yaw -= Math.sign(rx) * rx * rx * 3.2 * k;
     player.pitch = THREE.MathUtils.clamp(player.pitch - Math.sign(ry) * ry * ry * 2.2 * k * (settings.inv ? -1 : 1), -1.45, 1.45);
     for (const i in PAD_TECLA) {
+      if (pad.bloq?.[i]) { if (!agora[i]) pad.bloq[i] = false; continue; }
       if (agora[i] && !pad.seg[i]) { pad.seg[i] = PAD_TECLA[i]; padTecla(pad.seg[i], true); }
       else if (!agora[i] && pad.seg[i]) { padTecla(pad.seg[i], false); delete pad.seg[i]; }
     }
@@ -4249,7 +4254,7 @@ function lerControle(dt) {
     if (desceu(9)) togglePause();
     // gatilhos: RT atira (assistindo, troca quem assiste), LT segura o zoom
     if (assistindo()) { if (rt && !pad.rt) specProximo(); pad.fogo = false; }
-    else pad.fogo = rt;
+    else { if (pad.bloq?.[7] && !rt) pad.bloq[7] = false; pad.fogo = rt && !pad.bloq?.[7]; }
     if (lt && !pad.zoom) { pad.zoom = true; if (curW().zoom && player.reloading <= 0) player.zoom = true; }
     else if (!lt && pad.zoom) { pad.zoom = false; player.zoom = false; }
   }
@@ -5079,7 +5084,7 @@ function hostHandle(from, m) {
       // posição: o dono guarda a última de cada um e manda todas juntas 10×/s ('ps', psTick) em vez de repassar
       // uma mensagem por jogador (com 4 jogadores eram 3 repasses × 10/s × 3 servidores para cada celular)
       if (!Array.isArray(m.p) || m.p.length !== 3 || !m.p.every(Number.isFinite)) break;
-      net.ppos.set(from, m.p); psGuarda(from, m);
+      net.ppos.set(from, m.p); psGuarda(from, m); psTick(); // psTick também roda aqui: com a aba do dono escondida o frame para
       break;
     case 'shot':
       if (m.w === 'granada' && (net.cfg.modo === 'gg' || net.cfg.modo === 'esconde')) break; // granada não vale nesses modos
@@ -5790,6 +5795,7 @@ const humanosNaSala = () => Object.values(net.players).filter(p => !p.bot).lengt
 // fica = o antigo dono só saiu do app e continua na sala (não perde dinheiro, armas, abates nem a foto)
 function virarDono(fica) {
   if (net.isHost || !net.joined || net.local) return;
+  Z.rev.clear();
   const velho = net.hostId, now = performance.now();
   net.isHost = true; net.hostId = net.myId; net.avisoQueda = false;
   if (!net.subs.includes('h')) { net.subs.push('h'); for (const c of net.clients) if (c.connected) c.subscribe(topic('h')); }
@@ -5824,6 +5830,7 @@ function donoRival(m) {
   if (dele > meus || (dele === meus && m.id < net.myId)) deixarDeSerDono(m.id);
 }
 function deixarDeSerDono(novo) {
+  Z.rev.clear();
   clearTimers();
   net.isHost = false; net.hostId = novo; net.lastHostMsg = performance.now();
   for (const [id, p] of Object.entries(net.players)) if (p.bot) delete net.players[id];
@@ -8286,11 +8293,13 @@ function zHostTick(dt) {
   if (Z.over) { Z.overT -= dt; if (Z.overT <= 0) { if (Z.continua) zContinuar(); else zRestart(); } return; }
   // levantando alguém: o tempo dele fica parado enquanto quem levanta segura perto (aviso 'downp' a cada 1 s)
   for (const [id, R] of Z.rev) {
-    const p = net.players[id], rv = net.players[R.by], a = zPlayerPos(R.by), b = zPlayerPos(id);
+    const p = net.players[id], b = zPlayerPos(id);
     if (!p?.down) { Z.rev.delete(id); continue; }
-    if (rv && !rv.down && !rv.dead && now - R.ping < 900 && a && b && Math.hypot(a[0] - b[0], a[2] - b[2]) <= 3.5) {
+    // vale quem ainda segura (aviso há menos de 0,9 s), está de pé e perto
+    for (const [by, ping] of R.quem) { const rv = net.players[by], a = zPlayerPos(by); if (!rv || rv.down || rv.dead || now - ping >= 900 || !a || !b || Math.hypot(a[0] - b[0], a[2] - b[2]) > 3.5) R.quem.delete(by); }
+    if (R.quem.size) {
       p.downUntil = now + R.resto;
-      if (now - R.aviso > 1000) { R.aviso = now; broadcast({ t: 'downp', id, by: R.by, on: 1 }); }
+      if (now - R.aviso > 1000) { R.aviso = now; broadcast({ t: 'downp', id, by: R.quem.keys().next().value, on: 1 }); }
     } else { Z.rev.delete(id); p.downUntil = now + R.resto; broadcast({ t: 'downp', id, on: 0, s: r2(R.resto / 1000) }); }
   }
   // quem está caído sangra até morrer
@@ -8485,11 +8494,11 @@ function zHostHandle(from, m) {
     const tg = net.players[m.target], rv = net.players[from], now = performance.now();
     if (!tg?.down || !rv || rv.down || rv.dead || m.target === from) return;
     const R = Z.rev.get(m.target);
-    if (!m.on) { if (R?.by === from) R.ping = 0; return; }
+    if (!m.on) { R?.quem.delete(from); return; }
     const a = zPlayerPos(from), b = zPlayerPos(m.target);
     if (!a || !b || Math.hypot(a[0] - b[0], a[2] - b[2]) > 3.5) return;
-    if (!R) { Z.rev.set(m.target, { by: from, ping: now, resto: Math.max(0, tg.downUntil - now), aviso: now }); broadcast({ t: 'downp', id: m.target, by: from, on: 1 }); }
-    else { R.by = from; R.ping = now; }
+    if (!R) { Z.rev.set(m.target, { quem: new Map([[from, now]]), resto: Math.max(0, tg.downUntil - now), aviso: now }); broadcast({ t: 'downp', id: m.target, by: from, on: 1 }); }
+    else R.quem.set(from, now);
   } else if (m.t === 'revive') {
     const tg = net.players[m.target], rv = net.players[from];
     if (!tg?.down || !rv || rv.down || rv.dead || m.target === from) return;
