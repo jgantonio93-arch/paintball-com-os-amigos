@@ -4767,7 +4767,7 @@ const CFG_PADRAO = { modo: 'dm', mapa: 'arena', clima: 'auto', tempo: 10, kills:
 const regra = k => (mode === 'online' || net.joined) ? net.cfg[k] ?? CFG_PADRAO[k] : CFG_PADRAO[k];
 // times do modo Times
 const TEAMS = [{ nome: 'Vermelho', cor: 0xe74c3c, css: '#ff6b5e', emoji: '🔴' }, { nome: 'Azul', cor: 0x2e86de, css: '#5aaeff', emoji: '🔵' }];
-const net = { local: false, ppos: new Map(), lastDmg: new Map(), cfg: { ...CFG_PADRAO }, inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false,
+const net = { local: false, psV: {}, ppos: new Map(), lastDmg: new Map(), cfg: { ...CFG_PADRAO }, inv: new Map(), lastSeen: new Map(), lastHostMsg: 0, clients: [], seq: 0, seen: new Set(), isHost: false, joined: false, hello: null, timers: [], myId: null, code: null, players: {}, sendT: 0, winning: false,
   faces: new Map(), roll: {}, rollAt: 0, rollNext: 0, endAt: 0, endLocal: 0, chatT: new Map(), tpts: [0, 0], flags: null, hill: null, hs: null, ms: {}, votes: {}, bots: new Map() };
 const remotes = new Map();
 // Gun Game: a ordem fixa, só com as armas liberadas na sala (precisa de pelo menos 2)
@@ -4834,7 +4834,7 @@ const params = new URLSearchParams(location.search);
 // ?mqtt=wss://… permite usar outro servidor (útil para testes)
 const BROKERS = params.get('mqtt') ? params.get('mqtt').split(',') : ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const VERSAO = 38;
+const VERSAO = 39;
 // Regeneração (PvP): depois de REGEN_DELAY s sem levar dano, recupera REGEN_RATE da vida máxima por segundo
 const REGEN_DELAY = 5, REGEN_RATE = 0.12;
 // vida máxima com o ajuste da sala (50% / 100% / 200%)
@@ -4968,6 +4968,15 @@ function rollWeapons(first) {
   else net.rollNext = net.cfg.rInt ? performance.now() + seg * 1000 : 0;
 }
 
+// posições juntas: id, arma, x, y, z, ângulo, inclinação, agachado, efeitos, objeto (esconde) e trator (só quem dirige)
+const psBuf = new Map();
+function psGuarda(id, m) { psBuf.set(id, [id, WEAPONS[m.w] ? m.w : 'marcador', r2(m.p[0]), r2(m.p[1]), r2(m.p[2]), r2(+m.y || 0), r2(+m.pi || 0), m.c ? 1 : 0, m.e | 0, m.pk | 0, ...(typeof m.tr === 'number' ? [r2(m.tr)] : [])]); }
+function psTick() {
+  if (!psBuf.size || performance.now() - (psTick.t || 0) < 95) return;
+  psTick.t = performance.now();
+  const l = [...psBuf.values()]; psBuf.clear();
+  broadcast({ t: 'ps', l });
+}
 function hostHandle(from, m) {
   if (typeof from !== 'string' || from.length > 20 || !m || typeof m.t !== 'string') return;
   if (m.t !== 'hello' && !net.players[from]) return;
@@ -5062,13 +5071,18 @@ function hostHandle(from, m) {
       broadcast({ t: 'chat', id: from, m: m.m.slice(0, 80) });
       break;
     }
-    case 's': case 'shot':
-      if (m.t === 'shot' && m.w === 'granada' && (net.cfg.modo === 'gg' || net.cfg.modo === 'esconde')) break; // granada não vale nesses modos
-      if (m.t === 's' && Array.isArray(m.p)) net.ppos.set(from, m.p);
-      if (m.t === 'shot') msOf(from).sh += Math.min(12, Array.isArray(m.ds) ? m.ds.length : 1);
+    case 's':
+      // posição: o dono guarda a última de cada um e manda todas juntas 10×/s ('ps', psTick) em vez de repassar
+      // uma mensagem por jogador (com 4 jogadores eram 3 repasses × 10/s × 3 servidores para cada celular)
+      if (!Array.isArray(m.p) || m.p.length !== 3 || !m.p.every(Number.isFinite)) break;
+      net.ppos.set(from, m.p); psGuarda(from, m);
+      break;
+    case 'shot':
+      if (m.w === 'granada' && (net.cfg.modo === 'gg' || net.cfg.modo === 'esconde')) break; // granada não vale nesses modos
+      msOf(from).sh += Math.min(12, Array.isArray(m.ds) ? m.ds.length : 1);
       broadcast({ ...m, f: undefined, id: from }, from);
       break;
-    case 'zhit': case 'revive': case 'zretrato': zHostHandle(from, m); break;
+    case 'zhit': case 'revive': case 'rvh': case 'zretrato': zHostHandle(from, m); break;
     case 'zhitl': if (Array.isArray(m.l)) for (const e of m.l.slice(0, 60)) if (Array.isArray(e)) zHostHandle(from, { t: 'zhit', id: e[0], w: m.w, f: e[1], h: e[2] }); break;
     case 'buy': if (ehZumbi(net.cfg.modo)) zComprar(from, m); break;
     case 'pronto': if (ehZumbi(net.cfg.modo)) zPronto(from); break;
@@ -5199,11 +5213,15 @@ function onNet(m) {
     case 'puclear': clearPickups(); break;
     case 'pux': removePickup(m.id); break;
     case 'joined': if (m.id !== net.myId) feed(`${nameOf(m.id)} entrou na sala`); break;
-    case 's': {
-      const r = remotes.get(m.id); if (!r || !seqNovo(r, m)) break;
-      r.target.fromArray(m.p); r.yaw = m.y; r.pitch = m.pi; r.crouch = !!m.c; r.fx = m.e | 0; r.w = WEAPONS[m.w] ? m.w : 'marcador';
-      r.pk = Number.isInteger(m.pk) && PROPS[m.pk] ? m.pk : 0; r.tr = typeof m.tr === 'number' ? m.tr : undefined;
-      if (!r.seen) { r.seen = true; r.pos.copy(r.target); }
+    case 'ps': {
+      if (!Array.isArray(m.l) || !seqNovo(net.psV, m)) break;
+      for (const e of m.l) {
+        if (!Array.isArray(e) || e.length < 10) continue;
+        const r = remotes.get(e[0]); if (!r || !Number.isFinite(e[2] + e[3] + e[4])) continue;
+        r.target.set(e[2], e[3], e[4]); r.yaw = +e[5] || 0; r.pitch = +e[6] || 0; r.crouch = !!e[7]; r.fx = e[8] | 0; r.w = WEAPONS[e[1]] ? e[1] : 'marcador';
+        r.pk = Number.isInteger(e[9]) && PROPS[e[9]] ? e[9] : 0; r.tr = typeof e[10] === 'number' ? e[10] : undefined;
+        if (!r.seen) { r.seen = true; r.pos.copy(r.target); }
+      }
       break;
     }
     case 'shot': {
@@ -6093,7 +6111,7 @@ function renderCfgForm() {
   $('rowBots').hidden = zb || es; $('rowDif').hidden = !(zb || c.bots > 0) || es;
   $('cfgDifTxt').textContent = zb ? '🧟 Dificuldade das hordas' : '🤖 Dificuldade dos bots';
   $('cfgKillsTxt').textContent = { tdm: '🎯 Abates do time para vencer', ctf: '🚩 Capturas para vencer', koth: '⛰️ Pontos no morro para vencer', ultimo: '💀 Rodadas para vencer', esconde: '📦 Rodadas para vencer' }[c.modo] || '🎯 Abates para vencer';
-  $('ggInfo').textContent = zb ? (INFO_COOP[c.modo] || '') + `Hordas em rodadas com 10 tipos de monstro, rodadas especiais e chefão a cada 5. Todo mundo começa com pistola fraca e compra armas na 💰 Lojinha com o dinheiro dos monstros (2 armas por pessoa, níveis até 5). Quem cai fica derrubado ${BLEED_S} s esperando um amigo levantar; a vida não volta sozinha.`
+  $('ggInfo').textContent = zb ? (INFO_COOP[c.modo] || '') + `Hordas em rodadas com 10 tipos de monstro, rodadas especiais e chefão a cada 5. Todo mundo começa com pistola fraca e compra armas na 💰 Lojinha com o dinheiro dos monstros (2 armas por pessoa, níveis até 5). Quem cai fica derrubado ${BLEED_S} s esperando um amigo levantar (enquanto ele segura, o tempo para); a vida não volta sozinha.`
     : gg ? 'Cada abate troca sua arma: ' + ggOrderOf(c).map(id => WEAPONS[id].nome).join(' → ') + '. Um abate com a última arma vence!'
     : rol ? `A arma de todo mundo muda ${c.rInt ? `a cada ${c.rInt} s` : 'em momentos aleatórios (de 10 a 40 s)'}, ${c.rIgual ? 'todos ficam com a mesma' : 'cada um com uma diferente'}. Sorteio entre as armas liberadas abaixo.`
     : c.modo === 'ctf' ? 'Dois times. Encoste na bandeira do outro time e leve até a sua base (a sua bandeira precisa estar lá). Quem é pintado com a bandeira deixa ela cair; encoste na sua bandeira caída para devolver.'
@@ -6941,8 +6959,10 @@ const BLEED_S = 30, REVIVE_S = 3;
 const isZumbi = () => mode === 'online' && ehZumbi(net.cfg.modo);
 const isMissao = () => mode === 'online' && net.cfg.modo === 'missao';
 const zombies = new Map();
-const Z = { caes: new Map(), sim: new Map(), spits: [], round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, seq: 0, sendT: 0, rosterT: 0, started: false, roundView: 0, left: 0, evento: null, vistos: new Set(), eventoView: null };
+const Z = { rev: new Map(), caes: new Map(), sim: new Map(), spits: [], round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, seq: 0, sendT: 0, rosterT: 0, started: false, roundView: 0, left: 0, evento: null, vistos: new Set(), eventoView: null };
 let meDown = false, downEnd = 0, reviveT = 0, reviveId = null, touchRevive = false;
+// alguém me levantando ('downp'): o tempo fica parado (downResto) e eu não rastejo; sem aviso por 1,6 s, volta a correr
+let downPausa = 0, downResto = 0, downPor = null;
 const r2 = v => Math.round(v * 100) / 100;
 
 // ----- Bestiário -----
@@ -7344,12 +7364,18 @@ function zApply(m) {
   Z.roundView = m.r | 0; Z.left = m.l | 0;
   const now = performance.now(), seen = new Set();
   for (const e of m.z) {
-    if (!Array.isArray(e) || e.length < 8) continue;
-    const [id, x, y, z, yaw, hp, atk, kind, boss, type, flags] = e;
+    if (!Array.isArray(e) || e.length < 5) continue;
+    const id = e[0], x = e[1] / 10, z = e[2] / 10, yaw = e[3] / 100, hp = e[4], y = (e[5] | 0) / 10, atk = e[6] | 0, flags = e[7] | 0;
+    if (!Number.isFinite(x + z + yaw)) continue;
     seen.add(id);
-    const o = zombies.get(id) || makeZombie(id, kind | 0, +x, +y, +z, boss | 0, ZTYPES[type | 0] ? type | 0 : 0);
+    let o = zombies.get(id);
+    if (!o) { // zumbi novo: precisa do tipo/rosto (vem nos primeiros envios e no quadro-chave de 1 s)
+      if (e.length < 11) continue;
+      const kind = e[8] | 0, boss = e[9] | 0, type = e[10] | 0;
+      o = makeZombie(id, kind, x, y, z, boss, ZTYPES[type] ? type : 0);
+    }
     if (o.dead) continue;
-    o.target.set(+x, +y, +z); o.yaw = +yaw; o.hpPct = hp; o.last = now;
+    o.target.set(x, y, z); o.yaw = yaw; o.hpPct = hp; o.last = now;
     const antes = o.flags; o.flags = flags | 0;
     if ((o.flags & 256) && !o.icLadrao) { const ic = iconSprite('💸', 0xffd23d); ic.material.depthTest = false; ic.renderOrder = 9; ic.scale.set(0.8, 0.8, 1); ic.position.y = 3.3; o.root.add(ic); o.icLadrao = ic; for (const m of o.mats) m.color?.lerp(new THREE.Color(0xffd23d), 0.35); }
     if ((o.flags & 4) && !(antes & 4)) zsom('pavio', o.pos);
@@ -7463,7 +7489,7 @@ function updateSpitView(dt) {
 
 // --- simulação (só o dono da sala) ---
 function zPlayerPos(id) { return id === net.myId ? player.pos.toArray() : net.ppos.get(id); }
-function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null, obj: null, bossFila: [], chOrdem: null, chPos: 0, chDerrot: new Set(), chView: null, chMortos: 0, chVar: null, chVarAntes: null, sv: null, genLugar: null, defVar: null }); }
+function zReset() { Z.rev.clear(); Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null, obj: null, bossFila: [], chOrdem: null, chPos: 0, chDerrot: new Set(), chView: null, chMortos: 0, chVar: null, chVarAntes: null, sv: null, genLugar: null, defVar: null }); }
 function zBegin() {
   zReset(); zGuarda.clear(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
   for (const p of Object.values(net.players)) zEcoInit(p, true);
@@ -8248,6 +8274,15 @@ function zHostTick(dt) {
   const now = performance.now();
   zdEnvia(dt);
   if (Z.over) { Z.overT -= dt; if (Z.overT <= 0) { if (Z.continua) zContinuar(); else zRestart(); } return; }
+  // levantando alguém: o tempo dele fica parado enquanto quem levanta segura perto (aviso 'downp' a cada 1 s)
+  for (const [id, R] of Z.rev) {
+    const p = net.players[id], rv = net.players[R.by], a = zPlayerPos(R.by), b = zPlayerPos(id);
+    if (!p?.down) { Z.rev.delete(id); continue; }
+    if (rv && !rv.down && !rv.dead && now - R.ping < 900 && a && b && Math.hypot(a[0] - b[0], a[2] - b[2]) <= 3.5) {
+      p.downUntil = now + R.resto;
+      if (now - R.aviso > 1000) { R.aviso = now; broadcast({ t: 'downp', id, by: R.by, on: 1 }); }
+    } else { Z.rev.delete(id); p.downUntil = now + R.resto; broadcast({ t: 'downp', id, on: 0, s: r2(R.resto / 1000) }); }
+  }
   // quem está caído sangra até morrer
   for (const [id, p] of Object.entries(net.players)) {
     if (p.down && p.autoUp && now > p.autoUp) { p.down = false; p.autoUp = 0; p.hp = Math.round(hpMax(id) * 0.5); net.lastDmg.set(id, now); zInvencivel(id); broadcast({ t: 'up', id, by: id, hp: p.hp, auto: 1 }); sendRoster(); continue; }
@@ -8282,11 +8317,21 @@ function zHostTick(dt) {
   for (let k = 0; k < 3 && Z.passo >= Z_PASSO; k++) { Z.passo -= Z_PASSO; zPassoFixo(Z_PASSO, alvos); }
   const vivos = [...Z.sim.values()];
   Z.sendT -= dt;
+  if (vivos.length && Z.sendT > 0.15) Z.sendT = 0; // apareceu zumbi depois de um tempo sem nenhum: manda já
   if (Z.sendT <= 0) {
     // sem zumbi (intervalo) basta 1×/s; com muitos zumbis um pouco menos vezes por segundo (a tela interpola)
     Z.sendT = !vivos.length && !Z.caes.size ? 1 : vivos.length > 30 ? 0.14 : vivos.length > 15 ? 0.12 : 0.1;
-    broadcast({ t: 'zs', r: Z.round, l: Z.toSpawn + Z.sim.size, z: vivos.map(z => [z.id, r2(z.x), r2(z.y), r2(z.z), r2(z.yaw), Math.round(z.hp / z.max * 100), z.atkFlag ? 1 : 0, z.kind, z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, z.type,
-      (z.elite ? 1 : 0) | (z.raiva > 0 ? 2 : 0) | (z.fuse >= 0 ? 4 : 0) | (z.charge > 0 ? 8 : 0) | (z.air ? 16 : 0) | (z.grito > 0 ? 32 : 0) | (z.fogoT > 0 ? 64 : 0) | (z.lentoT > 0 ? 128 : 0) | (z.ladrao ? 256 : 0) | (z.roubou ? 512 : 0)]), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]), np: FAZ ? npcMsg() : undefined });
+    // zumbi compacto (v39): [id, x, z, ângulo, vida%, y, ataque, flags] com x/y/z ×10 e ângulo ×100 em inteiros e os zeros
+    // do fim cortados; tipo, rosto e chefão ([8], [9], [10]) só nos 3 primeiros envios de cada um e a cada ~1 s
+    const agoraZ = performance.now(), chave = agoraZ - (Z.chaveEm || 0) >= 1000;
+    if (chave) Z.chaveEm = agoraZ;
+    broadcast({ t: 'zs', r: Z.round, l: Z.toSpawn + Z.sim.size, z: vivos.map(z => {
+      const e = [z.id, Math.round(z.x * 10), Math.round(z.z * 10), Math.round(z.yaw * 100), Math.round(z.hp / z.max * 100), Math.round(z.y * 10), z.atkFlag ? 1 : 0,
+        (z.elite ? 1 : 0) | (z.raiva > 0 ? 2 : 0) | (z.fuse >= 0 ? 4 : 0) | (z.charge > 0 ? 8 : 0) | (z.air ? 16 : 0) | (z.grito > 0 ? 32 : 0) | (z.fogoT > 0 ? 64 : 0) | (z.lentoT > 0 ? 128 : 0) | (z.ladrao ? 256 : 0) | (z.roubou ? 512 : 0)];
+      if (chave || (z.zsN = (z.zsN | 0) + 1) <= 3) e.push(z.kind, z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, z.type);
+      else while (e.length > 5 && !e[e.length - 1]) e.pop();
+      return e;
+    }), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]), np: FAZ ? npcMsg() : undefined });
     for (const z of vivos) z.atkFlag = false;
   }
   Z.rosterT -= dt;
@@ -8425,6 +8470,16 @@ function zHostHandle(from, m) {
       p.caixa = { w, l: Math.min(NIVEL_MAX, zNivelLoja() + 1) }; broadcast({ t: 'caixa', id, w, l: p.caixa.l });
     }
     Z.rosterDirty = true;
+  } else if (m.t === 'rvh') {
+    // alguém segurando E/LEVANTAR perto de quem caiu: o tempo dele para enquanto durar (e ele não rasteja)
+    const tg = net.players[m.target], rv = net.players[from], now = performance.now();
+    if (!tg?.down || !rv || rv.down || rv.dead || m.target === from) return;
+    const R = Z.rev.get(m.target);
+    if (!m.on) { if (R?.by === from) R.ping = 0; return; }
+    const a = zPlayerPos(from), b = zPlayerPos(m.target);
+    if (!a || !b || Math.hypot(a[0] - b[0], a[2] - b[2]) > 3.5) return;
+    if (!R) { Z.rev.set(m.target, { by: from, ping: now, resto: Math.max(0, tg.downUntil - now), aviso: now }); broadcast({ t: 'downp', id: m.target, by: from, on: 1 }); }
+    else { R.by = from; R.ping = now; }
   } else if (m.t === 'revive') {
     const tg = net.players[m.target], rv = net.players[from];
     if (!tg?.down || !rv || rv.down || rv.dead || m.target === from) return;
@@ -8689,6 +8744,19 @@ function zOnNet(m) {
         feed(`🆘 ${nameOf(m.id)} caiu! Vai lá levantar!`);
       }
       return true;
+    case 'downp': {
+      const agora = performance.now();
+      if (m.id === net.myId) {
+        if (!meDown) return true;
+        if (m.on) { if (!downPausa) { downResto = Math.max(0, downEnd - agora); if (!downPor || downPor !== m.by) feed(`🩹 ${nameOf(m.by)} está te levantando: aguente aí`); } downPausa = agora; downPor = m.by; }
+        else { downPausa = 0; downPor = null; if (typeof m.s === 'number') downEnd = agora + m.s * 1000; }
+      } else {
+        const r = remotes.get(m.id); if (!r?.down) return true;
+        if (m.on) { if (!r.downPausa) r.downResto = Math.max(0, r.downEnd - agora); r.downPausa = agora; }
+        else { r.downPausa = 0; if (typeof m.s === 'number') r.downEnd = agora + m.s * 1000; }
+      }
+      return true;
+    }
     case 'up':
       if (m.id === net.myId) { meDown = false; player.hp = m.hp; player.invT = INV_VOLTA_S; updateFx(); banner(m.auto ? '🩹 Segunda Chance: você levantou!' : `${nameOf(m.by)} te levantou! 💪`, 2); updateHud(); }
       else { const r = remotes.get(m.id); if (r) r.down = false; feed(m.auto ? `🩹 ${nameOf(m.id)} levantou sozinho (Segunda Chance)` : m.by === net.myId ? `Você levantou ${nameOf(m.id)}!` : `${nameOf(m.by)} levantou ${nameOf(m.id)}`); }
@@ -8754,14 +8822,14 @@ function reviveSprite(r) {
     r.revSp.scale.set(1.4, 0.7, 1); r.revSp.renderOrder = 11; r.revSp.position.y = 1.6;
     r.revCanvas = c; r.root.add(r.revSp);
   }
-  const s = Math.max(0, Math.ceil((r.downEnd - performance.now()) / 1000));
-  if (s !== r.revS) {
-    r.revS = s;
+  const s = Math.max(0, Math.ceil((r.downEnd - performance.now()) / 1000)), pausa = !!r.downPausa, k = pausa ? -1 - s : s;
+  if (k !== r.revS) {
+    r.revS = k;
     const g = r.revCanvas.getContext('2d');
     g.clearRect(0, 0, 128, 64);
     g.fillStyle = 'rgba(10,14,28,.75)'; g.beginPath(); g.roundRect?.(4, 4, 120, 56, 16); g.fill();
-    g.fillStyle = s > 10 ? '#3dff8b' : '#ff5a4a'; g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(`✚ ${s}s`, 64, 34);
+    g.fillStyle = pausa ? '#5ac8ff' : s > 10 ? '#3dff8b' : '#ff5a4a'; g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(`${pausa ? '🩹' : '✚'} ${s}s`, 64, 34);
     r.revSp.material.map.needsUpdate = true;
   }
   r.revSp.visible = true;
@@ -8778,11 +8846,14 @@ function zClientTick(dt) {
   const caido = meDown || (meDead && isZumbi());
   $('downOverlay').classList.toggle('on', meDown);
   css($('downBox'), 'display', String(caido && !assistindo() ? 'block' : 'none'));
+  const agoraC = performance.now();
+  if (downPausa && (!meDown || agoraC - downPausa > 1600)) { if (meDown) downEnd = agoraC + downResto; downPausa = 0; downPor = null; }
+  if (downPausa) downEnd = agoraC + downResto; // sendo levantado: o tempo não anda
   if (meDown) {
     const rest = Math.max(0, (downEnd - performance.now()) / 1000);
     const vivos = Object.entries(net.players).filter(([id, p]) => id !== net.myId && !p.dead && !p.down).length;
-    txt($('downTitle'), String('VOCÊ CAIU!'));
-    txt($('downText'), String(vivos ? `Aguente firme: um amigo pode te levantar · ${Math.ceil(rest)}s` : `Ninguém de pé para te levantar… ${Math.ceil(rest)}s`));
+    txt($('downTitle'), String(downPausa ? '🩹 TE LEVANTANDO…' : 'VOCÊ CAIU!'));
+    txt($('downText'), String(downPausa ? `${nameOf(downPor)} está te levantando · o tempo parou em ${Math.ceil(rest)}s` : vivos ? `Aguente firme: um amigo pode te levantar · ${Math.ceil(rest)}s` : `Ninguém de pé para te levantar… ${Math.ceil(rest)}s`));
     css($('downFill'), 'width', String((rest / BLEED_S * 100) + '%'));
   } else if (caido) {
     txt($('downTitle'), String('VOCÊ MORREU'));
@@ -8790,7 +8861,11 @@ function zClientTick(dt) {
     css($('downFill'), 'width', String('0%'));
   }
   // marcador de "caído" em cima dos amigos
-  for (const r of remotes.values()) { if (r.down) reviveSprite(r); else if (r.revSp) r.revSp.visible = false; }
+  for (const r of remotes.values()) {
+    if (r.downPausa && (!r.down || agoraC - r.downPausa > 1600)) { if (r.down) r.downEnd = agoraC + r.downResto; r.downPausa = 0; }
+    if (r.downPausa) r.downEnd = agoraC + r.downResto;
+    if (r.down) reviveSprite(r); else if (r.revSp) r.revSp.visible = false;
+  }
   // levantar um amigo caído perto de mim
   let alvo = null;
   if (state === 'play' && !meDown && !meDead) {
@@ -8804,6 +8879,9 @@ function zClientTick(dt) {
   if (!alvo || alvo.id !== reviveId) { reviveT = 0; reviveId = alvo?.id ?? null; }
   css($('revivePrompt'), 'display', String(alvo ? 'block' : 'none'));
   css($('reviveBtn'), 'display', String(alvo && isTouch ? 'flex' : 'none'));
+  const segurandoRv = !!alvo && (keys.KeyE || touchRevive) && reviveT >= 0;
+  if (segurandoRv && (zClientTick.rvhId !== alvo.id || agoraC - (zClientTick.rvhT || 0) > 250)) { zClientTick.rvhT = agoraC; zClientTick.rvhId = alvo.id; sendNet({ t: 'rvh', target: alvo.id, on: 1 }); }
+  else if (!segurandoRv && zClientTick.rvhId) { sendNet({ t: 'rvh', target: zClientTick.rvhId, on: 0 }); zClientTick.rvhId = null; }
   if (alvo) {
     const segurando = keys.KeyE || touchRevive;
     txt($('reviveText'), String(segurando ? `Levantando ${alvo.name}…` : (isTouch ? `Segure LEVANTAR para levantar ${alvo.name}` : `Segure E para levantar ${alvo.name}`)));
@@ -10543,7 +10621,7 @@ function botTick(dt) {
     }
     // conta a posição para todos
     b.sendT -= dt;
-    if (b.sendT <= 0) { b.sendT = 0.1; broadcast({ t: 's', id, w: wid, p: b.pos.toArray().map(r3), y: r3(b.yaw), pi: r3(b.pitch), c: 0, e: 0 }); }
+    if (b.sendT <= 0) { b.sendT = 0.1; psGuarda(id, { w: wid, p: b.pos.toArray(), y: b.yaw, pi: b.pitch }); }
   }
 }
 // bolinha de bot acertou alguém (só no dono): vira um "hit" como se o bot tivesse avisado
@@ -10841,7 +10919,7 @@ function updatePlayer(dt) {
   player.slowT = Math.max(0, (player.slowT || 0) - dt);
   const boost = (player.speedT > 0 ? 1.6 : 1) * (player.slowT > 0 ? 0.55 : 1);
   player.sprinting = (keys.ShiftLeft || keys.ShiftRight || stickFull) && mz > 0.3 && !player.crouch && !meDown;
-  const speed = meDown ? 1.2 : (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost * regra('velo') * (temVant(net.myId, 'corre') ? 1.2 : 1);
+  const speed = meDown ? (downPausa ? 0 : 1.2) : (player.crouch ? 3 : player.sprinting ? 9 : 6) * boost * regra('velo') * (temVant(net.myId, 'corre') ? 1.2 : 1);
   player.moveDir = player.moveDir || new THREE.Vector3();
   player.moveDir.set(fwd.x * mz + right.x * mx, 0, fwd.z * mz + right.z * mx);
 
@@ -11330,7 +11408,7 @@ function frame() {
     if (!meDead) { net.deadT = 0; net.specFp = null; if (frame.kc) { frame.kc = false; $('killcam').style.display = 'none'; } }
     css($('cross'), 'visibility', meDead ? 'hidden' : '');
     updateRemotes(dt, t);
-    if (net.isHost) { botTick(dt); ctfHostTick(dt); }
+    if (net.isHost) { botTick(dt); ctfHostTick(dt); psTick(); }
     updatePropsView();
     updateObjectives(dt, t);
     updateBalls(dt); zhitEnvia(); shotEnvia();
