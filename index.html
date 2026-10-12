@@ -10171,6 +10171,14 @@ function botBallHit(b, hit) {
   else if (hit.player) hostHandle(b.shooter, { t: 'hit', target: net.myId, w: b.w, h: sorte ? 1 : 0 });
   return true;
 }
+// explosão (balde, granada) não atravessa parede nem escudo: precisa enxergar o tronco ou a cabeça do alvo
+const _expO = new THREE.Vector3(), _expA = new THREE.Vector3(), _expV = new THREE.Vector3();
+function splashVe(p, vel, q) {
+  _expO.copy(p); if (vel && vel.lengthSq() > 0.01) _expO.addScaledVector(_expV.copy(vel).normalize(), -0.3);
+  _expO.y += 0.3;
+  for (const h of [1.0, 2.0]) if (hasLineOfSight(_expO, _expA.set(q.x, q.y + h, q.z))) return true;
+  return false;
+}
 function botSplash(p, b) {
   if (!net.isHost || !net.bots.has(b.shooter)) return;
   const W = WEAPONS[b.w];
@@ -10178,7 +10186,7 @@ function botSplash(p, b) {
   if (!meDead) alvos.push([net.myId, player.pos]);
   for (const [id, q] of alvos) {
     const d = Math.hypot(q.x - p.x, q.y + 1.2 - p.y, q.z - p.z);
-    if (d < W.splash) hostHandle(b.shooter, { t: 'hit', target: id, w: b.w, f: r3(Math.max(0.3, 1 - d / W.splash)) });
+    if (d < W.splash && splashVe(p, b.vel, q)) hostHandle(b.shooter, { t: 'hit', target: id, w: b.w, f: r3(Math.max(0.3, 1 - d / W.splash)) });
   }
 }
 
@@ -10635,7 +10643,7 @@ function explode(p, b) {
   for (const e of shootTargets()) {
     if (e.dead) continue;
     const d = Math.hypot(e.pos.x - p.x, e.pos.y + 1.2 - p.y, e.pos.z - p.z);
-    if (d > W.splash) continue;
+    if (d > W.splash || !splashVe(p, b.vel, e.pos)) continue;
     const f = Math.max(0.3, 1 - d / W.splash);
     acertou = true;
     if (mode === 'online') { e.flash = 0.15; player.hits++; if (e.isZ) zhitJunta(b.w, [e.id, r3(f)]); else sendNet({ t: 'hit', target: e.id, w: b.w, f: r3(f) }); }
@@ -10943,7 +10951,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { explode, obstacles, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
