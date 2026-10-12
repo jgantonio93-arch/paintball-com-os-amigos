@@ -564,6 +564,8 @@
   .stats b { display:block; font-family:var(--disp); font-weight:400; font-size:28px; color:var(--yel); }
   .stats span { font-size:12px; color:var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:1px; }
   #pauseScreen, #overScreen { align-items:center; }
+  .leveDica { position:fixed; left:50%; bottom:calc(14px + var(--sb)); transform:translateX(-50%); z-index:8; background:var(--hud); color:#fff; border:1px solid var(--yel); border-radius:999px; padding:8px 16px; font-weight:800; font-size:13px; pointer-events:auto; }
+  .leveDica b { color:var(--yel); }
   #pauseScreen { background:rgba(8,10,20,.72); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:12; }
   /* desfoque atrás dos botões e janelas custa caro no celular (refeito a cada quadro): só na qualidade alta */
   body:not(.qalta) .tbtn, body:not(.qalta) #shopBox, body:not(.qalta) #pauseScreen, body.leve .panel { backdrop-filter:none; -webkit-backdrop-filter:none; }
@@ -676,6 +678,7 @@
   <div id="invGlow"></div>
   <div id="fx"></div>
   <div id="chatLog"></div>
+  <button id="leveDica" class="leveDica" hidden>⚡ Jogo travando? <b>Ligar Modo leve</b></button>
   <div id="banner"></div>
   <div id="scoreboard"></div>
 </div>
@@ -952,6 +955,7 @@
           <div class="opt"><span>Campo de visão</span><span class="optR"><input type="range" id="setFov" min="65" max="100" step="1"><output id="setFovV"></output></span></div>
           <div class="opt"><span>Tamanho dos botões<small>só no celular</small></span><span class="optR"><input type="range" id="setBtn" min="0.75" max="1.3" step="0.05"><output id="setBtnV"></output></span></div>
           <label class="opt"><span>Controles<small>automático: mexeu o mouse, vira mouse e teclado; tocou na tela, volta o toque</small></span><select id="setCtrl"><option value="auto">Automático</option><option value="toque">Toque</option><option value="mouse">Mouse e teclado</option></select></label>
+          <label class="opt"><span>⚡ Modo leve<small>tira sombras, efeitos, números de dano e detalhes; limita a 30 FPS. Para celular que trava</small></span><select id="setLeve"><option value="0">Desligado</option><option value="1">Ligado</option></select></label>
           <label class="opt"><span>Qualidade gráfica<small>baixa roda melhor em celular fraco</small></span><select id="setQual"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
           <label class="opt"><span>Mira assistida<small>só no celular</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
           <label class="opt">Inverter eixo vertical <select id="setInv"><option value="0">Não</option><option value="1">Sim</option></select></label>
@@ -1140,7 +1144,7 @@ function charList() {
 const amigoDe = c => AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
-const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto' };
+const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto', leve: false };
 const settings = { ...SET_PADRAO };
 Object.assign(settings, load('pb-settings', {}) || {});
 const saveSettings = () => save('pb-settings', settings);
@@ -2872,7 +2876,7 @@ function applyClima() {
   lanterna.intensity = lantBase = noite ? LANTERNA_I : 0;
   sun.castShadow = !noite; // à noite o sol é fraquinho: sombra invisível que custa uma renderização inteira
   if (noite && !antes && climaAvisa && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
-  chuva.lines.visible = molhado;
+  chuva.lines.visible = molhado && !settings.leve;
 }
 // só avisa depois de o jogo terminar de abrir (o 1º loadMap roda antes de `state` existir)
 let climaAvisa = false;
@@ -2927,12 +2931,16 @@ function loadMap(id) {
 
 // cada luz pontual pesa em TODA superfície iluminada: na qualidade baixa/média só ficam as mais fortes
 // (as outras continuam existindo para o código que mexe na intensidade, só fora da cena)
+// (Modo leve: nenhuma; as tiradas ficam guardadas e voltam se mudar a qualidade)
 function limitaLuzes() {
-  const max = { baixa: 2, media: 6 }[settings.qual] ?? 99;
+  const tiradas = mapGroup.userData.luzesTiradas ||= [];
+  for (const [l, pai] of tiradas) pai.add(l);
+  tiradas.length = 0;
+  const max = settings.leve ? 0 : { baixa: 2, media: 6 }[settings.qual] ?? 99;
   const ls = []; mapGroup.traverse(o => { if (o.isPointLight) ls.push(o); });
   if (ls.length <= max) return;
   ls.sort((a, b) => b.intensity * b.distance - a.intensity * a.distance);
-  for (const l of ls.slice(max)) l.parent.remove(l);
+  for (const l of ls.slice(max)) { tiradas.push([l, l.parent]); l.parent.remove(l); }
 }
 // treino solo: modo, mapa e dificuldade escolhidos (salvos no aparelho)
 const soloCfg = { modo: 'ondas', mapa: 'arena', dif: 1, clima: 'auto', ...(load('pb-solo', {}) || {}) };
@@ -3251,6 +3259,7 @@ function emojiSprite(e) {
 }
 const FX_GEO = { confete: new THREE.PlaneGeometry(0.12, 0.08), bola: new THREE.SphereGeometry(0.09, 6, 4) };
 function fxBurst(pos, fxId, alvoScene = scene) {
+  if (settings.leve && alvoScene === scene) return; // Modo leve: sem confete/emojis na partida (a prévia do visual continua)
   const F = FXS.find(x => x.id === fxId); if (!F || F.id === 'nada' || !pos || fxParts.length > (settings.qual === 'baixa' ? 40 : 140)) return;
   const n = (F.id === 'confete' || F.id === 'arcoiris' ? 30 : 12) >> (settings.qual === 'baixa' ? 1 : 0);
   for (let i = 0; i < n; i++) {
@@ -3508,7 +3517,8 @@ function redesenhaDecals() {
 function soltaDecal(d) { if (!d.isMesh) return; d.parent?.remove(d); if (!d.userData.geoFixa) d.geometry.dispose(); d.material.dispose(); }
 function limpaDecals() { for (const d of decalsCorpo) soltaDecal(d); decals.length = decalsCorpo.length = 0; redesenhaDecals(); }
 function addSplat(point, normal, color, parent, size = 0.6) {
-  const max = { baixa: 50, media: 100 }[settings.qual] ?? 160;
+  if (settings.leve && parent) return; // Modo leve: sem tinta grudada nos bonecos
+  const max = settings.leve ? 30 : { baixa: 50, media: 100 }[settings.qual] ?? 160;
   if (!parent) {
     _decO.position.copy(point).addScaledVector(normal, 0.01);
     _decO.lookAt(tmpV.copy(point).add(normal)); _decO.rotateZ(Math.random() * Math.PI * 2); _decO.scale.setScalar(size); _decO.updateMatrix();
@@ -3537,7 +3547,7 @@ function corMat(color, criar) {
   if (!m) { m = criar(); if (corMats.size < 160) corMats.set(color, m); else m.userData.solto = true; }
   return m;
 }
-const PART_MAX = () => settings.qual === 'baixa' ? 110 : settings.qual === 'alta' ? 320 : 200;
+const PART_MAX = () => settings.leve ? 40 : settings.qual === 'baixa' ? 110 : settings.qual === 'alta' ? 320 : 200;
 // partículas (pingos de tinta): todas numa malha instanciada só, com cor por instância
 // (antes cada pingo era uma malha = uma chamada de desenho; uma explosão eram 28)
 const PART_CAP = 320;
@@ -3549,6 +3559,7 @@ partMesh.count = 0; partMesh.frustumCulled = false; scene.add(partMesh);
 const _partM = new THREE.Matrix4(), _partC = new THREE.Color();
 function burst(point, color, n = 14, speed = 4) {
   n = Math.min(n, PART_MAX() - particles.length); if (settings.qual === 'baixa') n = Math.ceil(n / 2);
+  if (settings.leve) n = Math.min(n, 3);
   if (n <= 0) return;
   _partC.setHex(color);
   for (let i = 0; i < n; i++) {
@@ -3830,7 +3841,7 @@ function project(x, y, z) {
 }
 // kind: 'n' normal (branco), 'head' (amarelo), 'kill' (vermelho)
 function dmgNumber(target, dmg, kind) {
-  if (!target?.pos || !(dmg > 0) || regra('raiz')) return;
+  if (!target?.pos || !(dmg > 0) || regra('raiz') || settings.leve) return;
   const el = document.createElement('div'); el.className = 'dnum ' + kind;
   el.textContent = Math.round(dmg) + (kind === 'head' ? '!' : '');
   $('floats').appendChild(el);
@@ -3839,7 +3850,7 @@ function dmgNumber(target, dmg, kind) {
 }
 // barra de vida aparece por alguns segundos em cima de quem eu acertei
 function showBar(target) {
-  if (!target || regra('raiz')) return;
+  if (!target || regra('raiz') || settings.leve) return;
   let b = bars.get(target);
   if (!b) { const el = document.createElement('div'); el.className = 'hpb'; el.innerHTML = '<i></i>'; $('floats').appendChild(el); b = { el, t: 0 }; bars.set(target, b); }
   b.t = 3.5;
@@ -4166,7 +4177,7 @@ function closeControls() {
 function loadSettingsForm() {
   const set = (id, v) => { $(id).value = v; };
   set('setSens', settings.sens); set('setTouch', settings.touch); set('setVol', settings.vol); set('setMus', settings.mus ?? 0.5); set('setFov', settings.fov); set('setBtn', settings.btn || 1);
-  set('setQual', settings.qual); set('setCtrl', settings.ctrl || 'auto'); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0');
+  set('setLeve', settings.leve ? '1' : '0'); set('setQual', settings.qual); set('setCtrl', settings.ctrl || 'auto'); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0');
   showSettingValues();
 }
 function showSettingValues() {
@@ -4178,10 +4189,10 @@ function showSettingValues() {
   $('setBtnV').textContent = Math.round($('setBtn').value * 100) + '%';
 }
 function readSettings() {
-  const qualAntes = settings.qual;
+  const qualAntes = settings.qual, leveAntes = settings.leve;
   Object.assign(settings, {
     sens: +$('setSens').value, touch: +$('setTouch').value, vol: +$('setVol').value, mus: +$('setMus').value, fov: +$('setFov').value, btn: +$('setBtn').value,
-    qual: $('setQual').value, ctrl: $('setCtrl').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1',
+    qual: $('setQual').value, leve: $('setLeve').value === '1', ctrl: $('setCtrl').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1',
   });
   saveSettings();
   showSettingValues();
@@ -4191,19 +4202,21 @@ function readSettings() {
   camera.fov = settings.fov; camera.updateProjectionMatrix();
   $('fps').style.display = settings.fps ? 'block' : 'none';
   applyBtnSize(); stickRest();
-  if (qualAntes !== settings.qual) applyQuality();
+  if (qualAntes !== settings.qual || leveAntes !== settings.leve) applyQuality();
   if (settings.ctrl !== 'auto') setInputMode(settings.ctrl === 'toque');
 }
-const baseRatio = () => Math.min(devicePixelRatio, { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5);
+const baseRatio = () => Math.min(devicePixelRatio, settings.leve ? 0.7 : { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5);
 function applyQuality() {
-  document.body.classList.toggle('qalta', settings.qual === 'alta');
+  document.body.classList.toggle('qalta', settings.qual === 'alta' && !settings.leve);
+  document.body.classList.toggle('leve', !!settings.leve);
+  limitaLuzes();
   autoRes.k = 1;
   renderer.setPixelRatio(baseRatio());
   renderer.setSize(innerWidth, innerHeight);
   const ms = settings.qual === 'alta' ? 2048 : 1024;
   if (sun.shadow.mapSize.x !== ms) { sun.shadow.mapSize.set(ms, ms); sun.shadow.map?.dispose(); sun.shadow.map = null; }
   renderer.shadowMap.type = settings.qual === 'alta' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
-  const sombras = settings.qual !== 'baixa';
+  const sombras = settings.qual !== 'baixa' && !settings.leve;
   if (renderer.shadowMap.enabled !== sombras) {
     renderer.shadowMap.enabled = sombras;
     scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); });
@@ -4211,13 +4224,20 @@ function applyQuality() {
 }
 
 // resolução automática: se o jogo estiver lento (quadro médio > 28 ms) baixa a resolução aos poucos; se sobrar, volta
+// jogo pesado (quadro médio > 45 ms depois de 15 s jogando): oferece o Modo leve uma vez por aparelho
+function leveDica() {
+  const el = $('leveDica');
+  if (settings.leve || state !== 'play' || load('pb-leve-dica', false)) { if (!el.hidden) el.hidden = true; return; }
+  leveDica.t = (leveDica.t || 0) + 1;
+  if (leveDica.t > 450 && (autoRes.m || 0) > 0.045 && el.hidden) { el.hidden = false; setTimeout(() => { el.hidden = true; save('pb-leve-dica', true, true); }, 12000); }
+}
 function autoRes(d) {
   const a = autoRes; a.m = (a.m ?? 0.016) * 0.94 + Math.min(d, 0.2) * 0.06; a.t = (a.t || 0) + d; a.k ??= 1;
   if (a.t < 2.5) return; a.t = 0;
   if (a.m > 0.028 && a.k > 0.55) a.k = Math.max(0.55, a.k - 0.15);
   else if (a.m < 0.0145 && a.k < 1) a.k = Math.min(1, a.k + 0.1);
   else return;
-  const pr = Math.max(Math.min(0.75, baseRatio()), baseRatio() * a.k);
+  const pr = Math.max(settings.leve ? 0.5 : Math.min(0.75, baseRatio()), baseRatio() * a.k);
   if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) { renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); }
 }
 function reload() {
@@ -6719,7 +6739,12 @@ $('pauseSettingsBtn').onclick = () => openControls('pauseScreen');
 $('pauseRoomBtn').onclick = () => showRoomScreen('pauseScreen');
 $('controlsBackBtn').onclick = closeControls;
 for (const id of ['setSens', 'setTouch', 'setVol', 'setMus', 'setFov', 'setBtn']) $(id).oninput = readSettings;
-for (const id of ['setQual', 'setCtrl', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
+for (const id of ['setLeve', 'setQual', 'setCtrl', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
+$('leveDica').onclick = () => {
+  settings.leve = true; saveSettings(); applyQuality(); loadSettingsForm();
+  $('leveDica').hidden = true; save('pb-leve-dica', true, true);
+  feed('⚡ Modo leve ligado (dá para desligar em Controles e ajustes)');
+};
 $('settingsResetBtn').onclick = () => { Object.assign(settings, SET_PADRAO); saveSettings(); loadSettingsForm(); readSettings(); };
 $('resumeBtn').onclick = resumeGame;
 $('quitBtn').onclick = () => { if (mode === 'online') leaveOnline(net.local ? null : 'Você saiu da sala.'); else backToMenu(); };
@@ -10418,7 +10443,7 @@ function playerShoot() {
   }
   const color = W.arcoiris ? new THREE.Color().setHSL(Math.floor((performance.now() / 700) % 1 * 24) / 24, 1, 0.55).getHex() : myPaint() ?? PAINT[Math.floor(Math.random() * PAINT.length)];
   // clarão no cano com a cor da tinta
-  if (!player.zoom) { flashSprite.material.color.setHex(color); flashSprite.scale.setScalar(W.splash ? 0.9 : W.pellets ? 0.75 : 0.45 + Math.random() * 0.15); flashSprite.visible = true; flashT = 0.05; }
+  if (!player.zoom && !settings.leve) { flashSprite.material.color.setHex(color); flashSprite.scale.setScalar(W.splash ? 0.9 : W.pellets ? 0.75 : 0.45 + Math.random() * 0.15); flashSprite.visible = true; flashT = 0.05; }
   const spread = W.spread * (player.zoom ? 0.15 : 1) * (player.crouch ? 0.7 : 1);
   const dirs = [];
   for (let k = 0; k < (W.pellets || 1); k++) {
@@ -11104,6 +11129,10 @@ function spectateTarget() {
 const clock = new THREE.Clock();
 function frame() {
   net.ultQuadro = performance.now();
+  // Modo leve: no máximo ~30 quadros por segundo (menos calor e bateria; o celular não engasga)
+  if (settings.leve && net.ultQuadro - (frame.ultDesenho || 0) < 30) { requestAnimationFrame(frame); return; }
+  frame.ultDesenho = net.ultQuadro;
+  leveDica();
   const clockDt = clock.getDelta(), dt = Math.min(clockDt, 0.05), t = clock.elapsedTime;
   const noMenu = state === 'menu' || state === 'over';
   if (noMenu !== frame.menu) { frame.menu = noMenu; document.body.classList.toggle('inmenu', noMenu); if (noMenu) startMusic(); else stopMusic(); }
@@ -11155,7 +11184,7 @@ function frame() {
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').style.opacity = 0; }
   if (state !== 'menu') updateFloats(dt);
   updateSetas();
-  sombraMat.visible = !(renderer.shadowMap.enabled && sun.castShadow);
+  sombraMat.visible = !settings.leve && !(renderer.shadowMap.enabled && sun.castShadow);
   updateFxParts(dt);
   renderLockerFrame(dt);
   if (state !== 'menu') updateWalls(dt);
@@ -11169,7 +11198,8 @@ function frame() {
 }
 window.__jogo = { onlineSpawn, hasLineOfSight, explode, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
-document.body.classList.toggle('qalta', settings.qual === 'alta');
+document.body.classList.toggle('qalta', settings.qual === 'alta' && !settings.leve);
+if (settings.leve) applyQuality(); // Modo leve salvo: resolução, sombras e luzes já ao abrir
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
 frame();
