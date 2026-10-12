@@ -647,6 +647,9 @@
   }
   /* placar aberto no celular: fica por cima dos botões de toque, que apagam enquanto ele está aberto */
   body.placar #hud { z-index:6; }
+  body.pad #touch { display:none !important; }
+  .padfoco { outline:3px solid #ffd23f !important; outline-offset:2px; box-shadow:0 0 0 6px rgba(255,210,61,.28) !important; }
+  body.mouselivre canvas, body.mouselivre #touch { cursor:crosshair; }
   body.placar #touch .tbtn:not(#boardBtn) { opacity:.15; pointer-events:none; }
   body.placar #scoreboard { pointer-events:auto; touch-action:pan-y; overscroll-behavior:contain; top:calc(58px + var(--st)); transform:translateX(-50%); max-height:calc(100% - 66px - var(--st)); }
 </style>
@@ -950,14 +953,15 @@
         <div class="opts">
           <div class="opt"><span>Sensibilidade do mouse</span><span class="optR"><input type="range" id="setSens" min="0.3" max="2.5" step="0.1"><output id="setSensV"></output></span></div>
           <div class="opt"><span>Sensibilidade do toque</span><span class="optR"><input type="range" id="setTouch" min="0.3" max="2.5" step="0.1"><output id="setTouchV"></output></span></div>
+          <div class="opt"><span>Sensibilidade do controle<small>🎮 Xbox, PlayStation…</small></span><span class="optR"><input type="range" id="setPad" min="0.3" max="2.5" step="0.1"><output id="setPadV"></output></span></div>
           <div class="opt"><span>Volume</span><span class="optR"><input type="range" id="setVol" min="0" max="1" step="0.05"><output id="setVolV"></output></span></div>
           <div class="opt"><span>Música dos menus</span><span class="optR"><input type="range" id="setMus" min="0" max="1" step="0.05"><output id="setMusV"></output></span></div>
           <div class="opt"><span>Campo de visão</span><span class="optR"><input type="range" id="setFov" min="65" max="100" step="1"><output id="setFovV"></output></span></div>
           <div class="opt"><span>Tamanho dos botões<small>só no celular</small></span><span class="optR"><input type="range" id="setBtn" min="0.75" max="1.3" step="0.05"><output id="setBtnV"></output></span></div>
-          <label class="opt"><span>Controles<small>automático: mexeu o mouse, vira mouse e teclado; tocou na tela, volta o toque</small></span><select id="setCtrl"><option value="auto">Automático</option><option value="toque">Toque</option><option value="mouse">Mouse e teclado</option></select></label>
-          <label class="opt"><span>⚡ Modo leve<small>tira sombras, efeitos, números de dano e detalhes; limita a 30 FPS. Para celular que trava</small></span><select id="setLeve"><option value="0">Desligado</option><option value="1">Ligado</option></select></label>
+          <label class="opt"><span>Controles<small>automático: mexeu o mouse, vira mouse e teclado; tocou na tela, volta o toque</small></span><select id="setCtrl"><option value="auto">Automático</option><option value="toque">Toque</option><option value="mouse">Mouse e teclado</option><option value="misto">Misto (toque anda, mouse mira e atira)</option></select></label>
+          <label class="opt"><span>⚡ Modo leve<small>tira sombras, efeitos, números de dano e detalhes e baixa a resolução: mais FPS no celular que trava</small></span><select id="setLeve"><option value="0">Desligado</option><option value="1">Ligado</option></select></label>
           <label class="opt"><span>Qualidade gráfica<small>baixa roda melhor em celular fraco</small></span><select id="setQual"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
-          <label class="opt"><span>Mira assistida<small>só no celular</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
+          <label class="opt"><span>Mira assistida<small>no celular e no controle</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
           <label class="opt">Inverter eixo vertical <select id="setInv"><option value="0">Não</option><option value="1">Sim</option></select></label>
           <label class="opt">Mostrar FPS <select id="setFps"><option value="0">Não</option><option value="1">Sim</option></select></label>
         </div>
@@ -986,6 +990,11 @@
             Toque em qualquer lugar da metade esquerda: o joystick aparece embaixo do dedo. Empurre até o fim para frente para correr.<br>
             Arraste a metade direita para mirar · segure 🎯 e arraste para mirar atirando.<br>
             Correndo + AGACHAR = deslizar · 💣 granada · 🛡 escudo · 😀 frases rápidas · 📋 placar · 💬 chat · PORTA, PREGAR e LEVANTAR aparecem embaixo quando você chega perto; a 🛒 LOJA aparece separada, em cima.</section>
+          <section id="helpPad"><h4>🎮 Controle (Xbox, PlayStation, genérico)</h4>
+            Ligue o controle (cabo ou Bluetooth, no PC ou no celular) e aperte qualquer botão.<br>
+            Analógico esquerdo anda (no fundo ou L3 corre) · direito mira · <b>RT/R2</b> atira · <b>LT/L2</b> zoom · <b>A/✕</b> pula · <b>B/◯</b> agacha (correndo = deslizar) · <b>X/▢</b> recarrega · <b>Y/△</b> troca de arma · <b>LB/L1</b> granada · <b>RB/R1</b> escudo.<br>
+            Direcional: ↑ interage (segure perto de um amigo caído para levantar) · ↓ loja · ← frases · → arma anterior. <b>Start</b> pausa · <b>Select/Share</b> placar.<br>
+            Nos menus, na loja e na pausa: direcional anda, A escolhe, B volta.</section>
           <section><h4>🎮 Modos</h4>
             <b>Mata-mata</b>: todos contra todos. <b>Times</b>: Vermelho × Azul. <b>Gun Game</b>: cada abate troca sua arma.
             <b>Roleta de Armas</b>: de tempos em tempos a arma de todo mundo muda sozinha.
@@ -1144,12 +1153,12 @@ function charList() {
 const amigoDe = c => AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
-const SET_PADRAO = { sens: 1, touch: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto', leve: false };
+const SET_PADRAO = { sens: 1, touch: 1, pad: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto', leve: false };
 const settings = { ...SET_PADRAO };
 Object.assign(settings, load('pb-settings', {}) || {});
 const saveSettings = () => save('pb-settings', settings);
-if (!['auto', 'toque', 'mouse'].includes(settings.ctrl)) settings.ctrl = 'auto';
-isTouch = settings.ctrl === 'auto' ? toqueDoAparelho : settings.ctrl === 'toque';
+if (!['auto', 'toque', 'mouse', 'misto'].includes(settings.ctrl)) settings.ctrl = 'auto';
+isTouch = settings.ctrl === 'auto' ? toqueDoAparelho : settings.ctrl === 'toque' || settings.ctrl === 'misto';
 document.body.classList.toggle('touch', isTouch);
 helpDesk.style.display = isTouch ? 'none' : ''; helpTouch.style.display = isTouch ? '' : 'none';
 const applyBtnSize = () => document.documentElement.style.setProperty('--B', `calc(clamp(52px,14vmin,74px) * ${settings.btn || 1})`);
@@ -3949,7 +3958,36 @@ addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') ren
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
 
 const canvas = renderer.domElement;
-function lockPointer() { if (!isTouch) canvas.requestPointerLock?.(); }
+// mouse sem trava: no celular/tablet o navegador quase nunca deixa travar o ponteiro na tela (e aí o clique não
+// atirava). Sem trava o mouse mira pelo movimento, gira sozinho encostando na borda da tela e o clique atira direto.
+// No modo misto (toque anda, mouse mira e atira) o mouse funciona sempre assim.
+const podeSemTrava = toqueDoAparelho || !canvas.requestPointerLock;
+let semTrava = !canvas.requestPointerLock;
+const mouseLivre = () => settings.ctrl === 'misto' || (semTrava && !isTouch);
+const mouseNaTela = () => document.pointerLockElement === canvas || mouseLivre();
+function ativaSemTrava() {
+  if (semTrava) return;
+  semTrava = true; document.body.classList.add('semtrava');
+  feed('🖱️ Mouse sem trava: mova para mirar, encoste na borda da tela para girar, clique para atirar');
+}
+document.addEventListener('pointerlockerror', () => { if (podeSemTrava) ativaSemTrava(); });
+function lockPointer() {
+  if (isTouch || semTrava) return;
+  try { const r = canvas.requestPointerLock?.(); r?.catch?.(() => { if (podeSemTrava) ativaSemTrava(); }); } catch { if (podeSemTrava) ativaSemTrava(); }
+  if (podeSemTrava) { clearTimeout(lockPointer.t); lockPointer.t = setTimeout(() => { if (!isTouch && document.pointerLockElement !== canvas) ativaSemTrava(); }, 500); }
+}
+// mouse livre encostado na borda: gira a câmera (com o ponteiro visível não dá para girar 360° só arrastando)
+const mouseXY = { x: -1, y: -1 };
+function mouseBorda(dt) {
+  if (!mouseLivre() || state !== 'play' || mouseXY.x < 0 || chatOpen || shopOpen) return;
+  const bx = innerWidth * 0.07, by = innerHeight * 0.08, k = 1.8 * settings.sens * dt;
+  if (mouseXY.x < bx) player.yaw += k * (1 - mouseXY.x / bx);
+  else if (mouseXY.x > innerWidth - bx) player.yaw -= k * (1 - (innerWidth - mouseXY.x) / bx);
+  const sy = settings.inv ? -1 : 1;
+  if (mouseXY.y < by) player.pitch = Math.min(1.45, player.pitch + k * 0.6 * sy * (1 - mouseXY.y / by));
+  else if (mouseXY.y > innerHeight - by) player.pitch = Math.max(-1.45, player.pitch - k * 0.6 * sy * (1 - (innerHeight - mouseXY.y) / by));
+}
+addEventListener('mouseout', e => { if (!e.relatedTarget) mouseXY.x = mouseXY.y = -1; });
 // troca entre toque e mouse+teclado (avisa=true quando foi automático)
 function setInputMode(toque, avisa) {
   if (toque === isTouch) return;
@@ -3959,18 +3997,21 @@ function setInputMode(toque, avisa) {
   touchFire = false; touchMove.x = touchMove.y = 0; mouseDown = false;
   try { atualizaFsBtn(); } catch {}
   if (toque) { if (document.pointerLockElement) document.exitPointerLock(); }
-  else if (state === 'play' && document.pointerLockElement !== canvas) pauseGame(true); // "Pronto?": o clique trava o mouse na tela
+  else if (state === 'play' && !mouseNaTela()) pauseGame(true); // "Pronto?": o clique trava o mouse na tela
   if (avisa) feed(toque ? '👆 Controles de toque' : '🖱️ Mouse e teclado ligados (clique na tela para mirar, Esc pausa)');
 }
 addEventListener('pointermove', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse' && (e.movementX || e.movementY)) setInputMode(false, true); }, { passive: true });
 addEventListener('pointerdown', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse') setInputMode(false, true); }, { capture: true, passive: true });
 addEventListener('touchstart', () => { if (settings.ctrl === 'auto' && !isTouch) setInputMode(true, true); }, { capture: true, passive: true });
 document.addEventListener('pointerlockchange', () => {
-  if (!isTouch && state === 'play' && document.pointerLockElement !== canvas && !chatOpen && !shopOpen) pauseGame();
+  if (!isTouch && !semTrava && state === 'play' && document.pointerLockElement !== canvas && !chatOpen && !shopOpen) pauseGame();
 });
-canvas.addEventListener('mousedown', e => {
-  if (state === 'play' && !isTouch && document.pointerLockElement !== canvas && !chatOpen && !shopOpen) { lockPointer(); return; } // clique trava o mouse (ex.: mouse no tablet)
-  if (state !== 'play' || document.pointerLockElement !== canvas) return;
+addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'mouse') return;
+  // na tela do jogo (no misto, também por cima da camada de toque, fora dos botões)
+  if (!(e.target === canvas || (settings.ctrl === 'misto' && e.target.closest?.('#touch') && !e.target.closest('.tbtn')))) return;
+  if (state === 'play' && !isTouch && !mouseNaTela() && !chatOpen && !shopOpen) { lockPointer(); return; } // clique trava o mouse
+  if (state !== 'play' || !mouseNaTela()) return;
   if (armaOpen) { if (e.button === 2) toggleArmaMenu(false); else pegarArma(armaHl); return; }
   if (assistindo()) { specProximo(); return; }
   if (e.button === 2) { if (curW().zoom && player.reloading <= 0) player.zoom = true; }
@@ -3978,9 +4019,10 @@ canvas.addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 2) player.zoom = false; else mouseDown = false; });
 addEventListener('contextmenu', e => { if (state === 'play') e.preventDefault(); });
-addEventListener('wheel', e => { if (state === 'play' && document.pointerLockElement === canvas) { if (armaOpen) moverArmaHl(e.deltaY > 0 ? 1 : -1); else cycleWeapon(e.deltaY > 0 ? 1 : -1); } }, { passive: true });
+addEventListener('wheel', e => { if (state === 'play' && mouseNaTela()) { if (armaOpen) moverArmaHl(e.deltaY > 0 ? 1 : -1); else cycleWeapon(e.deltaY > 0 ? 1 : -1); } }, { passive: true });
 addEventListener('mousemove', e => {
-  if (document.pointerLockElement !== canvas || chatOpen) return;
+  mouseXY.x = e.clientX; mouseXY.y = e.clientY;
+  if (!mouseNaTela() || chatOpen || (shopOpen && document.pointerLockElement !== canvas)) return;
   const k = (player.zoom ? 0.0008 : 0.0022) * settings.sens;
   player.yaw -= e.movementX * k;
   player.pitch = THREE.MathUtils.clamp(player.pitch - e.movementY * k * (settings.inv ? -1 : 1), -1.45, 1.45);
@@ -4075,6 +4117,145 @@ $('touch').addEventListener('touchend', touchEnd);
 $('touch').addEventListener('touchcancel', touchEnd);
 let boardTouch = false;
 
+// ===== Controle de videogame (Xbox, PlayStation, genérico; no PC e no celular) =====
+// Lido a cada quadro (lerControle). No jogo, os botões viram as mesmas teclas do teclado (padTecla: o keydown já sabe
+// o que fazer em cada situação); nos menus, na pausa, na loja e nas janelas o direcional (ou o analógico esquerdo)
+// anda entre os botões da tela, A aperta e B volta.
+const pad = { visto: false, ativo: false, mx: 0, my: 0, fogo: false, zoom: false, rt: false, prev: [], seg: {}, foco: null, focoI: 0, navT: 0, navDir: '' };
+const PAD_ZM = 0.15;
+const padEixo = v => Math.abs(v) < PAD_ZM ? 0 : (v - Math.sign(v) * PAD_ZM) / (1 - PAD_ZM);
+const padTecla = (code, down) => dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
+// botão → tecla: A pula, B agacha, X recarrega, Y troca de arma, LB granada, RB escudo, Select placar, L3 corre,
+// direcional ↑ interage (segurar levanta o amigo), ↓ loja, ← frases (→ = arma anterior, à parte)
+const PAD_TECLA = { 0: 'Space', 1: 'KeyC', 2: 'KeyR', 3: 'KeyQ', 4: 'KeyG', 5: 'KeyF', 8: 'Tab', 10: 'ShiftLeft', 12: 'KeyE', 13: 'KeyB', 14: 'KeyV' };
+addEventListener('gamepadconnected', () => { pad.visto = true; feed('🎮 Controle conectado: analógicos andam e miram, RT atira, A pula, Start pausa'); });
+addEventListener('gamepaddisconnected', () => { padSolta(); pad.prev = []; feed('🎮 Controle desconectado'); });
+function padSolta() {
+  for (const i in pad.seg) padTecla(pad.seg[i], false);
+  pad.seg = {}; pad.mx = pad.my = 0; pad.fogo = false;
+  if (pad.zoom) { pad.zoom = false; player.zoom = false; }
+}
+// o último usado manda: controle esconde os botões de toque e liga a mira assistida; tocar na tela ou mexer o mouse volta
+function padUsou() { if (!pad.ativo) { pad.ativo = true; document.body.classList.add('pad'); } }
+function padLargou() { if (pad.ativo) { pad.ativo = false; document.body.classList.remove('pad'); padFoco(null); } }
+addEventListener('touchstart', padLargou, { capture: true, passive: true });
+addEventListener('mousemove', e => { if (e.movementX || e.movementY) padLargou(); }, { passive: true });
+function padVibra(f, ms) {
+  if (!pad.ativo || !navigator.getGamepads) return;
+  for (const g of navigator.getGamepads()) if (g?.vibrationActuator?.playEffect) { g.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: f, weakMagnitude: f * 0.6 }).catch?.(() => {}); return; }
+}
+// janela de cima: é nela que o direcional anda
+function padRaiz() {
+  for (const id of ['fsAjuda', 'admVida', 'criarBox']) if ($(id).classList.contains('on')) return $(id);
+  if (state === 'play') return endOpen ? $('endBox') : shopOpen ? $('shopBox') : armaOpen ? $('armaMenu') : quickOpen ? $('quick') : null;
+  return SCREENS.map(id => $(id)).find(el => el.style.display === 'flex') || null;
+}
+function padAlvos(raiz) {
+  const out = [];
+  for (const el of raiz.querySelectorAll('button, select, input, [data-pad]')) {
+    if (el.disabled || el.type === 'hidden') continue;
+    const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) continue;
+    out.push({ el, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  }
+  return out;
+}
+function padFoco(el) {
+  if (pad.foco === el) return;
+  pad.foco?.classList.remove('padfoco'); pad.foco = el;
+  if (el) { el.classList.add('padfoco'); el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); }
+}
+// a janela redesenhou (loja, menu de armas): o foco volta para o botão no mesmo lugar
+function padRefoca(raiz) { const a = raiz ? padAlvos(raiz) : []; pad.foco = null; padFoco(a[Math.min(pad.focoI, a.length - 1)]?.el || null); }
+function padAjusta(el, d) {
+  if (el.tagName === 'SELECT') { const n = el.options.length; el.selectedIndex = (el.selectedIndex + d + n) % n; el.dispatchEvent(new Event('change', { bubbles: true })); return true; }
+  if (el.tagName === 'INPUT' && el.type === 'range') { if (d > 0) el.stepUp(); else el.stepDown(); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; }
+  return false;
+}
+function padMove(dx, dy) {
+  const raiz = padRaiz(); if (!raiz) return;
+  const alvos = padAlvos(raiz); if (!alvos.length) return;
+  const cur = alvos.find(a => a.el === pad.foco);
+  if (!cur) { const a = alvos.find(a => /\b(big|danger)\b/.test(a.el.className) && !a.el.closest('.screenHead')) || alvos.find(a => !a.el.classList.contains('back')) || alvos[0]; pad.focoI = alvos.indexOf(a); return padFoco(a.el); }
+  if (dx && padAjusta(cur.el, dx)) return; // ←/→ num ajuste muda o valor
+  let best = null, bs = Infinity;
+  for (const a of alvos) {
+    if (a === cur) continue;
+    const vx = a.x - cur.x, vy = a.y - cur.y, along = vx * dx + vy * dy;
+    if (along <= 2) continue;
+    const sc = along + Math.abs(vx * dy - vy * dx) * 2.5;
+    if (sc < bs) { bs = sc; best = a; }
+  }
+  if (best) { pad.focoI = alvos.indexOf(best); padFoco(best.el); }
+}
+function padAperta() {
+  const raiz = padRaiz(); if (!raiz) return;
+  const el = pad.foco;
+  if (!el || !el.isConnected || !raiz.contains(el)) return padMove(0, 0); // o 1º aperto só mostra onde está
+  if (el.tagName === 'SELECT') return padAjusta(el, 1);
+  if (el.tagName === 'INPUT' && el.type !== 'range' && el.type !== 'checkbox' && el.type !== 'file') return el.focus();
+  el.click();
+}
+function padVolta() {
+  if (state === 'play') { if (shopOpen) toggleShop(false); else if (armaOpen) toggleArmaMenu(false); else if (quickOpen) toggleQuick(false); return; }
+  for (const id of ['fsAjuda', 'admVida']) if ($(id).classList.contains('on')) return $(id).classList.remove('on');
+  if ($('criarBox').classList.contains('on')) return fecharConvite();
+  const back = padRaiz()?.querySelector('.back');
+  if (back && back.getBoundingClientRect().width) return back.click();
+  if (state === 'paused') resumeGame();
+}
+function lerControle(dt) {
+  if (!pad.visto || !navigator.getGamepads) return;
+  let gp = null;
+  for (const g of navigator.getGamepads()) if (g && g.connected !== false && g.buttons?.length >= 4) { gp = g; break; }
+  if (!gp) { if (pad.prev.length) { padSolta(); pad.prev = []; } return; }
+  const agora = [];
+  for (let i = 0; i < 17; i++) { const b = gp.buttons[i]; agora[i] = !!b && (b.pressed || b.value > 0.5); }
+  const desceu = i => agora[i] && !pad.prev[i];
+  const lx = padEixo(gp.axes[0] || 0), ly = padEixo(gp.axes[1] || 0), rx = padEixo(gp.axes[2] || 0), ry = padEixo(gp.axes[3] || 0);
+  const rt = (gp.buttons[7]?.value ?? 0) > 0.35 || agora[7], lt = (gp.buttons[6]?.value ?? 0) > 0.35 || agora[6];
+  if (agora.some(Boolean) || Math.hypot(lx, ly) > 0.3 || Math.hypot(rx, ry) > 0.3) padUsou();
+  const raiz = state !== 'play' || shopOpen || armaOpen || quickOpen || endOpen ? padRaiz() : null;
+  if (raiz || state !== 'play' || chatOpen) {
+    // menus e janelas: solta o que estava apertado no jogo e anda entre os botões (segurando, repete)
+    if (Object.keys(pad.seg).length || pad.fogo || pad.mx || pad.my || pad.zoom) padSolta();
+    if (!chatOpen) {
+      const dx = agora[15] || lx > 0.5 ? 1 : agora[14] || lx < -0.5 ? -1 : 0;
+      const dy = dx ? 0 : agora[13] || ly > 0.5 ? 1 : agora[12] || ly < -0.5 ? -1 : 0;
+      const dir = dx + ',' + dy;
+      if (dx || dy) {
+        if (dir !== pad.navDir) { pad.navT = 0.38; padMove(dx, dy); }
+        else if ((pad.navT -= dt) <= 0) { pad.navT = 0.12; padMove(dx, dy); }
+      }
+      pad.navDir = dx || dy ? dir : '';
+      if (desceu(0)) padAperta();
+      if (desceu(1)) padVolta();
+      if (desceu(9)) { if (state === 'paused') resumeGame(); else padAperta(); }
+      if (pad.foco && !pad.foco.isConnected) padRefoca(raiz);
+    }
+  } else {
+    if (pad.foco) padFoco(null);
+    pad.navDir = '';
+    pad.mx = lx; pad.my = ly;
+    // analógico direito mira (curva: devagar perto do centro para acertar o detalhe)
+    const k = (player.zoom ? 0.4 : 1) * (settings.pad || 1) * dt;
+    player.yaw -= Math.sign(rx) * rx * rx * 3.2 * k;
+    player.pitch = THREE.MathUtils.clamp(player.pitch - Math.sign(ry) * ry * ry * 2.2 * k * (settings.inv ? -1 : 1), -1.45, 1.45);
+    for (const i in PAD_TECLA) {
+      if (agora[i] && !pad.seg[i]) { pad.seg[i] = PAD_TECLA[i]; padTecla(pad.seg[i], true); }
+      else if (!agora[i] && pad.seg[i]) { padTecla(pad.seg[i], false); delete pad.seg[i]; }
+    }
+    if (desceu(15)) cycleWeapon(-1);
+    if (desceu(9)) togglePause();
+    // gatilhos: RT atira (assistindo, troca quem assiste), LT segura o zoom
+    if (assistindo()) { if (rt && !pad.rt) specProximo(); pad.fogo = false; }
+    else pad.fogo = rt;
+    if (lt && !pad.zoom) { pad.zoom = true; if (curW().zoom && player.reloading <= 0) player.zoom = true; }
+    else if (!lt && pad.zoom) { pad.zoom = false; player.zoom = false; }
+  }
+  pad.rt = rt;
+  pad.prev = agora;
+}
+
 // ===== Chat (T) =====
 let chatOpen = false;
 function openChat() {
@@ -4087,9 +4268,9 @@ function closeChat() {
   if (!chatOpen) return;
   chatOpen = false; const inp = $('chatInput'); inp.blur(); inp.style.display = 'none';
   // no computador o Esc solta o mouse: tenta prender de novo, senão pausa
-  if (!isTouch && state === 'play' && document.pointerLockElement !== canvas) {
+  if (!isTouch && !semTrava && state === 'play' && document.pointerLockElement !== canvas) {
     lockPointer();
-    setTimeout(() => { if (state === 'play' && document.pointerLockElement !== canvas) pauseGame(); }, 400);
+    setTimeout(() => { if (state === 'play' && !mouseNaTela()) pauseGame(); }, 600);
   }
 }
 $('chatInput').addEventListener('keydown', e => {
@@ -4176,13 +4357,14 @@ function closeControls() {
 }
 function loadSettingsForm() {
   const set = (id, v) => { $(id).value = v; };
-  set('setSens', settings.sens); set('setTouch', settings.touch); set('setVol', settings.vol); set('setMus', settings.mus ?? 0.5); set('setFov', settings.fov); set('setBtn', settings.btn || 1);
+  set('setSens', settings.sens); set('setTouch', settings.touch); set('setPad', settings.pad || 1); set('setVol', settings.vol); set('setMus', settings.mus ?? 0.5); set('setFov', settings.fov); set('setBtn', settings.btn || 1);
   set('setLeve', settings.leve ? '1' : '0'); set('setQual', settings.qual); set('setCtrl', settings.ctrl || 'auto'); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0');
   showSettingValues();
 }
 function showSettingValues() {
   $('setSensV').textContent = (+$('setSens').value).toFixed(1) + '×';
   $('setTouchV').textContent = (+$('setTouch').value).toFixed(1) + '×';
+  $('setPadV').textContent = (+$('setPad').value).toFixed(1) + '×';
   $('setVolV').textContent = Math.round($('setVol').value * 100) + '%';
   $('setMusV').textContent = Math.round($('setMus').value * 100) + '%';
   $('setFovV').textContent = $('setFov').value + '°';
@@ -4191,7 +4373,7 @@ function showSettingValues() {
 function readSettings() {
   const qualAntes = settings.qual, leveAntes = settings.leve;
   Object.assign(settings, {
-    sens: +$('setSens').value, touch: +$('setTouch').value, vol: +$('setVol').value, mus: +$('setMus').value, fov: +$('setFov').value, btn: +$('setBtn').value,
+    sens: +$('setSens').value, touch: +$('setTouch').value, pad: +$('setPad').value, vol: +$('setVol').value, mus: +$('setMus').value, fov: +$('setFov').value, btn: +$('setBtn').value,
     qual: $('setQual').value, leve: $('setLeve').value === '1', ctrl: $('setCtrl').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1',
   });
   saveSettings();
@@ -4203,7 +4385,7 @@ function readSettings() {
   $('fps').style.display = settings.fps ? 'block' : 'none';
   applyBtnSize(); stickRest();
   if (qualAntes !== settings.qual || leveAntes !== settings.leve) applyQuality();
-  if (settings.ctrl !== 'auto') setInputMode(settings.ctrl === 'toque');
+  if (settings.ctrl !== 'auto') setInputMode(settings.ctrl === 'toque' || settings.ctrl === 'misto');
 }
 const baseRatio = () => Math.min(devicePixelRatio, settings.leve ? 0.7 : { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5);
 function applyQuality() {
@@ -5278,7 +5460,7 @@ function renderBoard() {
 }
 
 function hurtFx(fx, fz) {
-  sfx.hurt(); navigator.vibrate?.(60); setaDano(fx, fz);
+  sfx.hurt(); navigator.vibrate?.(60); padVibra(0.5, 120); setaDano(fx, fz);
   $('dmg').style.opacity = 1; setTimeout(() => $('dmg').style.opacity = 0, 180);
   shake = Math.max(shake, 0.12);
 }
@@ -5396,7 +5578,7 @@ function enterOnline() {
   hideScreens();
   syncRemotes(); renderBoard(); updateHud(); updateWeaponBtns();
   if (net.local) { state = 'play'; lockPointer(); }
-  else if (isTouch || document.pointerLockElement === canvas) { state = 'play'; }
+  else if (isTouch || mouseNaTela() || pad.ativo) { state = 'play'; }
   else { state = 'play'; pauseGame(true); }
 }
 
@@ -6738,7 +6920,7 @@ $('lockBackBtn').onclick = () => { lk.open = false; openHome(); };
 $('pauseSettingsBtn').onclick = () => openControls('pauseScreen');
 $('pauseRoomBtn').onclick = () => showRoomScreen('pauseScreen');
 $('controlsBackBtn').onclick = closeControls;
-for (const id of ['setSens', 'setTouch', 'setVol', 'setMus', 'setFov', 'setBtn']) $(id).oninput = readSettings;
+for (const id of ['setSens', 'setTouch', 'setPad', 'setVol', 'setMus', 'setFov', 'setBtn']) $(id).oninput = readSettings;
 for (const id of ['setLeve', 'setQual', 'setCtrl', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
 $('leveDica').onclick = () => {
   settings.leve = true; saveSettings(); applyQuality(); loadSettingsForm();
@@ -9512,7 +9694,7 @@ function dirigeTrator(dt) {
   let mx = 0, mz = 0;
   if (keys.KeyW || keys.ArrowUp) mz += 1; if (keys.KeyS || keys.ArrowDown) mz -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1; if (keys.KeyA || keys.ArrowLeft) mx -= 1;
-  mx += touchMove.x; mz -= touchMove.y; if (shopOpen) mx = mz = 0;
+  mx += touchMove.x + pad.mx; mz -= touchMove.y + pad.my; if (shopOpen) mx = mz = 0;
   const alvoV = mz > 0.1 ? 12 * Math.min(1, mz) : mz < -0.1 ? 5 * Math.max(-1, mz) : 0;
   T.v += (alvoV - T.v) * Math.min(1, dt * (alvoV === 0 ? 1.6 : 2.4));
   if (Math.abs(T.v) > 0.3) T.yaw -= Math.max(-1, Math.min(1, mx)) * 1.8 * dt * Math.sign(T.v);
@@ -10414,7 +10596,7 @@ function playerShoot() {
   const aim = raycaster.ray.at(60, new THREE.Vector3());
   const origin = player.zoom ? camera.position.clone().addScaledVector(raycaster.ray.direction, 0.6) : muzzle.getWorldPosition(new THREE.Vector3());
   const dir = aim.sub(origin).normalize();
-  if (isTouch && settings.aim && !W.splash && !regra('raiz')) {
+  if ((isTouch || pad.ativo) && settings.aim && !W.splash && !regra('raiz')) {
     // mira assistida: puxa o tiro para a parte do corpo mais perto da mira (cabeça ou tronco; na regra
     // "só cabeça", só a cabeça), com puxão parcial e cone que fecha com a distância (antes puxava sempre
     // para o peito e quem jogava no celular nunca acertava a cabeça)
@@ -10652,9 +10834,9 @@ function updatePlayer(dt) {
   if (keys.KeyS || keys.ArrowDown) mz -= 1;
   if (keys.KeyD || keys.ArrowRight) mx += 1;
   if (keys.KeyA || keys.ArrowLeft) mx -= 1;
-  mx += touchMove.x; mz -= touchMove.y;
+  mx += touchMove.x + pad.mx; mz -= touchMove.y + pad.my;
   if (amBlind() || shopOpen) mx = mz = 0; // caçador espera de olhos fechados / comprando na lojinha
-  const stickFull = Math.hypot(touchMove.x, touchMove.y) > 0.9 && touchMove.y < -0.4;
+  const stickFull = (Math.hypot(touchMove.x, touchMove.y) > 0.9 && touchMove.y < -0.4) || (Math.hypot(pad.mx, pad.my) > 0.9 && pad.my < -0.4);
   const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
   player.slowT = Math.max(0, (player.slowT || 0) - dt);
   const boost = (player.speedT > 0 ? 1.6 : 1) * (player.slowT > 0 ? 0.55 : 1);
@@ -10737,7 +10919,7 @@ function updatePlayerFim(dt, sliding) {
   if (player.shieldCd > 0) { const antes = Math.ceil(player.shieldCd); player.shieldCd = Math.max(0, player.shieldCd - dt); if (Math.ceil(player.shieldCd) !== antes) updateHud(); }
   if (player.reloading > 0) { player.reloading -= dt; if (player.reloading <= 0) { player.ammoBy[player.weapon] = curW().mag; updateHud(); } }
   if (player.burstLeft > 0) { if (!curW().rafaga || meDead || player.reloading > 0) player.burstLeft = 0; else if (player.fireCd <= 0) playerShoot(); }
-  const trig = (mouseDown || touchFire) && !meDown;
+  const trig = (mouseDown || touchFire || pad.fogo) && !meDown;
   if (curW().auto) { if (trig) playerShoot(); }
   else {
     if (trig && !player.trigPrev) player.wantShot = true;
@@ -11129,11 +11311,10 @@ function spectateTarget() {
 const clock = new THREE.Clock();
 function frame() {
   net.ultQuadro = performance.now();
-  // Modo leve: no máximo ~30 quadros por segundo (menos calor e bateria; o celular não engasga)
-  if (settings.leve && net.ultQuadro - (frame.ultDesenho || 0) < 30) { requestAnimationFrame(frame); return; }
-  frame.ultDesenho = net.ultQuadro;
   leveDica();
   const clockDt = clock.getDelta(), dt = Math.min(clockDt, 0.05), t = clock.elapsedTime;
+  lerControle(dt); mouseBorda(dt);
+  const ml = mouseLivre(); if (ml !== frame.ml) { frame.ml = ml; document.body.classList.toggle('mouselivre', ml); }
   const noMenu = state === 'menu' || state === 'over';
   if (noMenu !== frame.menu) { frame.menu = noMenu; document.body.classList.toggle('inmenu', noMenu); if (noMenu) startMusic(); else stopMusic(); }
   if (state === 'menu') { menuScene(t); updateEnemies(dt, t); }
@@ -11196,7 +11377,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { onlineSpawn, hasLineOfSight, explode, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { onlineSpawn, hasLineOfSight, explode, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom, pad, padFoco, controle: () => ({ semTrava, mouseLivre: mouseLivre(), isTouch, state, shopOpen }) };
 openHome();
 document.body.classList.toggle('qalta', settings.qual === 'alta' && !settings.leve);
 if (settings.leve) applyQuality(); // Modo leve salvo: resolução, sombras e luzes já ao abrir
