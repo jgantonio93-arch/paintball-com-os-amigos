@@ -431,6 +431,8 @@
   .ch.lock .plus { color:#c9b6ff; }
   .aviso { display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; padding:10px 14px; border-radius:14px; background:rgba(61,184,255,.14); border:1px solid rgba(61,184,255,.45); font-weight:700; white-space:pre-wrap; word-break:break-word; }
   .aviso i { font-style:normal; font-size:22px; }
+  .aviso.convite { align-items:center; background:rgba(255,210,61,.14); border-color:rgba(255,210,61,.6); white-space:normal; }
+  .aviso.convite .btn { margin-left:auto; padding:8px 18px; }
   .admGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:10px; }
   .admItem { position:relative; background:rgba(255,255,255,.06); border-radius:12px; padding:6px; text-align:center; font-size:12px; font-weight:800; }
   .admItem img { width:100%; aspect-ratio:4/5; object-fit:cover; border-radius:10px; display:block; margin-bottom:4px; }
@@ -759,6 +761,7 @@
     </nav>
     <section class="panel tabPane" id="tab-salas">
       <div class="aviso" id="avisoBox" hidden><i>📢</i><div id="avisoTxt"></div></div>
+      <div class="aviso convite" id="conviteCard" hidden><i>🎟️</i><div>Você foi convidado para a sala <b id="conviteCod"></b></div><button class="btn" id="conviteEntrar">ENTRAR</button></div>
       <div class="weekStar" id="weekStar" hidden><i>🏆</i><div><small>Pintor da semana</small><b id="weekName"></b><span id="weekInfo"></span></div></div>
       <div class="actions">
         <button class="act a1" id="createBtn"><i>＋</i><b>Criar sala</b><small>escolha o modo, o mapa e as regras</small></button>
@@ -1009,6 +1012,7 @@
     <p class="sub" id="pauseSub"></p>
     <div class="menu">
       <button class="btn big" id="resumeBtn">CONTINUAR</button>
+      <button class="btn ghost" id="pauseShareBtn" hidden>📨 Convidar</button>
       <button class="btn ghost" id="pauseRoomBtn">⚙️ Regras da sala</button>
       <button class="btn" id="pauseAdmBtn" hidden>🛡️ Vida dos jogadores</button>
       <button class="btn ghost" id="pauseSettingsBtn">🎮 Controles e ajustes</button>
@@ -4002,6 +4006,7 @@ function pauseGame(primeira) {
   $('resumeBtn').textContent = primeira ? 'ENTRAR NO JOGO' : 'CONTINUAR';
   $('quitBtn').textContent = online ? 'Sair da sala' : 'Sair para o menu';
   $('pauseRoomBtn').hidden = !(online && net.isHost);
+  $('pauseShareBtn').hidden = !online; $('pauseShareBtn').textContent = `📨 Convidar (sala ${net.code})`;
   $('pauseAdmBtn').hidden = !(adm.on && mode === 'online');
   showScreen('pauseScreen');
   document.exitPointerLock?.();
@@ -5817,7 +5822,7 @@ function openHome() {
   closeChat();
   $('controlsSlot').appendChild($('controlsPanel'));
   lk.open = false;
-  showScreen('startScreen'); setTab(tab); renderChars(); openLobby(); setBusy(false); renderWeekStar(); checkUnlocks();
+  showScreen('startScreen'); setTab(tab); renderChars(); openLobby(); setBusy(false); renderWeekStar(); checkUnlocks(); mostraConvite();
   if (!conviteVisto && !escolhido()) setTimeout(() => { if (!escolhido() && $('startScreen').style.display !== 'none' && !conviteVisto) abrirConvite(); }, 1200);
 }
 // escolha de personagem (fica embaixo de todas as abas): só personagens com foto (criados, galeria,
@@ -5877,11 +5882,19 @@ function exigirPersonagem() {
   return true;
 }
 let conviteVisto = false;
+// link do convite (?sala=ABCD): cartão "ENTRAR" no menu e, depois de criar o personagem e dar o nome, entra sozinho
+let convitePendente = (params.get('sala') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+function mostraConvite() { $('conviteCard').hidden = !convitePendente; if (convitePendente) $('conviteCod').textContent = convitePendente; }
+function entrarConvite() {
+  if (!convitePendente || !exigirPersonagem()) return;
+  const c = convitePendente; convitePendente = ''; mostraConvite();
+  initAudio(); goFullscreen(); joinRoom(c);
+}
 function abrirConvite(soNome) {
   conviteVisto = true;
   const outros = pickList().length;
   $('cvNome').hidden = !soNome; $('cvCriar').hidden = !!soNome; $('cvDepois').hidden = false;
-  $('criarBox').querySelector('h2').textContent = soNome ? 'Como você se chama?' : 'Crie seu personagem!';
+  $('criarBox').querySelector('h2').textContent = soNome ? (convitePendente ? `Como você se chama? (sala ${convitePendente})` : 'Como você se chama?') : convitePendente ? `Crie seu personagem para entrar na sala ${convitePendente}!` : 'Crie seu personagem!';
   $('criarBox').querySelector('p').innerHTML = soNome ? 'Escolha o <b>seu nome</b> no jogo. É ele que aparece em cima do seu boneco, no placar e no ranking.' : 'Aqui todo mundo joga com a <b>própria cara</b>. Tire uma selfie ou escolha uma foto: em 10 segundos você vira um boneco de paintball, e seus amigos te veem no jogo.';
   $('criarBox').querySelector('.cvFace').textContent = soNome ? '✏️' : '📸';
   if (soNome) { $('cvGal').hidden = true; $('cvNick').value = ''; $('cvMsg').textContent = ''; $('criarBox').classList.add('on'); setTimeout(() => $('cvNick').focus(), 50); return; }
@@ -5956,6 +5969,7 @@ $('crSave').onclick = () => {
   CUSTOM = lista; myChar = 'c:' + novo.id; save('pb-char', myChar);
   sfx.power(); openHome();
   if (!nomeOk()) { conviteVisto = true; setTimeout(() => abrirConvite(true), 300); }
+  else if (convitePendente) setTimeout(entrarConvite, 300);
   if (novo.pub) for (const c of lobby.clients) publicarGaleria(c);
 };
 
@@ -6420,7 +6434,8 @@ $('tabs').onclick = e => { const b = e.target.closest('button'); if (b) setTab(b
 $('createBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; readSetup(); showRoomScreen('startScreen'); };
 $('quickBtn').onclick = () => { if (!exigirPersonagem()) return; readSetup(); quickPlay(); };
 $('soloBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; showSolo(); };
-$('joinBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; goFullscreen(); joinRoom($('roomCode').value); };
+$('joinBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; goFullscreen(); if ($('roomCode').value.toUpperCase() === convitePendente) { convitePendente = ''; mostraConvite(); } joinRoom($('roomCode').value); };
+$('conviteEntrar').onclick = entrarConvite;
 $('cvCriar').onclick = () => { fecharConvite(); openCreator(); };
 $('cvGal').onclick = () => { fecharConvite(); $('pickList').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('pickList').classList.add('flash'); setTimeout(() => $('pickList').classList.remove('flash'), 1600); };
 $('cvDepois').onclick = fecharConvite;
@@ -6429,6 +6444,7 @@ function confirmarNome() {
   if (n.length < 2) { $('cvMsg').textContent = 'Digite um nome com pelo menos 2 letras.'; return; }
   $('nick').value = n.slice(0, 14); save('pb-nick', $('nick').value); $('nick').classList.remove('falta');
   fecharConvite(); renderChars(); ui.confirm?.();
+  if (convitePendente && escolhido()) setTimeout(entrarConvite, 200);
 }
 $('cvNomeOk').onclick = confirmarNome;
 $('cvNick').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarNome(); });
@@ -6446,14 +6462,17 @@ $('goBtn').onclick = () => {
   lockPointer(); enterOnline();
 };
 $('armasAll').onclick = () => { draftCfg = cleanCfg({ ...draftCfg, armas: [...WEAPON_ORDER] }); cfgChanged('armas'); };
-$('shareBtn').onclick = async () => {
-  const url = /^https?:/.test(location.protocol) ? `${location.origin}${location.pathname}?sala=${net.code}` : '';
-  const text = `Bora de Paintball com os Amigos! ${MODOS[net.cfg.modo].icone} ${MODOS[net.cfg.modo].nome} no mapa ${MAPS[net.cfg.mapa].nome}. Código da sala: ${net.code}` + (url ? ` · ${url}` : '');
+// convite com o link da sala: qualquer um da sala manda (botão da sala e 📨 na pausa)
+async function convidar(aviso) {
+  const url = /^https?:/.test(location.protocol) ? `${location.origin}${location.pathname}?sala=${net.code}` : 'https://jgantonio93-arch.github.io/paintball-com-os-amigos/?sala=' + net.code;
+  const text = `Bora de Paintball com os Amigos! ${MODOS[net.cfg.modo].icone} ${MODOS[net.cfg.modo].nome} no mapa ${MAPS[net.cfg.mapa].nome}. Código da sala: ${net.code} · ${url}`;
   try {
     if (navigator.share) await navigator.share({ title: 'Paintball com os Amigos', text });
-    else { await navigator.clipboard.writeText(text); $('roomStatus').textContent = 'Convite copiado! Cole no grupo dos amigos.'; }
+    else { await navigator.clipboard.writeText(text); aviso('Convite copiado! Cole no grupo dos amigos.'); }
   } catch {}
-};
+}
+$('shareBtn').onclick = () => convidar(t => { $('roomStatus').textContent = t; });
+$('pauseShareBtn').onclick = () => convidar(t => { $('pauseSub').textContent = t; });
 // treino solo
 function showSolo() {
   const set = (k, v) => {
