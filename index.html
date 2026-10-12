@@ -938,6 +938,22 @@
     <div class="screenHead"><button class="back" id="controlsBackBtn">←</button><div><span class="tag">Pausado</span><h2>Controles e ajustes</h2></div></div>
     <section class="panel" id="controlsOverlaySlot">
       <div id="controlsPanel">
+        <h3>⚙️ Ajustes</h3>
+        <div class="opts">
+          <div class="opt"><span>Sensibilidade do mouse</span><span class="optR"><input type="range" id="setSens" min="0.3" max="2.5" step="0.1"><output id="setSensV"></output></span></div>
+          <div class="opt"><span>Sensibilidade do toque</span><span class="optR"><input type="range" id="setTouch" min="0.3" max="2.5" step="0.1"><output id="setTouchV"></output></span></div>
+          <div class="opt"><span>Volume</span><span class="optR"><input type="range" id="setVol" min="0" max="1" step="0.05"><output id="setVolV"></output></span></div>
+          <div class="opt"><span>Música dos menus</span><span class="optR"><input type="range" id="setMus" min="0" max="1" step="0.05"><output id="setMusV"></output></span></div>
+          <div class="opt"><span>Campo de visão</span><span class="optR"><input type="range" id="setFov" min="65" max="100" step="1"><output id="setFovV"></output></span></div>
+          <div class="opt"><span>Tamanho dos botões<small>só no celular</small></span><span class="optR"><input type="range" id="setBtn" min="0.75" max="1.3" step="0.05"><output id="setBtnV"></output></span></div>
+          <label class="opt"><span>Controles<small>automático: mexeu o mouse, vira mouse e teclado; tocou na tela, volta o toque</small></span><select id="setCtrl"><option value="auto">Automático</option><option value="toque">Toque</option><option value="mouse">Mouse e teclado</option></select></label>
+          <label class="opt"><span>Qualidade gráfica<small>baixa roda melhor em celular fraco</small></span><select id="setQual"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
+          <label class="opt"><span>Mira assistida<small>só no celular</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
+          <label class="opt">Inverter eixo vertical <select id="setInv"><option value="0">Não</option><option value="1">Sim</option></select></label>
+          <label class="opt">Mostrar FPS <select id="setFps"><option value="0">Não</option><option value="1">Sim</option></select></label>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="settingsResetBtn">Restaurar padrão</button></div>
+        <h3 style="margin-top:18px">❓ Como jogar</h3>
         <div class="helpGrid">
           <section id="helpDesk"><h4>⌨️ Computador</h4><div class="keys">
             <kbd>W A S D</kbd><span>andar</span>
@@ -981,21 +997,6 @@
             <b>Hordas</b>: não volta sozinha. Recupere com ✚ kit médico, 🩸 bolsa de sangue (+30) que os zumbis às vezes deixam, ou sobrevivendo até o fim da rodada (+33% da vida). Quem morreu volta no fim da rodada, a tempo de comprar, e fica 7 s invencível (também ao ser levantado).<br>
             Tiro na cabeça dá mais dano: o número sobe <span style="color:var(--yel)">amarelo</span>; o tiro que derruba fica <span style="color:#ff5a4a">vermelho</span>.</section>
         </div>
-        <h3>⚙️ Ajustes</h3>
-        <div class="opts">
-          <div class="opt"><span>Sensibilidade do mouse</span><span class="optR"><input type="range" id="setSens" min="0.3" max="2.5" step="0.1"><output id="setSensV"></output></span></div>
-          <div class="opt"><span>Sensibilidade do toque</span><span class="optR"><input type="range" id="setTouch" min="0.3" max="2.5" step="0.1"><output id="setTouchV"></output></span></div>
-          <div class="opt"><span>Volume</span><span class="optR"><input type="range" id="setVol" min="0" max="1" step="0.05"><output id="setVolV"></output></span></div>
-          <div class="opt"><span>Música dos menus</span><span class="optR"><input type="range" id="setMus" min="0" max="1" step="0.05"><output id="setMusV"></output></span></div>
-          <div class="opt"><span>Campo de visão</span><span class="optR"><input type="range" id="setFov" min="65" max="100" step="1"><output id="setFovV"></output></span></div>
-          <div class="opt"><span>Tamanho dos botões<small>só no celular</small></span><span class="optR"><input type="range" id="setBtn" min="0.75" max="1.3" step="0.05"><output id="setBtnV"></output></span></div>
-          <label class="opt"><span>Controles<small>automático: mexeu o mouse, vira mouse e teclado; tocou na tela, volta o toque</small></span><select id="setCtrl"><option value="auto">Automático</option><option value="toque">Toque</option><option value="mouse">Mouse e teclado</option></select></label>
-          <label class="opt"><span>Qualidade gráfica<small>baixa roda melhor em celular fraco</small></span><select id="setQual"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
-          <label class="opt"><span>Mira assistida<small>só no celular</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
-          <label class="opt">Inverter eixo vertical <select id="setInv"><option value="0">Não</option><option value="1">Sim</option></select></label>
-          <label class="opt">Mostrar FPS <select id="setFps"><option value="0">Não</option><option value="1">Sim</option></select></label>
-        </div>
-        <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="settingsResetBtn">Restaurar padrão</button></div>
       </div>
     </section>
   </div>
@@ -3615,7 +3616,7 @@ function updateHud() {
     const metaTxt = meta ? ` · até ${meta}` : '';
     if (isZumbi()) {
       const tipos = [...new Set([...zombies.values()].filter(o => !o.dead && o.T && o.T.id !== 'comum').map(o => o.T.ic))].slice(0, 6).join('');
-      $('score').textContent = !Z.roundView ? '🧟 Prepare-se…' : net.cfg.modo === 'sobrev' ? `⏳ Minuto ${Z.roundView} · ${Z.left} zumbis${tipos ? ' · ' + tipos : ''}` : `${net.cfg.modo === 'chefoes' ? '👹' : '🧟'} Rodada ${Z.roundView} · restam ${Z.left}${tipos ? ' · ' + tipos : ''}`;
+      $('score').textContent = !Z.roundView ? '🧟 Prepare-se…' : net.cfg.modo === 'sobrev' ? `⏳ Minuto ${Z.roundView} · ${Z.left} zumbis${tipos ? ' · ' + tipos : ''}` : `${net.cfg.modo === 'chefoes' ? '👹' : '🧟'} Rodada ${Z.roundView}${net.cfg.modo === 'chefoes' && net.cfg.esc ? '/' + CHEFOES_META : ''} · restam ${Z.left}${net.cfg.modo === 'chefoes' && !net.cfg.esc && Z.chView != null ? ` · 🏆 ${Z.chView}/${CHEFOES_META}` : ''}${tipos ? ' · ' + tipos : ''}`;
       const O = Z.objView, D = Z.dzView, linhas = [];
       if (O?.k === 'tempo') { const resta = Math.max(0, Math.ceil(O.meta - O.t)); linhas.push(`⏳ Resgate em ${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, '0')}`); }
       else if (O?.k === 'gen' && net.cfg.modo === 'defesa' && !O.f && zIntervaloAte > performance.now()) linhas.push(`🔧 Gerador ${O.max ? Math.round(O.hp / O.max * 100) : 0}%: fique perto para consertar`);
@@ -4408,14 +4409,27 @@ const goalOf = (modo = net.cfg.modo, c = net.cfg) => modo === 'gg' ? ggOrderOf(c
 const isTdm = () => ['tdm', 'ctf', 'esconde'].includes(net.cfg.modo);
 const teamOf = id => net.players[id]?.team ?? 0;
 // placar do time: abates no Times; capturas / rodadas nos outros
-const teamScore = t => net.cfg.modo === 'tdm' ? Object.values(net.players).reduce((s, p) => s + (p.team === t ? p.kills : 0), 0) : (net.tpts?.[t] | 0);
+// placar do time: o dono soma em net.tpts (no Times também, para os pontos não sumirem quando alguém sai); dono antigo só somava os abates de quem está na sala
+const teamScore = t => net.cfg.modo === 'tdm' && !regraNova() ? Object.values(net.players).reduce((s, p) => s + (p.team === t ? p.kills : 0), 0) : (net.tpts?.[t] | 0);
 const teamName = t => net.cfg.modo === 'esconde' ? ['Escondidos', 'Caçadores'][t] : TEAMS[t].nome;
 const teamEmoji = t => net.cfg.modo === 'esconde' ? ['📦', '🔦'][t] : TEAMS[t].emoji;
 // pontuação individual: pontos (morro, rodadas) ou abates
 const usaPts = () => ['koth', 'ultimo'].includes(net.cfg.modo);
 const scoreOf = p => usaPts() ? Math.floor(p.pts || 0) : p.kills;
 // distribui os jogadores nos dois times de forma equilibrada (dono da sala)
-function balanceTeams() { if (net.cfg.modo === 'esconde') return hsTimes(false); Object.values(net.players).forEach((p, i) => { p.team = i % 2; }); }
+// times em "cobra" pela força (abates da partida anterior): 1º → A, 2º e 3º → B, 4º e 5º → A…; os bots completam o time menor
+function balanceTeams() {
+  if (net.cfg.modo === 'esconde') return hsTimes(false);
+  const gente = Object.values(net.players).filter(p => !p.bot).sort((a, b) => (b.forca | 0) - (a.forca | 0));
+  gente.forEach((p, i) => { p.team = (i + 1) % 4 < 2 ? 0 : 1; });
+  equilibraBots();
+}
+// só os bots trocam de time para equilibrar: quem é gente fica onde está no meio da partida
+function equilibraBots() {
+  if (net.cfg.modo === 'esconde') return;
+  const cnt = [0, 0]; for (const p of Object.values(net.players)) if (!p.bot) cnt[p.team ?? 0]++;
+  for (const id of net.bots.keys()) { const p = net.players[id]; if (!p) continue; p.team = cnt[0] <= cnt[1] ? 0 : 1; cnt[p.team]++; }
+}
 // esconde-esconde: 1 caçador a cada 4 jogadores (75% escondidos), revezando: caça quem caçou menos vezes
 function hsTimes(nova) {
   const ps = Object.values(net.players), k = Math.max(1, Math.round(ps.length / 4));
@@ -4467,7 +4481,7 @@ function netStatus(t) { $('netStatus').textContent = t; $('roomStatus').textCont
 function addPlayer(id, name, char, cor, lk) {
   net.lastSeen.set(id, performance.now());
   const n = String(name || 'Jogador').slice(0, 14);
-  const cnt = [0, 0]; for (const q of Object.values(net.players)) cnt[q.team ?? 0]++;
+  const cnt = [0, 0]; for (const q of Object.values(net.players)) if (!q.bot) cnt[q.team ?? 0]++; // só gente: os bots se ajeitam depois (equilibraBots)
   const c = Number.isInteger(char) && char >= 0 && char < AMIGOS.length ? char : -1;
   // em modos sem renascer, quem chega no meio da rodada espera a próxima
   const espera = net.isHost && semVolta() && rodadaRolando();
@@ -4513,7 +4527,7 @@ function startMatch() {
   if (!net.isHost) return;
   net.winning = false; net.votes = {}; net.tpts = [0, 0]; net.ms = {};
   syncBots();
-  for (const [id, p] of Object.entries(net.players)) Object.assign(p, { kills: 0, deaths: 0, pts: 0, hp: hpMax(id), dead: false, down: false });
+  for (const [id, p] of Object.entries(net.players)) Object.assign(p, { forca: p.kills | 0, kills: 0, deaths: 0, pts: 0, hp: hpMax(id), dead: false, down: false });
   if (isTdm()) balanceTeams();
   net.endAt = net.cfg.tempo && !ehZumbi(net.cfg.modo) && net.cfg.modo !== 'esconde' ? performance.now() + net.cfg.tempo * 60000 : 0;
   net.roll = {};
@@ -4694,6 +4708,7 @@ function hostHandle(from, m) {
       if (tg.hp <= 0) {
         tg.dead = true; tg.deaths++;
         if (amigo) sh.kills = Math.max(0, sh.kills - 1); else { sh.kills++; ms.st++; ms.best = Math.max(ms.best, ms.st); } // pintar o próprio time tira ponto
+        if (net.cfg.modo === 'tdm' && net.tpts) { const t = sh.team ?? 0; net.tpts[t] = Math.max(0, (net.tpts[t] | 0) + (amigo ? -1 : 1)); }
         // vida por abate (vampiro)
         if (!amigo && net.cfg.vamp && !sh.dead && sh.hp < hpMax(from)) { sh.hp = Math.min(hpMax(from), sh.hp + net.cfg.vamp); broadcast({ t: 'hp', id: from, hp: sh.hp }); }
         msOf(m.target).st = 0;
@@ -6994,7 +7009,7 @@ function updateSpitView(dt) {
 
 // --- simulação (só o dono da sala) ---
 function zPlayerPos(id) { return id === net.myId ? player.pos.toArray() : net.ppos.get(id); }
-function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null, obj: null, bossFila: [], chOrdem: null, chPos: 0, chDerrot: new Set(), chMortos: 0, chVar: null, chVarAntes: null, sv: null, genLugar: null, defVar: null }); }
+function zReset() { Z.caes.clear(); for (const k in zBuff) delete zBuff[k]; Z.retratosView = []; Z.sim.clear(); Z.spits.length = 0; Z.vistos.clear(); Object.assign(Z, { round: 0, toSpawn: 0, spawnT: 0, breakT: 0, over: false, overT: 0, continua: false, ckptR: 0, started: false, roundView: 0, nView: 0, left: 0, evento: null, obj: null, bossFila: [], chOrdem: null, chPos: 0, chDerrot: new Set(), chView: null, chMortos: 0, chVar: null, chVarAntes: null, sv: null, genLugar: null, defVar: null }); }
 function zBegin() {
   zReset(); zGuarda.clear(); Z.retratos = new Set(); Z.started = true; Z.breakT = 3; // primeira rodada começa em 3 s
   for (const p of Object.values(net.players)) zEcoInit(p, true);
@@ -7064,7 +7079,7 @@ function zStartRound(r) {
   }
   sendRoster();
   const bf = Z.bossFila || [];
-  broadcast({ t: 'zround', r, b: Z.boss ? Z.boss + 10 * Z.chefeI : bf.length ? bf[0].nivel + 10 * bf[0].i : 0, bs: bf.length > 1 ? bf.map(B => B.i) : undefined, vr: net.cfg.modo === 'chefoes' ? Z.chVar || undefined : net.cfg.modo === 'defesa' ? Z.defVar || undefined : undefined, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ns: FAZ ? (Z.npcSolto ? 1 : 0) : undefined, tr: FAZ?.trator ? [r2(FAZ.trator.x), r2(FAZ.trator.z), r2(FAZ.trator.yaw), FAZ.trator.piloto || 0] : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
+  broadcast({ t: 'zround', r, cd: net.cfg.modo === 'chefoes' ? Z.chDerrot.size : undefined, b: Z.boss ? Z.boss + 10 * Z.chefeI : bf.length ? bf[0].nivel + 10 * bf[0].i : 0, bs: bf.length > 1 ? bf.map(B => B.i) : undefined, vr: net.cfg.modo === 'chefoes' ? Z.chVar || undefined : net.cfg.modo === 'defesa' ? Z.defVar || undefined : undefined, ev: Z.evento, n: np, rt: [...(Z.retratos || [])], pp: fazAbertas(), tb: FAZ ? FAZ.tab : undefined, gn: FAZ ? FAZ.gens.map(G => G.ok ? 1 : r2(G.prog)) : undefined, gf: FAZ ? FAZ.gens.map(G => G.fus ? 1 : 0) : undefined, fg: FAZ ? (Z.fogoOk ? 1 : 0) : undefined, ns: FAZ ? (Z.npcSolto ? 1 : 0) : undefined, tr: FAZ?.trator ? [r2(FAZ.trator.x), r2(FAZ.trator.z), r2(FAZ.trator.yaw), FAZ.trator.piloto || 0] : undefined, pc: FAZ ? fazPecasMsg() : undefined, dz: Z.desafio ? [Z.desafio.k, Z.desafio.n] : null, o: zObjMsg() });
 }
 // 🏁 fim da rodada (começo do intervalo da loja): quem morreu ou está caído volta já (para dar tempo de comprar),
 // quem sobreviveu ganha CURA_FIM da vida máxima, todo mundo ganha o bônus da rodada e a lojinha sorteia armas novas
@@ -7817,7 +7832,7 @@ function zFerir(z, from, dmg, o = {}) {
   if (z.ladrao && z.roubou && sh) { zPagar(from, z.roubou * 2); broadcast({ t: 'zladrao', ev: 'pego', by: from, v: z.roubou * 2 }); } // devolve em dobro
   const premio = z.boss ? 600 + 100 * Z.round : Math.round((RECOMPENSA[T.id] || 50) * 0.8 * (1 + 0.04 * Z.round) * zj().grana * (z.elite ? 2 : 1)) + (head ? 20 : 0);
   Z.sim.delete(z.id); if (sh) sh.kills++; Z.rosterDirty = true;
-  if (z.boss && net.cfg.modo === 'chefoes') { Z.chMortos = (Z.chMortos | 0) + 1; Z.chDerrot.add(z.chefeI | 0); }
+  if (z.boss && net.cfg.modo === 'chefoes') { const n0 = Z.chDerrot.size; Z.chMortos = (Z.chMortos | 0) + 1; Z.chDerrot.add(z.chefeI | 0); if (Z.chDerrot.size !== n0) broadcast({ t: 'zchef', n: Z.chDerrot.size }); }
   if (z.dupla) for (const o of Z.sim.values()) if (o.dupla && o.boss) { // 👯 o parceiro fica furioso e se cura
     o.hp = Math.min(o.max, o.hp + o.max * 0.3);
     if (!o.fase2) { o.fase2 = true; o.raiva = 999; o.speed *= 1.2; broadcast({ t: 'zfase', b: o.boss + 10 * (o.chefeI | 0) }); }
@@ -8005,9 +8020,10 @@ function zOnNet(m) {
       return true;
     }
     case 'zclear': zEntrouR = 1; clearZombies(); if (Z.eventoView) zEventoLook(null); fazFecharTudo(); return true;
+    case 'zchef': Z.chView = +m.n || 0; updateHud(); break;
     case 'zround': {
       if (zEntrouR == null) zEntrouR = +m.r || 1;
-      Z.roundView = m.r; zIntervaloAte = 0; updateHud();
+      Z.roundView = m.r; zIntervaloAte = 0; if (typeof m.cd === 'number') Z.chView = m.cd; updateHud();
       if (Array.isArray(m.rt)) onRetrato({ rt: m.rt });
       if (Array.isArray(m.pp)) for (const i of m.pp) fazAbrirPorta(i, null, true);
       if (Array.isArray(m.pc) && FAZ) fazPecasView(m.pc);
@@ -9945,7 +9961,7 @@ function syncBots() {
     net.bots.set(id, { pos: new THREE.Vector3(), yaw: 0, pitch: 0, vy: 0, onGround: true, alvo: null, mira: 0, fireCd: 1, lado: 1, trocaT: 0, wp: null, preso: 0, w: botArma(), sendT: 0 });
     botSpawn(id); mudou = true;
   }
-  if (isTdm() && mudou) balanceTeams();
+  if (isTdm() && mudou) equilibraBots();
   return mudou;
 }
 function botSpawn(id) {
@@ -10807,7 +10823,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
+window.__jogo = { hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom };
 openHome();
 renderContaBtn(); contaAuto(); segredoAuto();
 stickRest();
