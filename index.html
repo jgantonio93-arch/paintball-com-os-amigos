@@ -3038,6 +3038,66 @@ function buildFriend(a) {
 
   return { root, body, legL, legR, armL, armR, head, torso, gun, sombra, mats: [shirt, pants, skin] };
 }
+// junta peças que não se mexem umas em relação às outras numa malha só, com a cor em cada vértice
+// (cada malha é uma chamada de desenho: o zumbi comum caiu de 16 para 7)
+function juntaPecas(pecas) {
+  const pos = [], nor = [], col = [], m = new THREE.Matrix4(), nm = new THREE.Matrix3(), c = new THREE.Color(), v = new THREE.Vector3(), q = new THREE.Quaternion();
+  for (const p of pecas) {
+    const g = p.geo.index ? p.geo.toNonIndexed() : p.geo;
+    m.compose(v.set(p.x || 0, p.y || 0, p.z || 0), q, new THREE.Vector3(1, 1, 1)); nm.getNormalMatrix(m);
+    const P = g.attributes.position, N = g.attributes.normal; c.setHex(p.cor);
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(m); pos.push(v.x, v.y, v.z);
+      v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+      col.push(c.r, c.g, c.b);
+    }
+    if (g !== p.geo) g.dispose(); p.geo.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  out.computeBoundingSphere();
+  return out;
+}
+// zumbi comum (sem ser chefão): mesmo boneco do buildFriend, mas tronco+colete+potes+pescoço, perna+tênis e
+// braço+manga viram uma malha cada (geometria compartilhada por combinação de cores; material único por zumbi
+// para o brilho de acerto/fúria); só tronco e cabeça fazem sombra
+const zGeoCache = new Map();
+function buildZumbi(a) {
+  const k = `${a.camisa}|${a.calca}|${a.pele}`;
+  let G = zGeoCache.get(k);
+  if (!G) {
+    G = {
+      tronco: juntaPecas([
+        { geo: new THREE.BoxGeometry(0.9, 0.95, 0.5), cor: a.camisa, y: 1.35 },
+        { geo: new THREE.BoxGeometry(0.94, 0.28, 0.54), cor: 0x23262e, y: 0.98 },
+        ...[-0.24, 0, 0.24].map(px => ({ geo: new THREE.CylinderGeometry(0.08, 0.08, 0.34, 8), cor: 0xe9eef5, x: px, y: 1.12, z: -0.32 })),
+        { geo: new THREE.CylinderGeometry(0.14, 0.16, 0.25), cor: a.pele, y: 1.88 },
+      ]),
+      perna: juntaPecas([{ geo: new THREE.BoxGeometry(0.32, 0.85, 0.32), cor: a.calca, y: -0.425 }, { geo: new THREE.BoxGeometry(0.36, 0.14, 0.52), cor: 0xf2f2f2, y: -0.85, z: 0.08 }]),
+      braco: juntaPecas([{ geo: new THREE.BoxGeometry(0.24, 0.8, 0.24), cor: a.pele, y: -0.4 }, { geo: new THREE.BoxGeometry(0.3, 0.32, 0.3), cor: a.camisa, y: -0.14 }]),
+    };
+    zGeoCache.set(k, G);
+  }
+  const root = new THREE.Group();
+  const body = new THREE.Group(); root.add(body);
+  const sombra = new THREE.Mesh(sombraGeo, sombraMat); sombra.position.y = 0.03; sombra.renderOrder = -1; sombra.userData.fixa = true; root.add(sombra);
+  const corpo = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+  const malha = (geo, sombraSim) => { const o = new THREE.Mesh(geo, corpo); o.userData.geoFixa = true; o.castShadow = sombraSim; return o; };
+  const torso = malha(G.tronco, true); body.add(torso);
+  const membro = (geo, x, y) => { const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.add(malha(geo, false)); body.add(pivot); return pivot; };
+  const legL = membro(G.perna, -0.22, 0.88), legR = membro(G.perna, 0.22, 0.88);
+  const armL = membro(G.braco, -0.6, 1.78), armR = membro(G.braco, 0.6, 1.78);
+  armR.rotation.x = -1.2;
+  const gun = new THREE.Object3D(); armR.add(gun); // zumbi não usa arma (fica só para o código que esconde)
+  const head = new THREE.Group(); head.position.y = 2.35; body.add(head);
+  const back = new THREE.Mesh(new THREE.SphereGeometry(0.52, 16, 12), new THREE.MeshLambertMaterial({ color: a.cabelo ?? 0xffffff }));
+  back.scale.set(1, 1.18, 0.75); back.position.z = -0.14; back.castShadow = true; head.add(back);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(1.06, 1.33), new THREE.MeshBasicMaterial({ map: a.tex || texFor(a.foto), transparent: true, alphaTest: 0.05 }));
+  face.position.z = 0.32; head.add(face);
+  return { root, body, legL, legR, armL, armR, head, torso, gun, sombra, mats: [corpo] };
+}
 
 // ===== Visual: máscara, macacão, cor da tinta, chapéus, rosto, costas e efeito ao pintar =====
 // Os itens destravam com conquistas (números do jogador: online + treino). Raridade só muda a moldura.
@@ -3431,20 +3491,42 @@ function splatTexture() {
 }
 const splatTexs = [splatTexture(), splatTexture(), splatTexture()];
 // tinta do mapa e tinta grudada em boneco em filas separadas: acertar zumbi não apaga a tinta das paredes
+// a tinta do mapa fica em 3 malhas instanciadas (uma por desenho de mancha, cor por instância): eram até 160 chamadas de desenho
 const decals = [], decalsCorpo = [];
-function soltaDecal(d) { d.parent?.remove(d); d.geometry.dispose(); d.material.dispose(); }
-function limpaDecals() { for (const d of decals) soltaDecal(d); for (const d of decalsCorpo) soltaDecal(d); decals.length = decalsCorpo.length = 0; }
+const DECAL_CAP = 160, splatGeo = new THREE.PlaneGeometry(1, 1);
+const decalIM = splatTexs.map(t => {
+  const m = new THREE.InstancedMesh(splatGeo, new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }), DECAL_CAP);
+  m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(DECAL_CAP * 3), 3);
+  m.count = 0; m.frustumCulled = false; scene.add(m); return m;
+});
+const _decO = new THREE.Object3D(), _decC = new THREE.Color();
+function redesenhaDecals() {
+  const n = [0, 0, 0];
+  for (const d of decals) { const im = decalIM[d.k], i = n[d.k]++; im.setMatrixAt(i, d.m); im.instanceColor.setXYZ(i, d.r, d.g, d.b); }
+  decalIM.forEach((im, k) => { im.count = n[k]; im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; });
+}
+function soltaDecal(d) { if (!d.isMesh) return; d.parent?.remove(d); if (!d.userData.geoFixa) d.geometry.dispose(); d.material.dispose(); }
+function limpaDecals() { for (const d of decalsCorpo) soltaDecal(d); decals.length = decalsCorpo.length = 0; redesenhaDecals(); }
 function addSplat(point, normal, color, parent, size = 0.6) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
-    new THREE.MeshBasicMaterial({ map: splatTexs[Math.floor(Math.random() * 3)], color, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  const max = { baixa: 50, media: 100 }[settings.qual] ?? 160;
+  if (!parent) {
+    _decO.position.copy(point).addScaledVector(normal, 0.01);
+    _decO.lookAt(tmpV.copy(point).add(normal)); _decO.rotateZ(Math.random() * Math.PI * 2); _decO.scale.setScalar(size); _decO.updateMatrix();
+    _decC.setHex(color);
+    decals.push({ k: Math.floor(Math.random() * 3), m: _decO.matrix.clone(), r: _decC.r, g: _decC.g, b: _decC.b });
+    if (decals.length > Math.min(max, DECAL_CAP)) decals.shift();
+    redesenhaDecals();
+    return;
+  }
+  const m = new THREE.Mesh(splatGeo, new THREE.MeshBasicMaterial({ map: splatTexs[Math.floor(Math.random() * 3)], color, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  m.userData.geoFixa = true; m.scale.setScalar(size);
   m.position.copy(point).addScaledVector(normal, 0.01);
   m.lookAt(tmpV.copy(point).add(normal));
   m.rotateZ(Math.random() * Math.PI * 2);
   scene.add(m);
-  if (parent) parent.attach(m); // gruda a tinta no amigo, acompanhando o movimento
-  const fila = parent ? decalsCorpo : decals, max = { baixa: 50, media: 100 }[settings.qual] ?? 160;
-  fila.push(m);
-  if (fila.length > (parent ? Math.ceil(max / 3) : max)) soltaDecal(fila.shift());
+  parent.attach(m); // gruda a tinta no amigo, acompanhando o movimento
+  decalsCorpo.push(m);
+  if (decalsCorpo.length > Math.ceil(max / 3)) soltaDecal(decalsCorpo.shift());
 }
 
 const particles = [];
@@ -3456,15 +3538,22 @@ function corMat(color, criar) {
   return m;
 }
 const PART_MAX = () => settings.qual === 'baixa' ? 110 : settings.qual === 'alta' ? 320 : 200;
+// partículas (pingos de tinta): todas numa malha instanciada só, com cor por instância
+// (antes cada pingo era uma malha = uma chamada de desenho; uma explosão eram 28)
+const PART_CAP = 320;
+const partMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.07, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }), PART_CAP);
+partMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+partMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PART_CAP * 3), 3);
+partMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+partMesh.count = 0; partMesh.frustumCulled = false; scene.add(partMesh);
+const _partM = new THREE.Matrix4(), _partC = new THREE.Color();
 function burst(point, color, n = 14, speed = 4) {
   n = Math.min(n, PART_MAX() - particles.length); if (settings.qual === 'baixa') n = Math.ceil(n / 2);
-  const mat = corMat('b' + color, () => new THREE.MeshBasicMaterial({ color }));
+  if (n <= 0) return;
+  _partC.setHex(color);
   for (let i = 0; i < n; i++) {
-    const m = new THREE.Mesh(ballGeo, mat);
-    m.scale.setScalar(0.4 + Math.random() * 0.6);
-    m.position.copy(point);
-    particles.push({ mesh: m, vel: new THREE.Vector3((Math.random() - .5) * speed, Math.random() * speed, (Math.random() - .5) * speed), life: 0.6 + Math.random() * 0.4 });
-    scene.add(m);
+    particles.push({ x: point.x, y: point.y, z: point.z, vx: (Math.random() - .5) * speed, vy: Math.random() * speed, vz: (Math.random() - .5) * speed,
+      s: 0.4 + Math.random() * 0.6, life: 0.6 + Math.random() * 0.4, r: _partC.r, g: _partC.g, b: _partC.b });
   }
 }
 
@@ -6826,7 +6915,7 @@ function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const usaFoto = fotos.length && (!C || (kind % 100) / 100 < CHEFE_FOTO);
   const a = usaFoto ? fotos[kind % fotos.length] : { nome: '', tex: rostoChefe(C ? C.id : CHEFES[kind % CHEFES.length].id) };
   const camisa = C?.id === 'espantalho' ? 0x3a4a8a : C?.id === 'mascote' ? 0x7a4a22 : C?.id === 'doutor' ? 0xe8ecf0 : C?.id === 'sorveteiro' ? 0xf2f6ff : C?.id === 'baterista' ? 0xb81d2a : C?.id === 'lenhador' ? 0xa8322a : C?.id === 'robo' ? 0x6a7078 : C?.id === 'noiva' ? 0xf4f0f8 : boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
-  const parts = buildFriend({ ...a, tex: a.tex || zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
+  const parts = (boss ? buildFriend : buildZumbi)({ ...a, tex: a.tex || zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
   if (T.id === 'fantasma') parts.sombra.visible = false; // o fantasma não entrega onde está
   parts.gun.visible = false;
   parts.root.position.set(x, y, z);
@@ -6967,7 +7056,7 @@ function bichoMesh(tipo, parts, extra) {
 function liberaMalha(root) {
   root.traverse(m => {
     if (m.userData.fixa) return; // peça compartilhada (sombra-bolha): não pode ser jogada fora
-    m.geometry?.dispose?.();
+    if (!m.userData.geoFixa) m.geometry?.dispose?.(); // geometria do zumbi comum é compartilhada (zGeoCache)
     for (const mt of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) { if (mt.map?.userData?.solta) mt.map.dispose(); mt.dispose(); }
   });
 }
@@ -10873,13 +10962,20 @@ function updateBalls(dt) {
 }
 
 function updateParticles(dt) {
-  for (let i = particles.length - 1; i >= 0; i--) {
+  let n = 0;
+  for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
-    p.vel.y -= 14 * dt; p.mesh.position.addScaledVector(p.vel, dt);
-    if (p.mesh.position.y < 0.03) { p.mesh.position.y = 0.03; p.vel.multiplyScalar(0.3); }
-    p.life -= dt; p.mesh.scale.multiplyScalar(0.985);
-    if (p.life <= 0) { scene.remove(p.mesh); if (p.mesh.material.userData.solto) p.mesh.material.dispose(); particles.splice(i, 1); }
+    p.life -= dt; if (p.life <= 0) continue;
+    p.vy -= 14 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.y < 0.03) { p.y = 0.03; p.vx *= 0.3; p.vy *= 0.3; p.vz *= 0.3; }
+    p.s *= 0.985;
+    particles[n] = p;
+    _partM.makeScale(p.s, p.s, p.s); _partM.setPosition(p.x, p.y, p.z);
+    partMesh.setMatrixAt(n, _partM); partMesh.instanceColor.setXYZ(n, p.r, p.g, p.b);
+    n++;
   }
+  particles.length = n;
+  if (n || partMesh.count) { partMesh.count = n; partMesh.instanceMatrix.needsUpdate = true; partMesh.instanceColor.needsUpdate = true; }
 }
 
 // cena do menu: câmera girando com os amigos dançando
