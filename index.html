@@ -2977,9 +2977,14 @@ const enemies = [];
 const ENEMY_RADIUS = 0.55;
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
 
+// sombra-bolha: mancha escura redonda no chão quando não há sombra de verdade (qualidade baixa ou noite)
+const sombraGeo = new THREE.CircleGeometry(0.8, 18).rotateX(-Math.PI / 2);
+const sombraMat = new THREE.MeshBasicMaterial({ map: canvasTex(64, 64, (g, w) => { const r = g.createRadialGradient(w / 2, w / 2, 2, w / 2, w / 2, w / 2); r.addColorStop(0, 'rgba(0,0,0,.8)'); r.addColorStop(0.55, 'rgba(0,0,0,.55)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, w, w); }), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+sombraMat.map.wrapS = sombraMat.map.wrapT = THREE.ClampToEdgeWrapping;
 function buildFriend(a) {
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
+  const sombra = new THREE.Mesh(sombraGeo, sombraMat); sombra.position.y = 0.03; sombra.renderOrder = -1; sombra.userData.fixa = true; root.add(sombra);
   const skin = new THREE.MeshLambertMaterial({ color: a.pele ?? 0xe8b796 });
   const shirt = new THREE.MeshLambertMaterial({ color: a.camisa });
   const pants = new THREE.MeshLambertMaterial({ color: a.calca });
@@ -3023,7 +3028,7 @@ function buildFriend(a) {
   face.position.z = 0.32; head.add(face);
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.25), skin); neck.position.y = 1.88; body.add(neck);
 
-  return { root, body, legL, legR, armL, armR, head, torso, gun, mats: [shirt, pants, skin] };
+  return { root, body, legL, legR, armL, armR, head, torso, gun, sombra, mats: [shirt, pants, skin] };
 }
 
 // ===== Visual: máscara, macacão, cor da tinta, chapéus, rosto, costas e efeito ao pintar =====
@@ -5035,7 +5040,8 @@ function updateRemotes(dt, t) {
     const swing = Math.sin(r.phase) * Math.min(1, sp / 3) * 0.8;
     r.legL.rotation.x = swing; r.legR.rotation.x = -swing; r.armL.rotation.x = -swing * 0.8;
     r.body.position.y = Math.abs(Math.sin(r.phase)) * 0.08 * Math.min(1, sp / 3);
-    if (r.pos.y > groundHeight(r.pos, ENEMY_RADIUS) + 0.15) { r.legL.rotation.x = -0.6; r.legR.rotation.x = 0.4; r.armL.rotation.x = -2.6; }
+    const chaoR = groundHeight(r.pos, ENEMY_RADIUS); r.sombra.position.y = chaoR - r.pos.y + 0.03; // sombra fica no chão no pulo
+    if (r.pos.y > chaoR + 0.15) { r.legL.rotation.x = -0.6; r.legR.rotation.x = 0.4; r.armL.rotation.x = -2.6; }
     if (r.w && r.w !== r.wShown) { r.wShown = r.w; const W = WEAPONS[r.w]; r.gun.material.color.setHex(W.cor); r.gun.scale.set(W.splash ? 1.8 : 1, W.splash ? 1.8 : 1, W.len); }
     if (r.crouch) { r.body.position.y = -0.7; r.legL.rotation.x = r.legR.rotation.x = -1.35; }
     if (r.bubbleT > 0) { r.bubbleT -= dt; if (r.bubbleT <= 0) { r.root.remove(r.bubble); r.bubble = null; } }
@@ -6763,6 +6769,7 @@ function makeZombie(id, kind, x, y, z, boss, type = 0) {
   const a = usaFoto ? fotos[kind % fotos.length] : { nome: '', tex: rostoChefe(C ? C.id : CHEFES[kind % CHEFES.length].id) };
   const camisa = C?.id === 'espantalho' ? 0x3a4a8a : C?.id === 'mascote' ? 0x7a4a22 : C?.id === 'doutor' ? 0xe8ecf0 : C?.id === 'sorveteiro' ? 0xf2f6ff : C?.id === 'baterista' ? 0xb81d2a : C?.id === 'lenhador' ? 0xa8322a : C?.id === 'robo' ? 0x6a7078 : C?.id === 'noiva' ? 0xf4f0f8 : boss ? 0x5a1010 : T.cor ?? [0x3d4a2a, 0x4a2f2f, 0x2f3d4a][kind % 3];
   const parts = buildFriend({ ...a, tex: a.tex || zombieTex(a), camisa, calca: 0x2b2b2b, pele: T.id === 'fantasma' ? 0xc8d8f0 : 0x86a86e });
+  if (T.id === 'fantasma') parts.sombra.visible = false; // o fantasma não entrega onde está
   parts.gun.visible = false;
   parts.root.position.set(x, y, z);
   const L = (c, e = 0, extra) => new THREE.MeshLambertMaterial({ color: c, emissive: e, ...extra });
@@ -6901,6 +6908,7 @@ function bichoMesh(tipo, parts, extra) {
 // os rostos ficam em cache e não são liberados)
 function liberaMalha(root) {
   root.traverse(m => {
+    if (m.userData.fixa) return; // peça compartilhada (sombra-bolha): não pode ser jogada fora
     m.geometry?.dispose?.();
     for (const mt of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) { if (mt.map?.userData?.solta) mt.map.dispose(); mt.dispose(); }
   });
@@ -8787,7 +8795,7 @@ function updatePropsView() {
     const prop = remoteIsProp(r) && !r.dead;
     if (prop && (r.propK !== r.pk || !r.propG)) { if (r.propG) r.root.remove(r.propG); r.propG = new THREE.Group(); r.propG.add(propDe(r.pk ?? 0).fazer()); r.root.add(r.propG); r.propK = r.pk; }
     if (r.propG) r.propG.visible = prop;
-    r.body.visible = !prop;
+    r.body.visible = !prop; r.sombra.visible = !prop; // objeto do esconde-esconde não tem sombra-bolha (seria pista)
     if (r.tag) r.tag.visible = !prop || teamOf(r.id) === teamOf(net.myId);
     r.prop = prop;
   }
@@ -10923,6 +10931,7 @@ function frame() {
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').style.opacity = 0; }
   if (state !== 'menu') updateFloats(dt);
   updateSetas();
+  sombraMat.visible = !(renderer.shadowMap.enabled && sun.castShadow);
   updateFxParts(dt);
   renderLockerFrame(dt);
   if (state !== 'menu') updateWalls(dt);
