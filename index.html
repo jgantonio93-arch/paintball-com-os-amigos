@@ -564,7 +564,7 @@
   .stats b { display:block; font-family:var(--disp); font-weight:400; font-size:28px; color:var(--yel); }
   .stats span { font-size:12px; color:var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:1px; }
   #pauseScreen, #overScreen { align-items:center; }
-  .leveDica { position:fixed; left:50%; bottom:calc(14px + var(--sb)); transform:translateX(-50%); z-index:8; background:var(--hud); color:#fff; border:1px solid var(--yel); border-radius:999px; padding:8px 16px; font-weight:800; font-size:13px; pointer-events:auto; }
+  .leveDica { position:fixed; left:50%; bottom:calc(14px + var(--sb)); transform:translateX(-50%); z-index:13; background:var(--hud); color:#fff; border:1px solid var(--yel); border-radius:999px; padding:8px 16px; font-weight:800; font-size:13px; pointer-events:auto; }
   .leveDica b { color:var(--yel); }
   #pauseScreen { background:rgba(8,10,20,.72); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:12; }
   /* desfoque atrás dos botões e janelas custa caro no celular (refeito a cada quadro): só na qualidade alta */
@@ -681,10 +681,10 @@
   <div id="invGlow"></div>
   <div id="fx"></div>
   <div id="chatLog"></div>
-  <button id="leveDica" class="leveDica" hidden>⚡ Jogo travando? <b>Ligar Modo leve</b></button>
   <div id="banner"></div>
   <div id="scoreboard"></div>
 </div>
+<button id="leveDica" class="leveDica" hidden>⚡ Jogo travando? <b>Ligar Modo leve</b></button>
 <input id="chatInput" maxlength="80" placeholder="Mensagem para a sala… (Enter envia, Esc cancela)" autocomplete="off" enterkeyhint="send">
 
 <div id="touch">
@@ -2885,6 +2885,7 @@ function applyClima() {
   lanterna.intensity = lantBase = noite ? LANTERNA_I : 0;
   sun.castShadow = !noite; // à noite o sol é fraquinho: sombra invisível que custa uma renderização inteira
   if (noite && !antes && climaAvisa && state === 'play') feed('🔦 Ficou de noite: lanterna ligada');
+  chuva.molhado = molhado;
   chuva.lines.visible = molhado && !settings.leve;
 }
 // só avisa depois de o jogo terminar de abrir (o 1º loadMap roda antes de `state` existir)
@@ -4389,6 +4390,7 @@ function readSettings() {
 }
 const baseRatio = () => Math.min(devicePixelRatio, settings.leve ? 0.7 : { baixa: 1, media: 1.5, alta: 2 }[settings.qual] || 1.5);
 function applyQuality() {
+  chuva.lines.visible = !!chuva.molhado && !settings.leve; // ligar/desligar o Modo leve com chuva na tela
   document.body.classList.toggle('qalta', settings.qual === 'alta' && !settings.leve);
   document.body.classList.toggle('leve', !!settings.leve);
   limitaLuzes();
@@ -4409,9 +4411,10 @@ function applyQuality() {
 // jogo pesado (quadro médio > 45 ms depois de 15 s jogando): oferece o Modo leve uma vez por aparelho
 function leveDica() {
   const el = $('leveDica');
-  if (settings.leve || state !== 'play' || load('pb-leve-dica', false)) { if (!el.hidden) el.hidden = true; return; }
-  leveDica.t = (leveDica.t || 0) + 1;
-  if (leveDica.t > 450 && (autoRes.m || 0) > 0.045 && el.hidden) { el.hidden = false; setTimeout(() => { el.hidden = true; save('pb-leve-dica', true, true); }, 12000); }
+  // no PC com o mouse travado não dá para clicar: o aviso continua na pausa (Esc)
+  if (settings.leve || (state !== 'play' && state !== 'paused') || leveDica.visto || load('pb-leve-dica', false)) { if (!el.hidden) el.hidden = true; return; }
+  if (state === 'play') leveDica.t = (leveDica.t || 0) + 1;
+  if (leveDica.t > 450 && (autoRes.m || 0) > 0.045 && el.hidden) { el.hidden = false; setTimeout(() => { el.hidden = true; leveDica.visto = true; save('pb-leve-dica', true, true); }, 15000); }
 }
 function autoRes(d) {
   const a = autoRes; a.m = (a.m ?? 0.016) * 0.94 + Math.min(d, 0.2) * 0.06; a.t = (a.t || 0) + d; a.k ??= 1;
@@ -6926,10 +6929,10 @@ for (const id of ['setSens', 'setTouch', 'setPad', 'setVol', 'setMus', 'setFov',
 for (const id of ['setLeve', 'setQual', 'setCtrl', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
 $('leveDica').onclick = () => {
   settings.leve = true; saveSettings(); applyQuality(); loadSettingsForm();
-  $('leveDica').hidden = true; save('pb-leve-dica', true, true);
+  $('leveDica').hidden = true; leveDica.visto = true; save('pb-leve-dica', true, true);
   feed('⚡ Modo leve ligado (dá para desligar em Controles e ajustes)');
 };
-$('settingsResetBtn').onclick = () => { Object.assign(settings, SET_PADRAO); saveSettings(); loadSettingsForm(); readSettings(); };
+$('settingsResetBtn').onclick = () => { Object.assign(settings, SET_PADRAO); saveSettings(); loadSettingsForm(); readSettings(); applyQuality(); };
 $('resumeBtn').onclick = resumeGame;
 $('quitBtn').onclick = () => { if (mode === 'online') leaveOnline(net.local ? null : 'Você saiu da sala.'); else backToMenu(); };
 $('verMain').textContent = `Paintball com os Amigos · versão ${VERSAO} · ${isTouch ? 'celular' : 'computador'}`;
@@ -8626,7 +8629,7 @@ function zOnNet(m) {
       if (m.sab) fazGeradorSabotado(m.g | 0);
       updateHud(); return true;
     }
-    case 'energia': fazEnergia(); return true;
+    case 'energia': fazEnergia(); updateHud(); return true;
     case 'pecas': {
       fazPecasView(m.l || []);
       if (m.k && PECAS[m.k]?.tipo === 'ovo') { const n = pecasDoTipo('ovo').length - fazPecasFaltam('ovo').length; banner(`🥚 Ovo dourado! (${n}/3)`, 2.2); feed(n < 3 ? `🥚 ${m.by === net.myId ? 'Você achou' : nameOf(m.by) + ' achou'} um ovo dourado escondido! +500 💰 · será que tem mais?` : '🥚🥚🥚 Os 3 ovos dourados! Todo mundo ganhou o 🔱 Forcado de tinta: está na aba 🎁 da loja'); if (n >= 3) bumpStat('ovos', 1, true); [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.14, { type: 'triangle', vol: 0.05, delay: i * 0.07 })); }
