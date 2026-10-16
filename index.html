@@ -7350,20 +7350,24 @@ function caoMesh(dono) {
   scene.add(g);
   return { g, rabo, cab, pernas, pos: new THREE.Vector3(), alvo: new THREE.Vector3(), yaw: 0, fase: 0 };
 }
+const _caoV = new THREE.Vector3();
 function caesView(lista, dt, t) {
   const vistos = new Set();
-  for (const [dono, x, z, yaw, morde] of lista || []) {
+  for (const [dono, x, z, yaw, morde, rod] of lista || []) {
+    if (!Number.isFinite(+x + +z)) continue;
     vistos.add(dono);
-    let c = caoMeshes.get(dono); if (!c) { c = caoMesh(dono); c.pos.set(+x, 0, +z); caoMeshes.set(dono, c); }
-    c.alvo.set(+x, groundHeight(new THREE.Vector3(+x, 3, +z), 0.3), +z); c.yaw = +yaw; c.morde = morde;
+    let c = caoMeshes.get(dono); if (!c) { c = caoMesh(dono); c.pos.set(+x, 0, +z); c.yawV = +yaw || 0; caoMeshes.set(dono, c); }
+    c.alvo.set(+x, groundHeight(_caoV.set(+x, 3, +z), 0.3), +z); c.yaw = +yaw || 0; c.morde = morde; c.rod = rod | 0;
   }
   if (lista) for (const [id, c] of caoMeshes) if (!vistos.has(id)) { scene.remove(c.g); caoMeshes.delete(id); }
 }
 function animCaes(dt, t) {
   for (const c of caoMeshes.values()) {
-    const antes = c.pos.clone(); c.pos.lerp(c.alvo, Math.min(1, dt * 10));
+    const antes = _caoV.copy(c.pos);
+    if (c.pos.distanceTo(c.alvo) > 6) c.pos.copy(c.alvo); else c.pos.lerp(c.alvo, Math.min(1, dt * 9));
     const v = antes.distanceTo(c.pos) / Math.max(dt, 0.001); c.fase += dt * Math.min(18, v * 2.5);
-    c.g.position.copy(c.pos); c.g.rotation.y = c.yaw;
+    let dy = c.yaw - (c.yawV ?? c.yaw); dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.yawV = (c.yawV ?? c.yaw) + dy * Math.min(1, dt * 12);
+    c.g.position.copy(c.pos); c.g.rotation.y = c.yawV;
     c.rabo.rotation.y = Math.sin(t * 14) * 0.6;
     c.pernas.forEach((p, i) => p.rotation.x = Math.sin(c.fase + (i % 2 ? Math.PI : 0)) * 0.7);
     c.cab.position.z = c.morde ? 0.62 : 0.5;
@@ -7549,7 +7553,9 @@ function zPronto(from) {
 function zStartRound(r) {
   Z.prontos = new Set();
   if (net.cfg.ckpt && r % CKPT_AUTO === 0 && r > Z.ckptR) { Z.ckptR = r; broadcast({ t: 'ckpt', r }); } // 💾 checkpoint na 5ª, 10ª… rodada
-  Z.round = r; Z.premios = 0; Z.ladrao = false; Z.caes.clear(); Z.roundAt = performance.now(); Z.sendT = 0;
+  Z.round = r; Z.premios = 0; Z.ladrao = false; Z.roundAt = performance.now(); Z.sendT = 0;
+  // 🐕 o cachorro dura CAO_RODADAS rodadas (antes sumia em toda rodada nova: comprado no intervalo, sumia na hora)
+  for (const [dono, c] of Z.caes) { if (c.novo) c.novo = false; else if (--c.rod <= 0) Z.caes.delete(dono); }
   for (const p of Object.values(net.players)) p.pregou = 0;
   const ks = Object.keys(DESAFIOS).filter(k => k !== 'levanta' || nJog() > 1);
   Z.desafio = r >= 2 ? { k: randomFrom(ks), n: 0 } : null; if (Z.desafio) Z.desafio.n = DESAFIOS[Z.desafio.k].n;
@@ -8028,25 +8034,47 @@ function zObjFim() {
   Z.obj = null;
 }
 const AREA_R = 5;
-// dono: cada cachorro corre até o zumbi mais perto do dono (até 16 m) e morde; sem zumbi, fica junto do dono
+// dono: cada cachorro escolhe um zumbi (o que está atacando o dono primeiro, senão o mais perto DELE, até 15 m do dono),
+// fica nele até morrer ou se afastar demais, morde forte e volta para o lado do dono sem zumbi por perto;
+// travado (não anda por 1,2 s querendo andar) ou longe demais: reaparece do lado do dono
+const CAO_RODADAS = 3, CAO_VEL = 9;
 function zCaesTick(dt) {
   for (const [dono, c] of Z.caes) {
-    const q = zPlayerPos(dono); if (!q || !net.players[dono]) { Z.caes.delete(dono); continue; }
+    if (!net.players[dono]) { Z.caes.delete(dono); continue; }
+    const q = zPlayerPos(dono); if (!q) continue; // sem posição ainda: espera (antes o cachorro sumia)
     c.atk -= dt; c.morde = Math.max(0, c.morde - dt);
-    let alvo = null, best = 16;
-    for (const z of Z.sim.values()) { const d = Math.hypot(z.x - q[0], z.z - q[2]); if (d < best && !z.air) { best = d; alvo = z; } }
-    const tx = alvo ? alvo.x : q[0] + 1.5, tz = alvo ? alvo.z : q[2] + 1.5;
-    let dx = tx - c.x, dz = tz - c.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-    c.yaw = Math.atan2(dx, dz);
-    if (alvo && d < 1.4) {
-      if (c.atk <= 0) { c.atk = 0.55; c.morde = 0.25; zFerir(alvo, dono, Math.round(zVidaBase(Z.round) * 0.22), { semGrana: true }); }
-    } else if (d > (alvo ? 1.2 : 0.6)) {
-      zp.set(c.x, 0, c.z); c.side ??= 1; c.desvT ??= 0;
-      const [mx, mz] = zDesvio(c, dx, dz, 0.35, dt);
-      moveWithCollision(zp, mx * 8.5 * dt, mz * 8.5 * dt, 0.35, 0.8);
-      c.x = THREE.MathUtils.clamp(zp.x, -ARENA + 0.8, ARENA - 0.8); c.z = THREE.MathUtils.clamp(zp.z, -ARENA + 0.8, ARENA - 0.8);
-      if (d > 30) { c.x = q[0] + 1; c.z = q[2] + 1; } // ficou muito longe: aparece do lado do dono
+    let alvo = c.alvoId ? Z.sim.get(c.alvoId) : null;
+    if (alvo && (alvo.air || alvo.sobe || Math.hypot(alvo.x - q[0], alvo.z - q[2]) > 20)) alvo = null;
+    if (!alvo) {
+      let best = 1e9;
+      for (const z of Z.sim.values()) {
+        if (z.air || z.sobe) continue;
+        const dd = Math.hypot(z.x - q[0], z.z - q[2]); if (dd > 15) continue;
+        const nota = Math.hypot(z.x - c.x, z.z - c.z) - (dd < 3 ? 8 : 0); // quem está em cima do dono vem primeiro
+        if (nota < best) { best = nota; alvo = z; }
+      }
     }
+    c.alvoId = alvo?.id || null;
+    const tx = alvo ? alvo.x : q[0] + 1.2, tz = alvo ? alvo.z : q[2] + 1.2;
+    let dx = tx - c.x, dz = tz - c.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+    const perto = alvo ? 1.3 + (alvo.boss ? 1.2 : 0) : 1;
+    if (alvo || d > perto) c.yaw = Math.atan2(dx, dz);
+    if (alvo && d < perto) {
+      if (c.atk <= 0) { c.atk = 0.45; c.morde = 0.25; zFerir(alvo, dono, Math.max(8, Math.round(zVidaBase(Z.round) * 0.3 * zj().vida)), { semGrana: true }); }
+      c.presoT = 0;
+    } else if (d > perto) {
+      zp.set(c.x, 0, c.z); c.side ??= 1; c.desvT ??= 0;
+      const [mx, mz] = zDesvio(c, dx, dz, 0.35, dt), passo = CAO_VEL * (d > 6 ? 1.2 : 1) * dt;
+      moveWithCollision(zp, mx * passo, mz * passo, 0.35, 0.8);
+      const andou = Math.hypot(zp.x - c.x, zp.z - c.z);
+      c.x = THREE.MathUtils.clamp(zp.x, -ARENA + 0.8, ARENA - 0.8); c.z = THREE.MathUtils.clamp(zp.z, -ARENA + 0.8, ARENA - 0.8);
+      c.presoT = andou < passo * 0.2 ? (c.presoT || 0) + dt : 0;
+      const longe = Math.hypot(c.x - q[0], c.z - q[2]);
+      if (longe > 25 || (c.presoT > 1.2 && d > 2)) { // travado atrás de algo ou muito longe: aparece do lado do dono
+        c.x = q[0] + 1; c.z = q[2] + 1; c.presoT = 0; c.alvoId = null;
+        if (collides(zq.set(c.x, 0.5, c.z), 0.35, 0.8)) { c.x = q[0]; c.z = q[2]; }
+      }
+    } else c.presoT = 0;
   }
 }
 // dono: o ladrão corre até alguém, rouba e foge para longe; depois de 25 s fugindo some com o dinheiro
@@ -8350,7 +8378,7 @@ function zHostTick(dt) {
       if (chave || (z.zsN = (z.zsN | 0) + 1) <= 3) e.push(z.kind, z.boss ? z.boss + 10 * (z.chefeI | 0) : 0, z.type);
       else while (e.length > 5 && !e[e.length - 1]) e.pop();
       return e;
-    }), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0]), np: FAZ ? npcMsg() : undefined });
+    }), cs: [...Z.caes.entries()].map(([id, c]) => [id, r2(c.x), r2(c.z), r2(c.yaw), c.morde > 0 ? 1 : 0, c.rod]), np: FAZ ? npcMsg() : undefined });
     for (const z of vivos) z.atkFlag = false;
   }
   Z.rosterT -= dt;
@@ -10093,10 +10121,10 @@ function zComprar(from, m) {
       p.inv[slot] = { w: c.w, l: c.l };
       broadcast({ t: 'bought', id: from, w: c.w, l: c.l, tr: velho?.w || null, cx: 1 });
     }
-  } else if (op === 8) { // 🐕 cachorro de tinta até o fim da rodada
+  } else if (op === 8) { // 🐕 cachorro de tinta por CAO_RODADAS rodadas
     const preco = caoPreco(); if (Z.caes.has(from) || (p.cash | 0) < preco) return;
     const q = hostPos(from); p.cash -= preco;
-    Z.caes.set(from, { x: (q?.x ?? 0) + 1.5, z: q?.z ?? 0, yaw: 0, atk: 0, morde: 0 });
+    Z.caes.set(from, { x: (q?.x ?? 0) + 1.5, z: q?.z ?? 0, yaw: 0, atk: 0, morde: 0, rod: CAO_RODADAS, novo: Z.breakT > 0 }); // comprado no intervalo: a rodada que vai começar é a 1ª
     broadcast({ t: 'bought', id: from, cao: 1 });
   } else if (op === 7) { // turbinar
     const s = p.inv.find(x => x.w === m.cur); if (!s || s.t || s.l < NIVEL_MAX) return;
@@ -10243,8 +10271,8 @@ function renderShop() {
     // na Missão as vantagens ficam em máquinas espalhadas pelo mapa (só com energia)
     const mine = me.vant || [], luz = FAZ.energia, pc = caoPreco(), temCao = caoMeshes.has(net.myId);
     $('shopCards').replaceChildren(...FAZ.maquinas.map((M, i) => { const V = VANTAGENS[M.k]; return card(i + 1, V.ic, V.nome, `${V.desc} · 📍 máquina ${M.onde}${luz ? '' : ' (🔌 desligada)'}`, mine.includes(M.k) ? '✅ você tem' : `💰 ${V.preco}`, false, () => {}, 'vant' + (mine.includes(M.k) ? ' tem' : '')); }),
-      temCao ? card(6, '🐕', 'Cachorro de tinta', 'ele já está com você nesta rodada', '✅ com você', false, () => {}, 'vant tem')
-        : card(6, '🐕', 'Cachorro de tinta', luz ? 'corre e morde os zumbis perto de você até o fim da rodada' : 'precisa dos 3 geradores ligados', luz ? `💰 ${pc}` : '⚡ desligado', luz && cash >= pc, comprarCao, 'vant'));
+      temCao ? card(6, '🐕', 'Cachorro de tinta', `ele está com você: mais ${caoMeshes.get(net.myId)?.rod || 1} rodada(s)`, '✅ com você', false, () => {}, 'vant tem')
+        : card(6, '🐕', 'Cachorro de tinta', luz ? `corre e morde os zumbis perto de você por ${CAO_RODADAS} rodadas` : 'precisa dos 3 geradores ligados', luz ? `💰 ${pc}` : '⚡ desligado', luz && cash >= pc, comprarCao, 'vant'));
     return;
   }
   if (shopTab === 'vant') {
@@ -10253,8 +10281,8 @@ function renderShop() {
       ? card(i + 1, V.ic, V.nome, V.desc, '✅ você tem', false, () => {}, 'vant tem')
       : card(i + 1, V.ic, V.nome, V.desc, `💰 ${V.preco}`, cash >= V.preco, () => comprarVant(k), 'vant')));
     const temCao = caoMeshes.has(net.myId), pc = caoPreco();
-    $('shopCards').append(temCao ? card(6, '🐕', 'Cachorro de tinta', 'ele já está com você nesta rodada', '✅ com você', false, () => {}, 'vant tem')
-      : card(6, '🐕', 'Cachorro de tinta', 'corre e morde os zumbis perto de você até o fim da rodada', `💰 ${pc}`, cash >= pc, comprarCao, 'vant'));
+    $('shopCards').append(temCao ? card(6, '🐕', 'Cachorro de tinta', `ele está com você: mais ${caoMeshes.get(net.myId)?.rod || 1} rodada(s)`, '✅ com você', false, () => {}, 'vant tem')
+      : card(6, '🐕', 'Cachorro de tinta', `corre e morde os zumbis perto de você por ${CAO_RODADAS} rodadas`, `💰 ${pc}`, cash >= pc, comprarCao, 'vant'));
     return;
   }
   if (shopTab === 'caixa') {
@@ -10330,7 +10358,7 @@ function comprar(n) {
 
 function onBought(m) {
   const V = VANTAGENS[m.vant];
-  if (m.cao) { if (m.id === net.myId) { banner('🐕 Au au! O cachorro de tinta está com você', 2); [880, 1175].forEach((f, i) => tone(f, 0.1, { type: 'square', vol: 0.05, delay: i * 0.12 })); } else feed(`🐕 ${nameOf(m.id)} comprou um cachorro de tinta`); return; }
+  if (m.cao) { if (m.id === net.myId) { banner(`🐕 Au au! O cachorro de tinta fica com você por ${CAO_RODADAS} rodadas`, 2.2); [880, 1175].forEach((f, i) => tone(f, 0.1, { type: 'square', vol: 0.05, delay: i * 0.12 })); } else feed(`🐕 ${nameOf(m.id)} comprou um cachorro de tinta`); return; }
   if (m.id !== net.myId) { if (m.turbo) feed(`⚙️ ${nameOf(m.id)} turbinou ${WEAPONS[m.w]?.ic} ${WEAPONS[m.w]?.nome}!`); if (V) feed(`🥤 ${nameOf(m.id)} pegou ${V.ic} ${V.nome}`); else if (!m.up && !m.cx) feed(`${nameOf(m.id)} comprou ${WEAPONS[m.w]?.ic} ${WEAPONS[m.w]?.nome}`); return; }
   if (V) {
     banner(`${V.ic} ${V.nome}! ${V.desc}`, 2.2); [523, 659, 784].forEach((f, i) => tone(f, 0.12, { type: 'triangle', vol: 0.05, delay: i * 0.06 }));
