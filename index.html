@@ -236,7 +236,7 @@
   @keyframes cvPulse { from { transform:scale(1); box-shadow:0 0 0 rgba(255,210,61,0); } to { transform:scale(1.04); box-shadow:0 0 26px rgba(255,210,61,.7); } }
   #cvNome { display:flex; flex-direction:column; gap:10px; } #cvNome[hidden] { display:none; }
   #cvNick { font-size:20px; text-align:center; }
-  #nick.falta { border-color:var(--yel); box-shadow:0 0 0 3px rgba(255,210,61,.45); animation:pulse .5s ease-in-out 4 alternate; }
+  #nick.falta, #crName.falta { border-color:var(--yel); box-shadow:0 0 0 3px rgba(255,210,61,.45); animation:pulse .5s ease-in-out 4 alternate; }
   .cvSkip { background:none; border:0; color:var(--muted); font:inherit; font-size:13px; font-weight:800; text-decoration:underline; cursor:pointer; padding:4px; }
   .ch.new.criar { border:2px solid var(--yel); background:linear-gradient(160deg,rgba(255,210,61,.22),rgba(255,61,127,.18)); }
   .ch.new.criar .plus { border:3px solid var(--yel); background:rgba(255,210,61,.12); font-size:32px; }
@@ -654,6 +654,7 @@
   body.placar #scoreboard { pointer-events:auto; touch-action:pan-y; overscroll-behavior:contain; top:calc(58px + var(--st)); transform:translateX(-50%); max-height:calc(100% - 66px - var(--st)); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="amigos.publicos.js"></script>
 <script src="amigos.secreto.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
@@ -1113,8 +1114,13 @@ function rostoDesenhado(o) {
   return c.toDataURL('image/png');
 }
 const AMIGOS = ROSTOS.map(o => ({ nome: o.nome, foto: rostoDesenhado(o), camisa: o.camisa, cabelo: o.cab, calca: o.calca, velocidade: o.velocidade, pele: o.pele }));
-// amigos secretos (só depois do código) e os personagens da galeria pública
+// amigos liberados para todo mundo (amigos.publicos.js), amigos secretos (só depois do código) e a galeria pública
+const PUBLICOS = (Array.isArray(window.PB_PUBLICOS) ? window.PB_PUBLICOS : []).filter(a => a && typeof a.nome === 'string' && typeof a.foto === 'string' && a.foto.startsWith('data:image/'))
+  .map(a => ({ nome: a.nome.slice(0, 14), foto: a.foto, camisa: a.camisa | 0, cabelo: a.cabelo | 0, calca: a.calca | 0, velocidade: +a.velocidade || 1, pele: a.pele }));
 let SECRETOS = [], GALERIA = [];
+// escolha antiga 's:<i>' (lista de 8 secretos): os 5 liberados viraram 'p:', os outros 'x:'
+const MIGRA_SEC = ['p:0', 'p:1', 'p:2', 'p:3', 'x:0', 'p:4', 'x:1', 'x:2'];
+const migraChar = k => /^s:\d$/.test(k) ? MIGRA_SEC[+k.slice(2)] || '' : k;
 // administrador (conta do dono do jogo): ban = fotos da galeria, jogadores do ranking e salas removidos
 const adm = { on: false, ban: { gal: [], rank: [], sala: [], ts: 0 }, aviso: null };
 const FRASES_ACERTO = ['tomou tinta!', 'ficou colorido!', 'foi pintado!', 'virou arte moderna!', 'levou um splash!', 'tá todo manchado!'];
@@ -1139,11 +1145,12 @@ const save = (k, v, sync) => {
 
 // Personagens criados pelo jogador (foto enviada do aparelho): { id, nome, foto (dataURL jpeg), camisa }
 let CUSTOM = (load('pb-custom', []) || []).filter(c => c && typeof c.foto === 'string' && c.foto.startsWith('data:image/'));
-// lista para escolher: bonecos (chave '0', '1'…), amigos secretos ('s:<i>'), os criados ('c:<id>') e a galeria ('g:<id>')
+// lista para escolher: bonecos (chave '0', '1'…), amigos públicos ('p:<i>'), amigos secretos ('x:<i>'), os criados ('c:<id>') e a galeria ('g:<id>')
 function charList() {
   const meus = new Set(CUSTOM.map(c => c.id));
   return [
-    ...SECRETOS.map((a, i) => ({ ...a, key: 's:' + i, secreto: true })),
+    ...PUBLICOS.map((a, i) => ({ ...a, key: 'p:' + i, publico: true })),
+    ...SECRETOS.map((a, i) => ({ ...a, key: 'x:' + i, secreto: true })),
     ...AMIGOS.map((a, i) => ({ ...a, key: String(i) })),
     ...CUSTOM.map(c => ({ nome: c.nome, foto: c.foto, camisa: c.camisa, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, key: 'c:' + c.id, custom: true })),
     ...GALERIA.filter(c => !meus.has(c.id)).map(c => ({ nome: c.nome, foto: c.foto, camisa: c.cor, cabelo: 0x2a1c14, calca: 0x22242e, velocidade: 1, key: 'g:' + c.id, custom: true, galeria: true })),
@@ -5661,7 +5668,7 @@ function myNetChar() {
   const d = myCharDef();
   // criado, da galeria ou amigo secreto: a foto vai junto, então todo mundo na sala vê o rosto
   // (só quem tem o código pode ESCOLHER um amigo secreto)
-  if (d.custom || d.secreto) return { char: -1, cor: d.camisa | 0, face: d.foto, lk: myLook };
+  if (d.custom || d.secreto || d.publico) return { char: -1, cor: d.camisa | 0, face: d.foto, lk: myLook };
   return { char: +d.key, cor: d.camisa | 0, lk: myLook };
 }
 function sendMyFace() { const c = myNetChar(); if (c.face && !net.local) sendNet({ t: 'face', img: c.face }); }
@@ -5841,6 +5848,7 @@ function deixarDeSerDono(novo) {
 
 // cria a sala com as regras escolhidas; autoEnter = já entra jogando (partida rápida)
 function hostRoom(cfg, autoEnter) {
+  if (!exigirPersonagem(() => hostRoom(cfg, autoEnter))) return;
   readSetup();
   netStatus('Conectando ao servidor…'); setBusy(true);
   let code = '';
@@ -5869,6 +5877,7 @@ function hostRoom(cfg, autoEnter) {
 function joinRoom(code) {
   code = String(code || '').trim().toUpperCase();
   if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch))) return netStatus('Digite o código de 4 letras da sala.');
+  if (!exigirPersonagem(() => joinRoom(code))) return; // sem nome (ou personagem) não entra: pede no pop-up e entra depois
   readSetup();
   netStatus('Conectando ao servidor…'); setBusy(true);
   Object.assign(net, { isHost: false, joined: false, local: false, myId: newId(), code, players: {}, lastHostMsg: performance.now() });
@@ -5982,7 +5991,7 @@ function renderLobby() {
     const n = document.createElement('span'); n.className = 'rn'; n.textContent = `👥 ${r.n}/12` + (r.b ? ` +🤖${r.b}` : '');
     const go = document.createElement('span'); go.className = 'go'; go.textContent = 'ENTRAR';
     b.append(ic, info, n, go);
-    b.onclick = () => { if ($('joinBtn').disabled || !exigirPersonagem()) return; initAudio(); goFullscreen(); joinRoom(r.code); };
+    b.onclick = () => { if ($('joinBtn').disabled || !exigirPersonagem(() => b.onclick())) return; initAudio(); goFullscreen(); joinRoom(r.code); };
     return b;
   }));
 }
@@ -6027,11 +6036,48 @@ function weekStats() {
   if (stats.wk !== weekKey()) { stats.wk = weekKey(); for (const f of Object.values(WK)) stats[f] = 0; save('pb-stats', stats, true); }
   return stats;
 }
+// Ranking por NOME (sem precisar de conta): cada nome tem um endereço (rankId = resumo do nome normalizado) e a
+// mensagem retida junta os números de cada aparelho que jogou com esse nome (dv: pid → números); o total é a soma.
+// Jogar com o mesmo nome em outro celular soma no mesmo lugar. Entradas antigas (por aparelho) são somadas pelo nome.
+const rankId = (n = rankName()) => { const k = normUser(n); return 'n' + fnv('pbrank:' + k).toString(36).padStart(7, '0') + fnv('pbrank2:' + k).toString(36).slice(0, 4); };
+const RANK_DEV_MAX = 12;
+function meusNumeros() { weekStats(); return [stats.kills | 0, stats.deaths | 0, stats.wins | 0, stats.partidas | 0, stats.hs | 0, stats.wk, stats.wk_k | 0, stats.wk_d | 0, stats.wk_w | 0, stats.wk_p | 0, stats.wk_h | 0]; }
+// soma os aparelhos: geral e só os da semana atual
+function somaDv(dv) {
+  const num = v => Math.max(0, Math.min(1e6, Math.floor(+v) || 0)), sem = weekKey();
+  const t = { k: 0, d: 0, w: 0, p: 0, h: 0, wk: { k: 0, d: 0, w: 0, p: 0, h: 0 } };
+  for (const a of Object.values(dv || {})) {
+    if (!Array.isArray(a)) continue;
+    t.k += num(a[0]); t.d += num(a[1]); t.w += num(a[2]); t.p += num(a[3]); t.h += num(a[4]);
+    if (a[5] === sem) { t.wk.k += num(a[6]); t.wk.d += num(a[7]); t.wk.w += num(a[8]); t.wk.p += num(a[9]); t.wk.h += num(a[10]); }
+  }
+  return t;
+}
+// a entrada do meu nome com os números deste aparelho no lugar dos que estavam lá
+function minhaEntrada() {
+  const id = rankId(), dv = { ...(lobby.rank.get(id)?.dv || {}) };
+  dv[pid] = meusNumeros();
+  const ks = Object.keys(dv); while (ks.length > RANK_DEV_MAX) delete dv[ks.shift()];
+  return { id, n: rankName(), dv, ...somaDv(dv) };
+}
 function publishRank(only) {
-  if (!stats.partidas || adm.ban.rank.includes(pid)) return;
-  weekStats();
-  const txt = JSON.stringify({ n: rankName(), k: stats.kills, d: stats.deaths, w: stats.wins, p: stats.partidas, h: stats.hs, wk: stats.wk, wkk: stats.wk_k | 0, wkw: stats.wk_w | 0, wkh: stats.wk_h | 0, wkd: stats.wk_d | 0, wkp: stats.wk_p | 0, ts: Date.now() });
-  for (const c of only ? [only] : lobby.clients) if (c.connected) c.publish(`${RANK_TOPIC}/${pid}`, txt, { retain: true });
+  if (!stats.partidas) return;
+  const e = minhaEntrada(); if (adm.ban.rank.includes(e.id) || adm.ban.rank.includes(pid)) return;
+  const txt = JSON.stringify({ n: e.n, dv: e.dv, k: e.k, d: e.d, w: e.w, p: e.p, h: e.h, wk: weekKey(), wkk: e.wk.k, wkd: e.wk.d, wkw: e.wk.w, wkp: e.wk.p, wkh: e.wk.h, ts: Date.now() });
+  // mudou de nome: os números deste aparelho saem do nome antigo (senão contavam nos dois)
+  const velho = load('pb-rank-id', null), ant = velho && velho !== e.id ? lobby.rank.get(velho) : null;
+  if (ant?.dv?.[pid]) {
+    const dv = { ...ant.dv }; delete dv[pid]; const t = somaDv(dv);
+    const tv = Object.keys(dv).length ? JSON.stringify({ n: ant.n, dv, k: t.k, d: t.d, w: t.w, p: t.p, h: t.h, wk: weekKey(), wkk: t.wk.k, wkd: t.wk.d, wkw: t.wk.w, wkp: t.wk.p, wkh: t.wk.h, ts: Date.now() }) : '';
+    for (const c of lobby.clients) if (c.connected) c.publish(`${RANK_TOPIC}/${velho}`, tv, { retain: true });
+    if (tv) lobby.rank.set(velho, { ...ant, dv, ...t }); else lobby.rank.delete(velho);
+  }
+  save('pb-rank-id', e.id, true);
+  for (const c of only ? [only] : lobby.clients) if (c.connected) {
+    c.publish(`${RANK_TOPIC}/${e.id}`, txt, { retain: true });
+    if (lobby.rank.has(pid)) c.publish(`${RANK_TOPIC}/${pid}`, '', { retain: true }); // a entrada antiga deste aparelho sai: agora vai pelo nome
+  }
+  lobby.rank.set(e.id, e);
 }
 function onRank(id, buf) {
   if (!/^[a-z0-9]{6,12}$/.test(id)) return;
@@ -6039,27 +6085,45 @@ function onRank(id, buf) {
   let m; try { m = JSON.parse(buf.toString()); } catch { return; }
   const num = v => Math.max(0, Math.min(1e6, Math.floor(+v) || 0));
   if (!m || typeof m.n !== 'string') return;
-  const semana = m.wk === weekKey();
-  lobby.rank.set(id, { id, n: m.n.slice(0, 14), k: num(m.k), d: num(m.d), w: num(m.w), p: num(m.p), h: num(m.h),
-    wk: semana ? { k: num(m.wkk), d: num(m.wkd), w: num(m.wkw), p: num(m.wkp), h: num(m.wkh) } : null });
+  if (m.dv && typeof m.dv === 'object') {
+    const dv = {}; for (const [k, a] of Object.entries(m.dv).slice(0, RANK_DEV_MAX)) if (/^[a-z0-9]{6,12}$/.test(k) && Array.isArray(a)) dv[k] = a.slice(0, 11);
+    lobby.rank.set(id, { id, n: m.n.slice(0, 14), dv, ...somaDv(dv) });
+  } else {
+    const semana = m.wk === weekKey();
+    lobby.rank.set(id, { id, n: m.n.slice(0, 14), k: num(m.k), d: num(m.d), w: num(m.w), p: num(m.p), h: num(m.h),
+      wk: semana ? { k: num(m.wkk), d: num(m.wkd), w: num(m.wkw), p: num(m.wkp), h: num(m.wkh) } : null });
+  }
   if (lobby.rank.size > 300) lobby.rank.delete(lobby.rank.keys().next().value);
   clearTimeout(onRank.t); onRank.t = setTimeout(() => { renderRanking(); renderWeekStar(); }, 300);
 }
-// todas as linhas do ranking (geral ou da semana), comigo incluído
+// todas as linhas do ranking (geral ou da semana), comigo incluído, juntando por nome
+// (a entrada nova do nome soma os aparelhos dela; as antigas por aparelho entram se o aparelho ainda não está nela)
 function rankRows(semana) {
-  weekStats();
   const all = new Map(lobby.rank);
-  if (stats.partidas) all.set(pid, { id: pid, n: rankName(), k: stats.kills, d: stats.deaths, w: stats.wins, p: stats.partidas, h: stats.hs,
-    wk: { k: stats.wk_k | 0, d: stats.wk_d | 0, w: stats.wk_w | 0, p: stats.wk_p | 0, h: stats.wk_h | 0 } });
-  return [...all.values()].map(r => semana ? (r.wk ? { id: r.id, n: r.n, ...r.wk } : null) : r)
-    .filter(r => r && r.p > 0).sort((a, b) => b.w - a.w || b.k - a.k || a.d - b.d);
+  if (stats.partidas) all.set(rankId(), minhaEntrada());
+  const grupos = new Map();
+  for (const r of all.values()) {
+    const k = normUser(r.n); if (!k) continue;
+    const g = grupos.get(k) || { novo: null, velhos: [] }; grupos.set(k, g);
+    if (r.dv) { if (!g.novo || Object.keys(r.dv).length > Object.keys(g.novo.dv).length) g.novo = r; } else g.velhos.push(r);
+  }
+  const zero = () => ({ k: 0, d: 0, w: 0, p: 0, h: 0 });
+  const linhas = [];
+  for (const [k, g] of grupos) {
+    const base = g.novo || g.velhos[0], t = { id: base.id, ids: [], n: base.n, eu: k === normUser(rankName()), ...zero() };
+    const soma = v => { if (!v) return; for (const f of ['k', 'd', 'w', 'p', 'h']) t[f] += v[f] | 0; };
+    if (g.novo) { t.ids.push(g.novo.id); soma(semana ? g.novo.wk : g.novo); }
+    for (const v of g.velhos) { if (g.novo?.dv?.[v.id]) continue; t.ids.push(v.id); soma(semana ? v.wk : v); }
+    linhas.push(t);
+  }
+  return linhas.filter(r => r.p > 0).sort((a, b) => b.w - a.w || b.k - a.k || a.d - b.d);
 }
 // "Pintor da semana" no menu
 function renderWeekStar() {
   const top = rankRows(true)[0], el = $('weekStar');
   if (!top || (!top.k && !top.w)) { el.hidden = true; return; }
   el.hidden = false;
-  $('weekName').textContent = top.n + (top.id === pid ? ' (você!)' : '');
+  $('weekName').textContent = top.n + (top.eu ? ' (você!)' : '');
   $('weekInfo').textContent = `${top.w} vitória${top.w === 1 ? '' : 's'} · ${top.k} abate${top.k === 1 ? '' : 's'} · ${top.h} 🎯 nesta semana`;
 }
 let rankSemana = true;
@@ -6081,8 +6145,8 @@ function renderRanking() {
   for (const h of ['#', 'Jogador', 'Vitórias', 'Abates', 'K/D', '🎯']) { const th = document.createElement('th'); th.textContent = h; tr0.append(th); }
   tb.append(tr0);
   list.forEach((r, i) => {
-    const tr = document.createElement('tr'); if (r.id === pid) tr.className = 'me';
-    for (const v of [i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1, r.n + (r.id === pid ? ' (você)' : ''), r.w, r.k, (r.k / Math.max(1, r.d)).toFixed(1), r.h]) { const td = document.createElement('td'); td.textContent = v; tr.append(td); }
+    const tr = document.createElement('tr'); if (r.eu) tr.className = 'me';
+    for (const v of [i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1, r.n + (r.eu ? ' (você)' : ''), r.w, r.k, (r.k / Math.max(1, r.d)).toFixed(1), r.h]) { const td = document.createElement('td'); td.textContent = v; tr.append(td); }
     tb.append(tr);
   });
   box.replaceChildren(tb);
@@ -6305,10 +6369,13 @@ function renderChars() {
 }
 // sem personagem ou sem nome não dá para jogar: aparece o convite para criar (ou escolher um da galeria)
 // o nome tem que ser digitado pela pessoa (o nome do personagem da foto não vale)
-const nomeOk = () => $('nick').value.trim().length >= 2;
-function exigirPersonagem() {
-  if (!escolhido()) { abrirConvite(); return false; }
-  if (!nomeOk()) { abrirConvite(true); return false; }
+const nomeValido = n => { n = String(n || '').trim(); return n.length >= 2 && !['jogador', 'novo amigo', 'alguem', 'voce'].includes(normUser(n).replace(/[^a-z]/g, '')); };
+const nomeOk = () => nomeValido($('nick').value);
+// depois = o que fazer quando a pessoa der o nome (entrar na sala que tocou, criar a sala…)
+let aposNome = null;
+function exigirPersonagem(depois) {
+  if (!escolhido()) { aposNome = null; abrirConvite(); return false; }
+  if (!nomeOk()) { aposNome = depois || null; abrirConvite(true); return false; }
   return true;
 }
 let conviteVisto = false;
@@ -6323,7 +6390,7 @@ function entrarConvite() {
 function abrirConvite(soNome) {
   conviteVisto = true;
   const outros = pickList().length;
-  $('cvNome').hidden = !soNome; $('cvCriar').hidden = !!soNome; $('cvDepois').hidden = false;
+  $('cvNome').hidden = !soNome; $('cvCriar').hidden = !!soNome; $('cvDepois').hidden = !!soNome; // sem nome não dá para fugir do pop-up
   $('criarBox').querySelector('h2').textContent = soNome ? (convitePendente ? `Como você se chama? (sala ${convitePendente})` : 'Como você se chama?') : convitePendente ? `Crie seu personagem para entrar na sala ${convitePendente}!` : 'Crie seu personagem!';
   $('criarBox').querySelector('p').innerHTML = soNome ? 'Escolha o <b>seu nome</b> no jogo. É ele que aparece em cima do seu boneco, no placar e no ranking.' : 'Aqui todo mundo joga com a <b>própria cara</b>. Tire uma selfie ou escolha uma foto: em 10 segundos você vira um boneco de paintball, e seus amigos te veem no jogo.';
   $('criarBox').querySelector('.cvFace').textContent = soNome ? '✏️' : '📸';
@@ -6339,7 +6406,7 @@ const CR_CORES = [0xe74c3c, 0xff7a1a, 0xffd23d, 0x27ae60, 0x3db8ff, 0x2e4f8c, 0x
 const cr = { img: null, zoom: 1, ox: 0, oy: 0, cor: CR_CORES[4], drag: null };
 function openCreator() {
   Object.assign(cr, { img: null, zoom: 1, ox: 0, oy: 0, cor: CR_CORES[4] });
-  $('crZoom').value = 1; $('crName').value = ''; $('crPub').checked = true; crPubMsg();
+  $('crZoom').value = 1; $('crName').value = ''; $('crName').classList.remove('falta'); $('crPub').checked = true; crPubMsg();
   renderSwatches(); drawCreator();
   showScreen('charScreen');
 }
@@ -6366,7 +6433,10 @@ function drawCreator(g = $('crCanvas').getContext('2d'), w = 256, h = 320, moldu
 $('crFile').addEventListener('change', e => {
   const f = e.target.files?.[0]; if (!f) return;
   const url = URL.createObjectURL(f), img = new Image();
-  img.onload = () => { cr.img = img; cr.zoom = 1; cr.ox = cr.oy = 0; $('crZoom').value = 1; drawCreator(); URL.revokeObjectURL(url); };
+  img.onload = () => {
+    cr.img = img; cr.zoom = 1; cr.ox = cr.oy = 0; $('crZoom').value = 1; drawCreator(); URL.revokeObjectURL(url);
+    if (!nomeValido($('crName').value)) { $('crMsg').textContent = '✏️ Agora dê um nome para o personagem.'; $('crName').classList.add('falta'); setTimeout(() => $('crName').focus(), 50); }
+  };
   img.onerror = () => { $('crMsg').textContent = 'Não consegui abrir essa imagem. Tente outra foto.'; };
   img.src = url;
   e.target.value = '';
@@ -6388,7 +6458,9 @@ function crPubMsg() {
 $('crPub').onchange = crPubMsg;
 $('crSave').onclick = () => {
   if (!cr.img) { $('crMsg').textContent = 'Primeiro envie uma foto do rosto. 📷'; return; }
-  const nome = $('crName').value.trim().slice(0, 14) || 'Novo amigo';
+  if (!nomeValido($('crName').value)) { $('crMsg').textContent = '✏️ Dê um nome para o seu personagem (pelo menos 2 letras).'; $('crName').classList.add('falta'); $('crName').focus(); ui.erro?.(); return; }
+  $('crName').classList.remove('falta');
+  const nome = $('crName').value.trim().slice(0, 14);
   // foto pequena (160×200, jpeg) para caber no aparelho e passar rápido pela rede
   const c = document.createElement('canvas'); c.width = 160; c.height = 200;
   drawCreator(c.getContext('2d'), 160, 200, false);
@@ -6477,7 +6549,7 @@ function mesclarSave(r) {
   const porId = new Map(); for (const c of [...(Array.isArray(r.custom) ? r.custom : []), ...CUSTOM]) if (c?.id && typeof c.foto === 'string' && c.foto.startsWith('data:image/')) porId.set(c.id, c);
   CUSTOM = [...porId.values()].slice(-8); save('pb-custom', CUSTOM, true);
   if (typeof r.nick === 'string' && r.nick && (novo || !$('nick').value.trim())) { $('nick').value = r.nick.slice(0, 14); save('pb-nick', $('nick').value, true); }
-  if (typeof r.char === 'string' && (novo || load('pb-char', null) === null)) { myChar = r.char; save('pb-char', myChar, true); }
+  if (typeof r.char === 'string' && (novo || load('pb-char', null) === null)) { myChar = migraChar(r.char); save('pb-char', myChar, true); }
   save('pb-unl', [...new Set([...String(local.unl).split(','), ...String(r.unl || '').split(',')])].filter(Boolean).join(','), true);
   if (typeof r.pid === 'string' && /^[a-z0-9]{6,12}$/.test(r.pid)) { pid = r.pid; save('pb-pid', pid, true); } // ranking continua com o mesmo id
   save('pb-save-ts', Math.max(local.ts || 0, +r.ts || 0), true);
@@ -6651,7 +6723,7 @@ async function segredoAuto() {
 }
 function esconderSegredo() {
   SECRETOS = []; try { localStorage.removeItem('pb-segredo'); } catch {}
-  if (myChar.startsWith('s:')) { myChar = ''; save('pb-char', myChar); }
+  if (myChar.startsWith('x:')) { myChar = ''; save('pb-char', myChar); }
   renderChars();
 }
 
@@ -6768,15 +6840,15 @@ function renderAdm() {
     }, '✕ Tirar'));
     return d;
   }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Nenhuma sala aberta agora.' })]));
-  const rank = [...lobby.rank.values()].sort((a, b) => b.w - a.w || b.k - a.k).slice(0, 60);
+  const rank = rankRows(false).slice(0, 60);
   $('admRank').replaceChildren(...(rank.length ? rank.map(r => {
     const d = document.createElement('div'); d.className = 'admRow';
     const t = document.createElement('span'); t.textContent = r.n;
     const sm = document.createElement('small'); sm.textContent = `${r.w} vit · ${r.k} abates`;
     d.append(t, sm, x(() => {
       if (!confirm(`Tirar "${r.n}" do ranking?`)) return;
-      for (const c of lobby.clients) if (c.connected) c.publish(`${RANK_TOPIC}/${r.id}`, '', { retain: true, qos: 1 });
-      lobby.rank.delete(r.id); admBan('rank', r.id); renderAdm(); renderRanking(); renderWeekStar();
+      for (const id of r.ids) { for (const c of lobby.clients) if (c.connected) c.publish(`${RANK_TOPIC}/${id}`, '', { retain: true, qos: 1 }); lobby.rank.delete(id); admBan('rank', id); }
+      renderAdm(); renderRanking(); renderWeekStar();
     }));
     return d;
   }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Ninguém no ranking ainda.' })]));
@@ -6858,25 +6930,27 @@ function renderLockerFrame(dt) {
 
 // ===== Navegação =====
 myChar = String(load('pb-char', '') ?? '');
+if (migraChar(myChar) !== myChar) { myChar = migraChar(myChar); save('pb-char', myChar, true); }
 $('nick').value = String(load('pb-nick', '') || '');
 if (params.get('sala')) $('roomCode').value = params.get('sala').toUpperCase().slice(0, 4);
 $('nick').addEventListener('change', () => { save('pb-nick', $('nick').value.trim()); publishRank(); });
 $('nick').addEventListener('input', () => $('nick').classList.toggle('falta', !!escolhido() && !nomeOk()));
 $('tabs').onclick = e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.tab); };
-$('createBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; readSetup(); showRoomScreen('startScreen'); };
-$('quickBtn').onclick = () => { if (!exigirPersonagem()) return; readSetup(); quickPlay(); };
-$('soloBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; showSolo(); };
-$('joinBtn').onclick = () => { initAudio(); if (!exigirPersonagem()) return; goFullscreen(); if ($('roomCode').value.toUpperCase() === convitePendente) { convitePendente = ''; mostraConvite(); } joinRoom($('roomCode').value); };
+$('createBtn').onclick = () => { initAudio(); if (!exigirPersonagem(() => $('createBtn').click())) return; readSetup(); showRoomScreen('startScreen'); };
+$('quickBtn').onclick = () => { if (!exigirPersonagem(() => $('quickBtn').click())) return; readSetup(); quickPlay(); };
+$('soloBtn').onclick = () => { initAudio(); if (!exigirPersonagem(() => $('soloBtn').click())) return; showSolo(); };
+$('joinBtn').onclick = () => { initAudio(); if (!exigirPersonagem(() => $('joinBtn').click())) return; goFullscreen(); if ($('roomCode').value.toUpperCase() === convitePendente) { convitePendente = ''; mostraConvite(); } joinRoom($('roomCode').value); };
 $('conviteEntrar').onclick = entrarConvite;
 $('cvCriar').onclick = () => { fecharConvite(); openCreator(); };
 $('cvGal').onclick = () => { fecharConvite(); $('pickList').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('pickList').classList.add('flash'); setTimeout(() => $('pickList').classList.remove('flash'), 1600); };
 $('cvDepois').onclick = fecharConvite;
 function confirmarNome() {
   const n = $('cvNick').value.trim();
-  if (n.length < 2) { $('cvMsg').textContent = 'Digite um nome com pelo menos 2 letras.'; return; }
+  if (!nomeValido(n)) { $('cvMsg').textContent = n.length < 2 ? 'Digite um nome com pelo menos 2 letras.' : 'Escolha um nome de verdade (o seu apelido).'; ui.erro?.(); return; }
   $('nick').value = n.slice(0, 14); save('pb-nick', $('nick').value); $('nick').classList.remove('falta');
-  fecharConvite(); renderChars(); ui.confirm?.();
-  if (convitePendente && escolhido()) setTimeout(entrarConvite, 200);
+  fecharConvite(); renderChars(); ui.confirm?.(); publishRank();
+  if (aposNome) { const f = aposNome; aposNome = null; setTimeout(f, 200); }
+  else if (convitePendente && escolhido()) setTimeout(entrarConvite, 200);
 }
 $('cvNomeOk').onclick = confirmarNome;
 $('cvNick').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarNome(); });
@@ -7062,7 +7136,7 @@ function zombieTex(a) {
 // rostos dos zumbis: só FOTOS (galeria pública, amigos secretos liberados neste aparelho, os criados aqui e as
 // fotos de quem está na sala). Os bonecos desenhados (AMIGOS) ficam só para o treino Ondas de amigos.
 function zRostos() {
-  const l = [...GALERIA, ...SECRETOS, ...CUSTOM.map(c => ({ nome: c.nome, foto: c.foto }))];
+  const l = [...GALERIA, ...PUBLICOS, ...SECRETOS, ...CUSTOM.map(c => ({ nome: c.nome, foto: c.foto }))];
   try { for (const [id, img] of net.faces) l.push({ nome: net.players[id]?.name || '', foto: img }); } catch {}
   return l.filter(a => typeof a.foto === 'string' && a.foto.startsWith('data:image/'));
 }
@@ -10449,10 +10523,12 @@ function lugaresRetratos() {
   }
   return ok;
 }
+// retratos: os amigos públicos, depois os secretos (com o código), e os bonecos completam os 8
+const retratoDe = i => [...PUBLICOS, ...SECRETOS][i] || AMIGOS[i % AMIGOS.length];
 function buildRetratos() {
   RETRATO_MESH.clear();
   lugaresRetratos().forEach(([x, z, y, rot], i) => {
-    const a = SECRETOS.length >= 8 ? SECRETOS[i] : AMIGOS[i % AMIGOS.length];
+    const a = retratoDe(i);
     const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rot;
     const moldura = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.86, 0.06), new THREE.MeshLambertMaterial({ color: 0xc8a040, emissive: 0x4a3000, emissiveIntensity: 0.5 }));
     const foto = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.7), new THREE.MeshBasicMaterial({ map: a.tex || texFor(a.foto) })); foto.position.z = 0.035;
@@ -10474,7 +10550,7 @@ function retratosTick(t) {
 function onRetrato(m) {
   Z.retratosView = m.rt || []; for (const i of Z.retratosView) tirarRetrato(i);
   if (m.i === undefined) return;
-  const a = SECRETOS.length >= 8 ? SECRETOS[m.i] : AMIGOS[m.i % AMIGOS.length];
+  const a = retratoDe(m.i);
   feed(`🖼️ ${m.by === net.myId ? 'Você achou' : nameOf(m.by) + ' achou'} o retrato de ${a?.nome || 'um amigo'} (${m.n}/8)`);
   if (m.by === net.myId) banner(`🖼️ Retrato ${m.n}/8!`, 1.6);
   [784, 1175].forEach((f, k) => tone(f, 0.12, { type: 'triangle', vol: 0.05, delay: k * 0.08 }));
@@ -11502,7 +11578,7 @@ function frame() {
   if (!(state === 'menu' && (frame.par = !frame.par))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-window.__jogo = { onlineSpawn, hasLineOfSight, explode, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom, pad, padFoco, controle: () => ({ semTrava, mouseLivre: mouseLivre(), isTouch, state, shopOpen }) };
+window.__jogo = { onlineSpawn, hasLineOfSight, explode, showResults, cartaoResultado, balls, decals, decalsCorpo, hostHandle, teamScore, syncBots, PROPS, rostoChefe, zRostos, collides, groundHeight, Zpecas: () => Z.pecas, fazGeradorOk: () => { for (const G of FAZ.gens) { G.ok = true; } broadcast({ t: 'energia' }); FAZ.gens.forEach((G, g) => broadcast({ t: 'gerador', g, p: 1, ok: 1 })); }, janelaPerto: () => janelaPerto(), fazAbrir: i => fazAbrirPorta(i, null, true), FAZ: () => FAZ, zonaDe: (x, z) => zonaDe(x, z), comprarPorta: i => comprarPorta(i), zHit: (f, m) => zHostHandle(f, m), RETRATO_MESH, caoMeshes, zDanoGerador: d => zDanoGerador(d), zStartRound: r => zStartRound(r), zFerir: (z, f, d, o) => zFerir(z, f, d, o), CHEFES, effW: id => effW(id), zBuff, VANTAGENS, zPremio: (k, f) => zPremio(k, f), zDropT: (k, x, z) => zDrop(k, x, z), trocaAba: d => trocaAba(d), specProximo: () => specProximo(), zDamage: (i, d) => zDamage(i, d), camera, obstacles, loadMap: id => loadMap(id), MAPS, feed, banner, zAdd: (...a) => zAdd(...a), ZT, zIntervalo: () => zIntervaloAte, leaveOnline, tentarCodigo, SECRETOS: () => SECRETOS, GALERIA: () => GALERIA, adm, charList, renderLocker, setLook: l => { myLook = cleanLook(l); renderLocker(); }, toggleShop, comprar, ZTYPES, obj, doors, useDoor, botsMap: () => net.bots, endMatch, Zb: () => Z, pauseGame, resumeGame, zombies, Z, zState: () => ({ meDown, meDead }), renderer, scene, player, enemies, camera, shoot: playerShoot, net, remotes, pickups, crouchPressed, jumpPressed, equip, lobby, stats, openHome, hostRoom, joinRoom, pad, padFoco, rankRows: s => rankRows(s), controle: () => ({ semTrava, mouseLivre: mouseLivre(), isTouch, state, shopOpen }) };
 openHome();
 document.body.classList.toggle('qalta', settings.qual === 'alta' && !settings.leve);
 if (settings.leve) applyQuality(); // Modo leve salvo: resolução, sombras e luzes já ao abrir

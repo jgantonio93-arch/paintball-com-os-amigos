@@ -20,6 +20,10 @@ html = (JOGO / 'index.html').read_text(encoding='utf-8')
 tag = '<script src="amigos.secreto.js"></script>'
 assert tag in html
 html = html.replace(tag, '<script>' + (JOGO / 'amigos.secreto.js').read_text(encoding='utf-8') + '</script>')
+# amigos liberados para todo mundo
+tag = '<script src="amigos.publicos.js"></script>'
+assert tag in html
+html = html.replace(tag, '<script>' + (JOGO / 'amigos.publicos.js').read_text(encoding='utf-8') + '</script>')
 
 # ícone embutido; o manifesto (instalar o app) só funciona pelo site
 import base64
