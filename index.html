@@ -348,6 +348,15 @@
   body.touch #banner { font-size:clamp(20px,min(6vw,7vh),40px); top:62%; max-width:max(46vw, calc(100vw - 420px)); width:auto; }
   body.touch #banner.alto { top:36%; }
   body.touch #chatLog { bottom:auto; top:40%; width:min(300px,40vw); }
+  body.avisos-pouco #chatLog, body.avisos-minimo #chatLog { top:calc(64px + var(--st)); width:min(240px,34vw); opacity:.8; font-size:12px; }
+  body.avisos-pouco #feed .msg { font-size:11px; padding:3px 9px; opacity:.92; }
+  body.avisos-pouco .kf, body.avisos-minimo .kf { font-size:11px; padding:2px 7px; }
+  body.avisos-pouco .dnum { font-size:15px; } body.avisos-pouco .dnum.head { font-size:17px; } body.avisos-pouco .dnum.kill { font-size:19px; }
+  body.avisos-pouco #objLine, body.avisos-minimo #objLine { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  body.avisos-pouco #banner, body.avisos-minimo #banner { font-size:clamp(16px,min(4.5vw,5.5vh),30px); }
+  #chatBtn.novo { animation:pulse .4s ease-in-out 4 alternate; }
+  #avisosLog { max-height:40vh; overflow:auto; text-align:left; font-size:13px; line-height:1.4; background:rgba(0,0,0,.25); border-radius:12px; padding:8px 12px; margin-top:10px; }
+  #avisosLog div { border-bottom:1px solid rgba(255,255,255,.06); padding:2px 0; }
   body.touch .cl { font-size:12px; }
   body.touch #chatInput { top:calc(60px + var(--st)); bottom:auto; left:50%; transform:translateX(-50%); }
   body.touch .dnum { font-size:18px; } body.touch .dnum.head { font-size:21px; } body.touch .dnum.kill { font-size:24px; }
@@ -964,6 +973,7 @@
           <label class="opt"><span>Qualidade gráfica<small>baixa roda melhor em celular fraco</small></span><select id="setQual"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
           <label class="opt"><span>Mira assistida<small>no celular e no controle</small></span><select id="setAim"><option value="1">Ligada</option><option value="0">Desligada</option></select></label>
           <label class="opt">Inverter eixo vertical <select id="setInv"><option value="0">Não</option><option value="1">Sim</option></select></label>
+          <label class="opt"><span>📝 Textos na tela<small>avisos, abates e chat; no celular, "Pouco" tapa menos o jogo (tudo fica em 📜 Avisos na pausa)</small></span><select id="setAvisos"><option value="auto">Automático</option><option value="todos">Todos</option><option value="pouco">Pouco</option><option value="minimo">Mínimo</option></select></label>
           <label class="opt">Mostrar FPS <select id="setFps"><option value="0">Não</option><option value="1">Sim</option></select></label>
         </div>
         <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="settingsResetBtn">Restaurar padrão</button></div>
@@ -1032,6 +1042,8 @@
       <button class="btn ghost" id="pauseRoomBtn">⚙️ Regras da sala</button>
       <button class="btn" id="pauseAdmBtn" hidden>🛡️ Vida dos jogadores</button>
       <button class="btn ghost" id="pauseSettingsBtn">🎮 Controles e ajustes</button>
+      <button class="btn ghost" id="pauseAvisosBtn">📜 Avisos</button>
+      <div id="avisosLog" hidden></div>
       <button class="btn ghost" id="pauseFsBtn" hidden>⛶ Tela cheia</button>
       <button class="btn danger" id="quitBtn">Sair para o menu</button>
     </div>
@@ -1160,7 +1172,7 @@ function charList() {
 const amigoDe = c => AMIGOS[c] || null;
 
 // ===== Configurações do jogador (salvas no aparelho) =====
-const SET_PADRAO = { sens: 1, touch: 1, pad: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto', leve: false };
+const SET_PADRAO = { sens: 1, touch: 1, pad: 1, vol: 0.8, mus: 0.5, fov: 75, qual: 'media', aim: true, inv: false, fps: false, btn: 1, ctrl: 'auto', leve: false, avisos: 'auto' };
 const settings = { ...SET_PADRAO };
 Object.assign(settings, load('pb-settings', {}) || {});
 const saveSettings = () => save('pb-settings', settings);
@@ -3823,9 +3835,25 @@ function updateHud() {
   txt($('itemLine'), String([grana, itens ? `${gren ? `💣 ${player.gren | 0}  ·  ` : ''}🛡 ${player.shieldCd > 0 ? Math.ceil(player.shieldCd) + 's' : 'pronto'}` : ''].filter(Boolean).join('  ·  ')));
   css($('shieldBtn'), 'display', itens ? 'flex' : 'none'); css($('grenBtn'), 'display', gren ? 'flex' : 'none');
 }
+// 📝 quanto texto aparece por cima do jogo: no celular "pouco" por padrão (tudo fica no histórico 📜 da pausa)
+const modoAvisos = () => { const a = settings.avisos || 'auto'; return a === 'auto' ? (isTouch ? 'pouco' : 'todos') : a; };
+function aplicaAvisos() { const m = modoAvisos(); document.body.classList.toggle('avisos-pouco', m === 'pouco'); document.body.classList.toggle('avisos-minimo', m === 'minimo'); }
+const feedLog = [], feedVisto = new Map();
 function feed(text) {
-  const d = document.createElement('div'); d.className = 'msg'; d.textContent = text;
-  $('feed').prepend(d); setTimeout(() => d.remove(), 2500);
+  text = String(text ?? ''); if (!text) return;
+  const agora = performance.now();
+  feedLog.push([agora, text]); if (feedLog.length > 40) feedLog.shift();
+  const m = modoAvisos();
+  if (m === 'minimo') return;
+  let mostra = text, tempo = 2500;
+  if (m === 'pouco') {
+    if (agora - (feedVisto.get(text) || -1e9) < 10000) return; // o mesmo aviso não volta logo
+    feedVisto.set(text, agora); if (feedVisto.size > 80) feedVisto.delete(feedVisto.keys().next().value);
+    if (mostra.length > 48) mostra = mostra.slice(0, 46).trimEnd() + '…';
+    tempo = 1800; $('feed').replaceChildren(); // um por vez
+  }
+  const d = document.createElement('div'); d.className = 'msg'; d.textContent = mostra;
+  $('feed').prepend(d); setTimeout(() => d.remove(), tempo);
   while ($('feed').children.length > 3) $('feed').lastChild.remove();
 }
 // aviso de abates (canto superior direito)
@@ -3836,11 +3864,15 @@ function killFeed(killer, victim, wid, head, mine, meVictim) {
   const v = document.createElement('span'); v.textContent = victim;
   d.append(k, w, v);
   if (head) { const h = document.createElement('span'); h.className = 'hs'; h.textContent = '🎯'; d.append(h); }
-  $('killfeed').prepend(d); setTimeout(() => d.remove(), 6000);
-  while ($('killfeed').children.length > 5) $('killfeed').lastChild.remove();
+  const m = modoAvisos();
+  if (m === 'minimo' && !mine && !meVictim) return;
+  const max = m === 'todos' ? 5 : 2, tempo = m === 'todos' ? 6000 : 3000;
+  if (m !== 'todos') d.style.animation = 'kfIn .2s ease-out, fade 3s forwards';
+  $('killfeed').prepend(d); setTimeout(() => d.remove(), tempo);
+  while ($('killfeed').children.length > max) $('killfeed').lastChild.remove();
 }
 let bannerT = 0;
-function banner(text, t = 1.8) { $('banner').textContent = text; $('banner').style.opacity = 1; $('banner').classList.toggle('alto', $('downBox').style.display === 'block' || $('revivePrompt').style.display === 'block'); bannerT = t; }
+function banner(text, t = 1.8) { if (modoAvisos() !== 'todos') t = Math.min(t, modoAvisos() === 'minimo' ? 1.1 : 1.4); $('banner').textContent = text; $('banner').style.opacity = 1; $('banner').classList.toggle('alto', $('downBox').style.display === 'block' || $('revivePrompt').style.display === 'block'); bannerT = t; }
 let hitT = 0;
 // marcador de acerto: branco normal, amarelo na cabeça, vermelho maior no abate
 function hitMarker(kind) {
@@ -3858,7 +3890,7 @@ function project(x, y, z) {
 }
 // kind: 'n' normal (branco), 'head' (amarelo), 'kill' (vermelho)
 function dmgNumber(target, dmg, kind) {
-  if (!target?.pos || !(dmg > 0) || regra('raiz') || settings.leve) return;
+  if (!target?.pos || !(dmg > 0) || regra('raiz') || settings.leve || modoAvisos() === 'minimo') return;
   const el = document.createElement('div'); el.className = 'dnum ' + kind;
   el.textContent = Math.round(dmg) + (kind === 'head' ? '!' : '');
   $('floats').appendChild(el);
@@ -4008,6 +4040,7 @@ function setInputMode(toque, avisa) {
   if (toque) { if (document.pointerLockElement) document.exitPointerLock(); }
   else if (state === 'play' && !mouseNaTela()) pauseGame(true); // "Pronto?": o clique trava o mouse na tela
   if (avisa) feed(toque ? '👆 Controles de toque' : '🖱️ Mouse e teclado ligados (clique na tela para mirar, Esc pausa)');
+  aplicaAvisos();
 }
 addEventListener('pointermove', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse' && (e.movementX || e.movementY)) setInputMode(false, true); }, { passive: true });
 addEventListener('pointerdown', e => { if (settings.ctrl === 'auto' && isTouch && e.pointerType === 'mouse') setInputMode(false, true); }, { capture: true, passive: true });
@@ -4296,8 +4329,11 @@ function chatLine(nome, txt, cor = '#ffd23d') {
   const d = document.createElement('div'); d.className = 'cl';
   const b = document.createElement('b'); b.textContent = nome + ':'; b.style.color = cor;
   d.append(b, document.createTextNode(txt));
-  $('chatLog').append(d); setTimeout(() => d.remove(), 10000);
-  while ($('chatLog').children.length > 6) $('chatLog').firstChild.remove();
+  feedLog.push([performance.now(), `💬 ${nome}: ${txt}`]); if (feedLog.length > 40) feedLog.shift();
+  const m = modoAvisos();
+  if (m === 'minimo') { const b2 = $('chatBtn'); b2?.classList.add('novo'); setTimeout(() => b2?.classList.remove('novo'), 2500); return; }
+  $('chatLog').append(d); setTimeout(() => d.remove(), m === 'todos' ? 10000 : 4000);
+  while ($('chatLog').children.length > (m === 'todos' ? 6 : 2)) $('chatLog').firstChild.remove();
 }
 
 // ===== Telas e pausa =====
@@ -4308,7 +4344,7 @@ function togglePause() { if (state === 'play') pauseGame(); else if (state === '
 function pauseGame(primeira) {
   if (state !== 'play' && !primeira) return;
   closeChat();
-  state = 'paused'; touchFire = false; mouseDown = false; player.zoom = false;
+  state = 'paused'; touchFire = false; mouseDown = false; player.zoom = false; $('avisosLog').hidden = true;
   if (mode === 'online' && net.local && !pausaDesde) pausaDesde = performance.now(); // solo: o relógio das hordas para junto
   const online = mode === 'online' && !net.local;
   $('pauseTag').textContent = online ? `Sala ${net.code} · ${MODOS[net.cfg.modo]?.nome || ''}` : 'Pausado';
@@ -4371,7 +4407,7 @@ function closeControls() {
 function loadSettingsForm() {
   const set = (id, v) => { $(id).value = v; };
   set('setSens', settings.sens); set('setTouch', settings.touch); set('setPad', settings.pad || 1); set('setVol', settings.vol); set('setMus', settings.mus ?? 0.5); set('setFov', settings.fov); set('setBtn', settings.btn || 1);
-  set('setLeve', settings.leve ? '1' : '0'); set('setQual', settings.qual); set('setCtrl', settings.ctrl || 'auto'); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0');
+  set('setLeve', settings.leve ? '1' : '0'); set('setQual', settings.qual); set('setCtrl', settings.ctrl || 'auto'); set('setAim', settings.aim ? '1' : '0'); set('setInv', settings.inv ? '1' : '0'); set('setFps', settings.fps ? '1' : '0'); set('setAvisos', settings.avisos || 'auto');
   showSettingValues();
 }
 function showSettingValues() {
@@ -4387,7 +4423,7 @@ function readSettings() {
   const qualAntes = settings.qual, leveAntes = settings.leve;
   Object.assign(settings, {
     sens: +$('setSens').value, touch: +$('setTouch').value, pad: +$('setPad').value, vol: +$('setVol').value, mus: +$('setMus').value, fov: +$('setFov').value, btn: +$('setBtn').value,
-    qual: $('setQual').value, leve: $('setLeve').value === '1', ctrl: $('setCtrl').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1',
+    qual: $('setQual').value, leve: $('setLeve').value === '1', ctrl: $('setCtrl').value, aim: $('setAim').value === '1', inv: $('setInv').value === '1', fps: $('setFps').value === '1', avisos: $('setAvisos').value,
   });
   saveSettings();
   showSettingValues();
@@ -4396,7 +4432,7 @@ function readSettings() {
   if (settings.mus > 0 && (state === 'menu' || state === 'over')) startMusic(); else if (!(settings.mus > 0)) stopMusic();
   camera.fov = settings.fov; camera.updateProjectionMatrix();
   $('fps').style.display = settings.fps ? 'block' : 'none';
-  applyBtnSize(); stickRest();
+  applyBtnSize(); stickRest(); aplicaAvisos();
   if (qualAntes !== settings.qual || leveAntes !== settings.leve) applyQuality();
   if (settings.ctrl !== 'auto') setInputMode(settings.ctrl === 'toque' || settings.ctrl === 'misto');
 }
@@ -7022,10 +7058,16 @@ $('backupCopy').onclick = copiarBackup;
 $('backupLoad').onclick = restaurarBackup;
 $('lockBackBtn').onclick = () => { lk.open = false; openHome(); };
 $('pauseSettingsBtn').onclick = () => openControls('pauseScreen');
+// 📜 os últimos avisos (o celular mostra poucos na tela; aqui ficam todos)
+$('pauseAvisosBtn').onclick = () => {
+  const el = $('avisosLog'); el.hidden = !el.hidden; if (el.hidden) return;
+  const agora = performance.now();
+  el.replaceChildren(...(feedLog.length ? [...feedLog].reverse().map(([t, m]) => { const d = document.createElement('div'); d.textContent = `${Math.max(0, Math.round((agora - t) / 1000))}s · ${m}`; return d; }) : [Object.assign(document.createElement('div'), { textContent: 'Nenhum aviso ainda.' })]));
+};
 $('pauseRoomBtn').onclick = () => showRoomScreen('pauseScreen');
 $('controlsBackBtn').onclick = closeControls;
 for (const id of ['setSens', 'setTouch', 'setPad', 'setVol', 'setMus', 'setFov', 'setBtn']) $(id).oninput = readSettings;
-for (const id of ['setLeve', 'setQual', 'setCtrl', 'setAim', 'setInv', 'setFps']) $(id).onchange = readSettings;
+for (const id of ['setLeve', 'setQual', 'setCtrl', 'setAim', 'setInv', 'setFps', 'setAvisos']) $(id).onchange = readSettings;
 $('leveDica').onclick = () => {
   settings.leve = true; saveSettings(); applyQuality(); loadSettingsForm();
   $('leveDica').hidden = true; leveDica.visto = true; save('pb-leve-dica', true, true);
@@ -11583,7 +11625,7 @@ openHome();
 document.body.classList.toggle('qalta', settings.qual === 'alta' && !settings.leve);
 if (settings.leve) applyQuality(); // Modo leve salvo: resolução, sombras e luzes já ao abrir
 renderContaBtn(); contaAuto(); segredoAuto();
-stickRest();
+stickRest(); aplicaAvisos();
 frame();
 
 // celular girando / barra do navegador aparecendo: ajusta a tela e o joystick
