@@ -5975,13 +5975,14 @@ function openLobby() {
     let c;
     try { c = mqtt.connect(url, { clientId: 'pbl_' + newId(), keepalive: 30, reconnectPeriod: 3000, connectTimeout: 8000, clean: true }); } catch { continue; }
     c.on('connect', () => {
-      c.subscribe(`pbamigos/v${VERSAO}/lobby/+`); c.subscribe(RANK_TOPIC + '/+'); c.subscribe(GAL_TOPIC + '/+'); c.subscribe(ADM_TOPIC + '/+');
-      setTimeout(() => publishRank(c), 1500); publicarGaleria(c); renderLobby();
+      c.subscribe(`pbamigos/v${VERSAO}/lobby/+`); c.subscribe(RANK_TOPIC + '/+'); c.subscribe(GAL_TOPIC + '/+'); c.subscribe(GAL_X_TOPIC + '/+'); c.subscribe(ADM_TOPIC + '/+');
+      c.galVistos = new Set(); setTimeout(() => publishRank(c), 1500); publicarGaleria(c); consertaGaleria(c); renderLobby();
     });
     c.on('message', (tp, buf) => {
       if (!lobby.clients.includes(c)) return;
       if (tp.startsWith(RANK_TOPIC + '/')) return onRank(tp.slice(RANK_TOPIC.length + 1), buf);
-      if (tp.startsWith(GAL_TOPIC + '/')) return onGaleria(tp.slice(GAL_TOPIC.length + 1), buf);
+      if (tp.startsWith(GAL_TOPIC + '/')) return onGaleria(tp.slice(GAL_TOPIC.length + 1), buf, c);
+      if (tp.startsWith(GAL_X_TOPIC + '/')) return onLapide(tp.slice(GAL_X_TOPIC.length + 1), buf);
       if (tp.startsWith(ADM_TOPIC + '/')) return onAdm(tp.slice(ADM_TOPIC.length + 1), buf);
       const code = tp.split('/').pop();
       if (code.length !== 4 || [...code].some(ch => !CODE_CHARS.includes(ch)) || adm.ban.sala.includes(code)) return;
@@ -6769,10 +6770,43 @@ const GAL_TOPIC = 'pbamigos/galeria/f', ADM_TOPIC = 'pbamigos/adm', GAL_MAX = 80
 // quem é o admin: hash do nome da conta (o e-mail do dono), para não deixar o e-mail escrito no código
 const ADM_HASH = '35fb4a69df3721e37254682707ac0f752ef7702c5624a00cf365e76725aea966';
 const galId = id => typeof id === 'string' && /^[a-z0-9]{4,16}$/.test(id);
+// Galeria durável: os servidores públicos às vezes apagam as mensagens retidas (e a galeria sumia para todo mundo).
+// Cada aparelho guarda uma cópia (pb-galeria) e, ao conectar, republica nesse servidor o que ele não mandou.
+// Apagado pelo criador vira lápide retida (galeria/x/<id>); lápide ou ban do admin nunca é republicado.
+const GAL_X_TOPIC = 'pbamigos/galeria/x';
+const galX = new Set((load('pb-gal-x', []) || []).filter(galId));
+GALERIA = (load('pb-galeria', []) || []).filter(c => c && galId(c.id) && !galX.has(c.id) && validFace(c.foto) && typeof c.nome === 'string')
+  .map(c => ({ id: c.id, nome: c.nome.slice(0, 14), foto: c.foto, cor: (c.cor | 0) & 0xffffff, ts: +c.ts || 0 })).slice(0, GAL_MAX);
+function guardaGaleria() {
+  clearTimeout(guardaGaleria.t);
+  guardaGaleria.t = setTimeout(() => {
+    const lista = GALERIA.filter(c => !galX.has(c.id) && !adm.ban.gal.includes(c.id));
+    for (let n = lista.length; n > 0; n = Math.floor(n * 0.7)) if (save('pb-galeria', lista.slice(0, n).map(c => ({ id: c.id, nome: c.nome, foto: c.foto, cor: c.cor, ts: c.ts })), true)) break; // sem espaço: guarda menos
+  }, 1500);
+}
+function onLapide(id, buf) {
+  if (!galId(id) || !buf.length) return;
+  if (!galX.has(id)) { galX.add(id); save('pb-gal-x', [...galX].slice(-300), true); }
+  const i = GALERIA.findIndex(c => c.id === id); if (i >= 0) { GALERIA.splice(i, 1); galMudou(); }
+}
+// conserta o servidor: o que está na cópia e ele não mandou volta para ele (devagar, um a cada 0,4 s)
+function consertaGaleria(c) {
+  setTimeout(() => {
+    if (!c.connected || !lobby.clients.includes(c)) return;
+    const faltam = GALERIA.filter(g => !c.galVistos?.has(g.id) && !galX.has(g.id) && !adm.ban.gal.includes(g.id) && validFace(g.foto));
+    faltam.forEach((g, k) => setTimeout(() => {
+      if (!c.connected || c.galVistos?.has(g.id) || galX.has(g.id) || adm.ban.gal.includes(g.id)) return;
+      c.publish(`${GAL_TOPIC}/${g.id}`, JSON.stringify({ nome: g.nome, foto: g.foto, cor: g.cor | 0, ts: g.ts || Date.now() }), { retain: true, qos: 1 });
+      c.galVistos?.add(g.id);
+    }, 400 * k));
+  }, 8000);
+}
 let galRender = 0;
-function galMudou() { clearTimeout(galRender); galRender = setTimeout(() => { if (state === 'menu' && $('startScreen').style.display !== 'none') renderChars(); if ($('admScreen').style.display !== 'none') renderAdm(); }, 400); }
-function onGaleria(id, buf) {
+function galMudou() { guardaGaleria(); clearTimeout(galRender); galRender = setTimeout(() => { if (state === 'menu' && $('startScreen').style.display !== 'none') renderChars(); if ($('admScreen').style.display !== 'none') renderAdm(); }, 400); }
+function onGaleria(id, buf, cli) {
   if (!galId(id)) return;
+  if (cli && buf.length) (cli.galVistos ||= new Set()).add(id);
+  if (galX.has(id)) return;
   const i = GALERIA.findIndex(c => c.id === id);
   if (!buf.length) { if (i >= 0) { GALERIA.splice(i, 1); galMudou(); } return; }
   if (adm.ban.gal.includes(id)) return;
@@ -6835,7 +6869,8 @@ function renomearPersonagem(key, atual) {
 }
 function tirarDaGaleria(id) {
   GALERIA = GALERIA.filter(c => c.id !== id);
-  for (const c of lobby.clients) if (c.connected) c.publish(`${GAL_TOPIC}/${id}`, '', { retain: true, qos: 1 });
+  galX.add(id); save('pb-gal-x', [...galX].slice(-300), true); guardaGaleria();
+  for (const c of lobby.clients) if (c.connected) { c.publish(`${GAL_TOPIC}/${id}`, '', { retain: true, qos: 1 }); c.publish(`${GAL_X_TOPIC}/${id}`, '1', { retain: true, qos: 1 }); }
 }
 
 // ----- administrador -----
